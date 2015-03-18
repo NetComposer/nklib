@@ -1,0 +1,9 @@
+{application, nklib, [
+    {description, "Nekso Standard Library"},
+    {vsn, "0.1.0"},
+    {modules, []},
+    {registered, []},
+    {mod, {nklib_app, []}},
+    {applications, [kernel, stdlib]},
+    {env, []}
+]}.
