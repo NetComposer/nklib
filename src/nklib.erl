@@ -27,7 +27,10 @@
 -export_type([header/0, header_name/0, header_value/0]).
 -export_type([scheme/0, code/0]).
 
+-export([get_env/2, get_env/3]).
+
 -include("nklib.hrl").
+
 
 
 %% ===================================================================
@@ -80,3 +83,43 @@
 %% ===================================================================
 
 
+%% @doc Equivalent to get_env(App, Key, undefined)
+-spec get_env(atom(), term()) ->
+	term().
+
+get_env(App, Key) ->
+    get_env(App, Key, undefined).
+
+
+%% @doc Gets a environment value from the applications config values,
+%% the init line or a OS environment.
+-spec get_env(atom(), term(), term()) ->
+	term().
+
+get_env(App, Key, Default) ->
+    case application:get_env(App, Key) of
+        {ok, Val} -> 
+            Val; 
+        undefined -> 
+            case init:get_argument(Key) of
+                {ok, [[Val]]} when is_atom(Default) -> 
+                    case catch list_to_existing_atom(Val) of
+                        {'EXIT', _} -> list_to_binary(Val);
+                        Atom -> Atom
+                    end;
+                {ok, [[Val]]} when is_integer(Default) -> 
+                    case nklib_util:to_integer(Val) of
+                        error -> list_to_binary(Val);
+                        Int -> Int
+                    end;
+                {ok, [[Val]]} -> 
+                    list_to_binary(Val);
+                _ ->
+                    EnvKey = "NKCORE_" ++ 
+                             string:to_upper(nklib_util:to_list(Key)),
+                    case os:getenv(EnvKey) of
+                        false -> Default;
+                        Val -> list_to_binary(Val)
+                     end
+            end
+    end.
