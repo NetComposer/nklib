@@ -24,9 +24,6 @@
 %% It allows a process to register any `term()' as a process identification, 
 %% and store any metadata with it. When the process exists, these terms are deleted. 
 %%
-%% It also allows to start `gen_server' or `gen_fsm' processes using any `term()' as 
-%% registered name.
-
 -module(nklib_proc).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -behaviour(gen_server).
