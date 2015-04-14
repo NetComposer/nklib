@@ -19,7 +19,6 @@ distclean: clean
 tests: compile eunit
 
 eunit:
-	export ERL_FLAGS="-config test/app.config -args_file test/vm.args"; \
 	./rebar eunit skip_deps=true
 
 docs:
