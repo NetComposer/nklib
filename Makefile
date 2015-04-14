@@ -1,6 +1,6 @@
 REPO ?= nklib
 
-.PHONY: rel stagedevrel deps release
+.PHONY: deps
 
 all: deps compile
 
