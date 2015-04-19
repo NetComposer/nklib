@@ -22,7 +22,7 @@
 -module(nklib_util).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([loglevel/1, ensure_all_started/2]).
+-export([ensure_all_started/2]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1]).
 -export([timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
@@ -87,13 +87,6 @@
 %% ===================================================================
 %% Public
 %% =================================================================
-
-%% @doc Changes log level for console
--spec loglevel(debug|info|notice|warning|error) ->
-    ok.
-
-loglevel(Level) -> 
-    lager:set_loglevel(lager_console_backend, Level).
 
 
 %% @doc Ensure that an application and all of its transitive
