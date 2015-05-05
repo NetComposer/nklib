@@ -129,17 +129,19 @@ safe_call(Dest, Msg, Timeout) ->
     Master = self(),
     Slave = spawn(
         fun() ->
-            Reply = try 
+            Reply = try  
                 {ok, gen_server:call(Dest, Msg, Timeout)}
             catch
-                C:E -> {error, {C, E}}
+                error:E -> {error, E};
+                exit:E -> {exit, E}
             end,
             Master ! {self(), Reply}
         end
     ),
     receive 
         {Slave, {ok, Msg}} -> Msg;
-        {Slave, {error, {C, E}}} -> error({C, E})
+        {Slave, {error, Error}} -> error(Error);
+        {Slave, {exit, Exit}} -> exit(Exit)
     end.
 
 
