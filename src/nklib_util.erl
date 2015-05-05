@@ -22,7 +22,7 @@
 -module(nklib_util).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([ensure_all_started/2]).
+-export([ensure_all_started/2, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1]).
 -export([timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
@@ -116,6 +116,30 @@ ensure_all_started(Application, Type, Started) ->
             end;
         {error, Reason} ->
             {error, Reason, Started}
+    end.
+
+
+
+%% @doc Safe gen_server:call/3
+%% It will spawn helper process in order to be sure no spurious message arrives
+-spec safe_call(atom()|pid(), term(), pos_integer()|infinity) ->
+    term().
+
+safe_call(Dest, Msg, Timeout) ->
+    Master = self(),
+    Slave = spawn(
+        fun() ->
+            Reply = try 
+                {ok, gen_server:call(Dest, Msg, Timeout)}
+            catch
+                C:E -> {error, {C, E}}
+            end,
+            Master ! {self(), Reply}
+        end
+    ),
+    receive 
+        {Slave, {ok, Msg}} -> Msg;
+        {Slave, {error, {C, E}}} -> error({C, E})
     end.
 
 
