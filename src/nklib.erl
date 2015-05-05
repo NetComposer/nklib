@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export_type([domain/0, domain_id/0]).
--export_type([optslist/0, uri/0, user_uri/0, token/0]).
+-export_type([optslist/0, uri/0, user_uri/0, token/0, user_token/0]).
 -export_type([header/0, header_name/0, header_value/0]).
 -export_type([scheme/0, code/0]).
 
@@ -54,6 +54,9 @@
 
 %% Token
 -type token() :: {name(), [{name(), value()}]}.
+
+%% User specified token
+-type user_token() :: string() | binary() | token().
 
 %% Generic Name
 -type name() :: binary() | string() | atom().
