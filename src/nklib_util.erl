@@ -32,7 +32,7 @@
 -export([store_value/2, store_value/3, store_values/2, filtermap/2]).
 -export([to_binary/1, to_list/1, to_integer/1, to_boolean/1]).
 -export([to_ip/1, to_host/1, to_host/2]).
--export([to_lower/1, to_upper/1, strip/1, unquote/1, is_string/1]).
+-export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, append_max/3]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, msg/2]).
@@ -570,6 +570,16 @@ to_upper(Other) ->
     to_upper(to_list(Other)).
 
 
+%% @doc Converts a binary(), string() or list() to a list of binaries
+-spec to_binlist(term()|[term()]) ->
+    [binary()].
+
+to_binlist([I|_]=String) when is_integer(I) -> [list_to_binary(String)];
+to_binlist(List) when is_list(List) -> [to_binary(T) || T <- List];
+to_binlist(Bin) when is_binary(Bin) -> [Bin];
+to_binlist(Term) -> [to_binary(Term)].
+
+
 %% @doc URI Strips trailing white space
 -spec strip(list()|binary()) ->
     list().
@@ -760,7 +770,7 @@ digit(D) when (D >= 0) and (D < 10) -> D + 48;
 digit(D) -> D + 87.
 
 
-%% @doc Gets the subbinary after `Char'.
+%% @doc Gets the sub-binary after `Char'.
 -spec bin_last(char(), binary()) ->
     binary().
 
