@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([ensure_all_started/2, safe_call/3]).
--export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1]).
+-export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
 -export([timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
