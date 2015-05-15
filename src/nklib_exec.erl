@@ -24,21 +24,34 @@
 -behaviour(gen_server).
 
 -export([async/2, send_data/2, close/1, sync/2, get_all/0]).
+-export([parser_lines/1]).
 -export([start_link/2, init/1, terminate/2, code_change/3, handle_call/3,
          handle_cast/2, handle_info/2]).
 
 -type refresh_fun() ::
-    fun((Cmd::binary()) -> binary | iolist()).
+    fun((Cmd::binary()) -> binary() | iolist()).
 
 -type parser_fun() ::
     fun((Buff::binary()) -> more | {ok, Data::binary(), Rest::binary()}).
+
+
+%% Start options:
+%% - timeout:     time to wait without sending or receiving any data before
+%%                the OS process is killed.
+%% - refresh_fun: if defined, it will called on timeout, and instead of
+%%                killing the process, this data will be sent to the OS
+%%                process.
+%% - parser:      if defined, you can implement an user-defined parser
+%%                for the incoming data. See 'parser_lines/1' for an example.
+%% - kill_time:   after stopping the process, if it is defined, a
+%%                kill -9 will be sent.
 
 -type start_opts() :: 
     #{
         timeout => integer(),
         refresh_fun => refresh_fun(),
-        parser => lines | parser_fun(),
-        stop_time => integer()
+        parser => parser_fun(),
+        kill_time => integer()
     }.
 
 
@@ -47,7 +60,7 @@
 %% ===================================================================
 
 %% @doc Starts an OS process, waits for its termination and returns
-%% the stdout.
+%% the stdout/stderr.
 -spec sync(binary()|iolist(), start_opts()) ->
     {ok, binary()} | {error, {Reason::term(), Body::binary()}}.
 
@@ -62,7 +75,14 @@ sync(Cmd, Opts) ->
 
 
 %% @doc Start an OS process and returns.
-%% The current process will receive the following messages:
+%% The current process will receive the following messages with the format
+%% {?MODULE, pid(), Msg}.
+%%
+%% The messages that will be received are:
+%% - {start, OsPid}:    When the process starts, returns the OS PID
+%% - {data, binary()}:  Data (parsed is defined) returned from stdout/stderr
+%% - {stop, Reason}:    When the process stops
+%%
 -spec async(binary()|iolist(), start_opts()) ->
     {ok, pid()} | {error, term()}.
 
@@ -80,7 +100,8 @@ send_data(Pid, Data) ->
     gen_server:cast(Pid, {send_data, Data}).
 
 
-%% @doc Closes an started OS process
+%% @doc Closes an started OS process. 
+%% If kill_time was defined, a "kill -9" will be sent after this time.
 -spec close(pid()) ->
     ok | {error, term()}.
 
@@ -90,10 +111,26 @@ close(Pid) ->
 
 %% @doc Gets all started OS processes
 -spec get_all() ->
-    [{term(), pid()}].
+    [{Cmd::binary(), Id::pid()}].
 
 get_all() ->
     nklib_proc:values(?MODULE).
+
+
+%% @doc Parser that splits the output into lines
+-spec parser_lines(binary()) ->
+    more | {ok, Data::binary(), Rest::binary()}.
+
+parser_lines(Data) ->
+    case binary:match(Data, [<<"\n">>, <<"\r\n">>]) of
+        {Pos, L} ->
+            {First, Rest1} = erlang:split_binary(Data, Pos),
+            {_, Rest2} = erlang:split_binary(Rest1, L),
+            {ok, First, Rest2};
+        nomatch ->
+            more
+    end.
+
 
 
 %% ===================================================================
@@ -114,7 +151,7 @@ start_link(Cmd, Opts) ->
     timeout_ref :: reference(),
     refresh_fun :: function(),
     parser :: function(),
-    stop_time :: integer(),
+    kill_time :: integer(),
     buffer = <<>> :: binary()
 }).
 
@@ -138,7 +175,7 @@ init([Cmd, #{pid:=UserPid}=Opts]) ->
         timeout_time = maps:get(timeout, Opts, undefined),
         refresh_fun = maps:get(refresh_fun, Opts, undefined),
         parser = maps:get(parser, Opts, undefined),
-        stop_time = maps:get(stop_time, Opts, 5000),
+        kill_time = maps:get(kill_time, Opts, undefined),
         buffer = <<>>
     },
     {ok, restart_timer(State)}.
@@ -222,12 +259,15 @@ code_change(_OldVsn, State, _Extra) ->
 -spec terminate(term(), #state{}) ->
     nklib_util:gen_server_terminate().
 
-terminate(_Reason, #state{user_pid=Pid}=State) ->  
-    case is_pid(Pid) of
+terminate(_Reason, #state{user_pid=UserPid, os_pid=OsPid}=State) ->  
+    case is_pid(UserPid) of
         true -> send_user_msg({stop, process_stop}, State);
         false -> ok
     end,
-    stop_os_cmd(State).
+    case is_integer(OsPid) of
+        true -> stop_os_cmd(State);
+        false -> ok
+    end.
     
 
 
@@ -239,23 +279,23 @@ terminate(_Reason, #state{user_pid=Pid}=State) ->
 -spec wait_sync(pid(), integer()) ->
     {ok, binary()} | {error, {Reason::term(), binary()}}.
 
-wait_sync(Id, Timeout) ->
-    wait_sync(Id, Timeout, <<>>).
+wait_sync(Pid, Timeout) ->
+    wait_sync(Pid, Timeout, <<>>).
     
 
 %% @private
 -spec wait_sync(pid(), integer(), binary()) ->
     {ok, integer(), binary()} | {error, term()}.
 
-wait_sync(Id, Timeout, Buff) ->
+wait_sync(Pid, Timeout, Buff) ->
     receive 
-        {?MODULE, Id, Msg} ->
+        {?MODULE, Pid, Msg} ->
             case Msg of
-                {ospid, _} ->
-                    wait_sync(Id, Timeout, Buff);
+                {start, _} ->
+                    wait_sync(Pid, Timeout, Buff);
                 {data, Data} ->
                     Data1 = <<Buff/binary, Data/binary>>,
-                    wait_sync(Id, Timeout, Data1);
+                    wait_sync(Pid, Timeout, Data1);
                 {stop, ok} ->
                     {ok, Buff};
                 {stop, Reason} ->
@@ -267,13 +307,17 @@ wait_sync(Id, Timeout, Buff) ->
 
 
 %% @private
+restart_timer(#state{timeout_time=undefined}=State) ->
+    State;
+
 restart_timer(#state{timeout_time=Time, timeout_ref=Ref}=State) ->
     nklib_util:cancel_timer(Ref),
     State#state{timeout_ref=erlang:send_after(Time, self(), timeout)}.
 
 
 %% @private
-send_user_msg(Msg, #state{user_pid=Pid}) ->
+send_user_msg(Msg, #state{cmd=Cmd, user_pid=Pid}) ->
+    lager:debug("nklib_exec ~s sending msg: ~p", [Cmd, Msg]),
     Pid ! {?MODULE, self(), Msg}.
 
 
@@ -281,15 +325,16 @@ send_user_msg(Msg, #state{user_pid=Pid}) ->
 do_stop(Status,State) ->
     send_user_msg({stop, Status}, State),
     stop_os_cmd(State),
-    {stop, normal, State#state{user_pid=undefined}}.
+    {stop, normal, State#state{user_pid=undefined, os_pid=undefined}}.
 
 
 %% @private
-stop_os_cmd(#state{port=Port, os_pid=OsPid, stop_time=Time}) ->
+stop_os_cmd(#state{cmd=Cmd, port=Port, os_pid=OsPid, kill_time=KillTime}) ->
     Port ! {self(), close},
-    timer:sleep(Time),
-    case is_integer(OsPid) of
+    case is_integer(KillTime) of
         true ->
+            timer:sleep(KillTime),
+            lager:debug("nklib_exec ~s sending kill", [Cmd]),
             os:cmd("kill -9 " ++ integer_to_list(OsPid));
         false ->
             ok
@@ -300,8 +345,8 @@ stop_os_cmd(#state{port=Port, os_pid=OsPid, stop_time=Time}) ->
 do_parse(<<"nklib_pid:", Rest/binary>>, #state{cmd=Cmd}=State) ->
     {ok, OsPid, <<"\n", Rest2/binary>>} = extract_number(Rest, []),
     State1 = State#state{os_pid=OsPid},
-    lager:debug("nklib_exec OS PID for ~s is ~s", [Cmd, OsPid]),
-    send_user_msg({ospid, OsPid}, State),
+    lager:debug("nklib_exec OS PID for ~s is ~p", [Cmd, OsPid]),
+    send_user_msg({start, OsPid}, State),
     case Rest2 of
         <<>> -> {noreply, State1};
         _ -> do_parse(Rest2, State1)
@@ -312,12 +357,8 @@ do_parse(Data, #state{parser=undefined}=State) ->
     {noreply, State};
 
 do_parse(Data, #state{buffer=Buffer, parser=Parser}=State) ->
-    Fun = case Parser of
-        lines -> fun lines/1;
-        _ when is_function(Parser, 1) -> Parser
-    end,
     Data1 = <<Buffer/binary, Data/binary>>,
-    case catch Fun(Data1) of
+    case catch Parser(Data1) of
         more ->
             {noreply, State#state{buffer=Data1}};
         {ok, Data2, Rest} ->
@@ -325,18 +366,6 @@ do_parse(Data, #state{buffer=Buffer, parser=Parser}=State) ->
             do_parse(Rest, State#state{buffer = <<>>});
         {'EXIT', _Error} ->
             do_stop(parse_error, State)
-    end.
-
-
-%% @doc Parser for \n or \r\n ending lines
-lines(Data) ->
-    case binary:match(Data, [<<"\n">>, <<"\r\n">>]) of
-        {Pos, L} ->
-            {First, Rest1} = erlang:split_binary(Data, Pos),
-            {_, Rest2} = erlang:split_binary(Rest1, L),
-            {ok, First, Rest2};
-        nomatch ->
-            more
     end.
 
 
