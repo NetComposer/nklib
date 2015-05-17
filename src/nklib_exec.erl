@@ -81,6 +81,7 @@ sync(Cmd, Opts) ->
 %% The messages that will be received are:
 %% - {start, OsPid}:    When the process starts, returns the OS PID
 %% - {data, binary()}:  Data (parsed is defined) returned from stdout/stderr
+%% - refresh:           Sent when a refresh is sent to the process        
 %% - {stop, Reason}:    When the process stops
 %%
 -spec async(binary()|iolist(), start_opts()) ->
@@ -237,6 +238,7 @@ handle_info(timeout, #state{refresh_fun=Fun}=State) when is_function(Fun, 1) ->
     #state{cmd=Cmd, port=Port} = State,
     Msg = nklib_util:to_binary(Fun(Cmd)),
     Port ! {self(), {command, Msg}},
+    send_user_msg(refresh, State),
     {noreply, restart_timer(State)};
 
 handle_info(timeout, State) ->
@@ -296,6 +298,8 @@ wait_sync(Pid, Timeout, Buff) ->
                 {data, Data} ->
                     Data1 = <<Buff/binary, Data/binary>>,
                     wait_sync(Pid, Timeout, Data1);
+                refresh ->
+                    wait_sync(Pid, Timeout, Buff);
                 {stop, ok} ->
                     {ok, Buff};
                 {stop, Reason} ->
