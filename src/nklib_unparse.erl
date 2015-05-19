@@ -22,7 +22,7 @@
 -module(nklib_unparse).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([uri/1, token/1, header/1, capitalize/1]).
+-export([uri/1, uri2/1, token/1, header/1, capitalize/1]).
 
 -include("nklib.hrl").
 
@@ -41,6 +41,19 @@ uri(UriList) when is_list(UriList)->
 
 uri(#uri{}=Uri) ->
     list_to_binary(raw_uri(Uri)).
+
+
+%% @doc Serializes an `uri()' or list of `uri()' into a `binary()', using "//" before 
+%% the domain name
+-spec uri2(nklib:uri() | [nklib:uri()]) ->
+    binary().
+
+uri2(UriList) when is_list(UriList) ->
+    nklib_util:bjoin([uri2(Uri) || Uri <- UriList]);
+
+uri2(#uri{domain=Domain}=Uri) ->
+    list_to_binary(raw_uri(Uri#uri{domain= <<"//", Domain/binary>>})).
+
 
 
 %% @doc Serializes a list of `token()'
