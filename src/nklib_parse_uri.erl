@@ -542,7 +542,7 @@ path([], Block, Uri, Acc) ->
             % Remove trailing /
             Acc1 = case Acc of
                 [$/] -> [$/];
-                [$/|Rest] -> Rest;
+                [$/|RestPath] -> RestPath;
                 _ -> Acc
             end,
             Path = list_to_binary(lists:reverse(Acc1)),
@@ -552,7 +552,12 @@ path([], Block, Uri, Acc) ->
     end;
 
 path([Ch|_]=Rest, Block, Uri, Acc) when Ch==$;; Ch==$?; Ch==$>; Ch==$, ->
-    Path = list_to_binary(lists:reverse(Acc)),
+    Acc1 = case Acc of
+        [$/] -> [$/];
+        [$/|RestPath] -> RestPath;
+        _ -> Acc
+    end,
+    Path = list_to_binary(lists:reverse(Acc1)),
     opts(Rest, Block, Uri#uri{path=Path});
 
 path([Ch|Rest], Block, Uri, Acc) ->
