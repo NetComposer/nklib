@@ -539,7 +539,13 @@ headers_value([Ch|Rest], Key, Acc, Quoted, Block, Uri) ->
 path([], Block, Uri, Acc) ->
     case Block of
         false -> 
-            Path = list_to_binary(lists:reverse(Acc)),
+            % Remove trailing /
+            Acc1 = case Acc of
+                [$/] -> [$/];
+                [$/|Rest] -> Rest;
+                _ -> Acc
+            end,
+            Path = list_to_binary(lists:reverse(Acc1)),
             {Uri#uri{path=Path}, []};
         true -> 
             {error, path, ?LINE}
@@ -686,7 +692,9 @@ uri5_test() ->
     [#uri{headers=[], ext_headers=[{<<"route">>, <<"a">>}]}] = 
         uris("sip:a?routE=a").
 
-uri6_test() ->    [#uri{domain = <<"a">>, port = 0, path = <<"/ws/1">>}] = uris("sip:a/ws/1"),
+uri6_test() ->    
+    [#uri{domain = <<"a">>, port = 0, path = <<"/ws/1">>}] = uris("sip:a/ws/1"),
+    [#uri{domain = <<"a">>, port = 0, path = <<"/ws/1">>}] = uris("sip:a/ws/1/"),
     [#uri{domain = <<"a">>, port = 0, path = <<"/ws">>}] = uris("<sip:a/ws>"),
     error = uris(" \x09  sip  \r\n :  a /ws/1  "),
     [#uri{domain = <<"a">>, port = 20, path= <<"/ws">>}] = uris("sip:a : 20/ws"),
