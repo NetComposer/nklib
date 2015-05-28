@@ -27,7 +27,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([uris/1, ruris/1, tokens/1, integers/1, dates/1, scheme/1, name/1]).
--export([unquote/1]).
+-export([unquote/1, path/1]).
 
 -include("nklib.hrl").
 
@@ -132,7 +132,7 @@ name(Name) when is_list(Name) ->
     name(list_to_binary(Name)).
 
 
-%% @doc Removes leading and trailing \"  if present
+%% @doc Removes leading and trailing \" if present
 -spec unquote(list()|binary()) ->
     binary() | error.
 
@@ -153,6 +153,24 @@ unquote(_) ->
     error.
 
 
+%% @doc Adds starting "/" and removes ending "/"
+-spec path(string()|binary()|iolist()) ->
+    binary().
+
+path(List) when is_list(List) ->
+    path(list_to_binary(List));
+path(<<>>) ->
+    <<>>;
+path(Bin) when is_binary(Bin) ->
+    Bin1 = case Bin of
+        <<"/", _/binary>> -> Bin;
+        _ -> <<"/", Bin/binary>>
+    end,
+    Size = byte_size(Bin1)-1,
+    case Bin1 of
+        <<Base:Size/binary, "/">> -> Base;
+        _ -> Bin1
+    end.
 
 
 %% ===================================================================
