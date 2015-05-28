@@ -166,10 +166,14 @@ path(Bin) when is_binary(Bin) ->
         <<"/", _/binary>> -> Bin;
         _ -> <<"/", Bin/binary>>
     end,
-    Size = byte_size(Bin1)-1,
-    case Bin1 of
-        <<Base:Size/binary, "/">> -> Base;
-        _ -> Bin1
+    case byte_size(Bin1)-1 of
+        0 ->
+            Bin1;
+        Size ->
+            case Bin1 of
+                <<Base:Size/binary, "/">> -> Base;
+                _ -> Bin1
+            end
     end.
 
 
