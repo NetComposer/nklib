@@ -31,6 +31,7 @@
 -export([reg/1, reg/2, reg/3, reg/4, values/1]).
 -export([register_name/2, unregister_name/1, whereis_name/1, send/2]).
 -export([wait_put/1, wait_put/2, wait_del/1, wait_del/2]).
+-export([try_call/4]).
 -export([fold_names/2, fold_pids/2, size/0, pending_msgs/0]).
 -export([start/4, start_link/4]).
 -export([start_link/0, init/1, terminate/2, code_change/3, handle_call/3, 
@@ -231,7 +232,28 @@ start_link(Type, Name, Module, Args) ->
     start(Type, true, Name, Module, Args).
 
 
-%
+%% @doc Tries to call a function with a previous lock
+%% If it is locked, sleeps and tries again
+-spec try_call(function(), term(), pos_integer(), pos_integer()) ->
+    term().
+
+try_call(_Fun, _Ref, _Time, 0) ->
+    error(max_tries);
+
+try_call(Fun, Ref, Time, Tries) ->
+    case reg({nklib_proc_try_call, Ref}) of
+        true ->
+            try 
+                Fun()
+            after
+                del({nklib_proc_try_call, Ref})
+            end;
+        {false, _} ->
+            timer:sleep(Time),
+            try_call(Fun, Ref, Time, Tries-1)
+    end.
+
+
 
 %% ===================================================================
 %% gen_server
