@@ -28,6 +28,12 @@
 %% @private
 start_link() ->
     ChildsSpec = [
+        {nklib_config,
+            {nklib_config, start_link, []},
+            permanent,
+            5000,
+            worker,
+            [nklib_config]},
         {nklib_proc,
             {nklib_proc, start_link, []},
             permanent,

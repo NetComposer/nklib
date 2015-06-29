@@ -182,8 +182,8 @@ init([Cmd, #{pid:=UserPid}=Opts]) ->
     {ok, restart_timer(State)}.
 
 
--spec handle_call(term(), nklib_util:gen_server_from(), #state{}) ->
-    nklib_util:gen_server_call(#state{}).
+-spec handle_call(term(), {pid(), term()}, #state{}) ->
+    {reply, term(), #state{}} | {noreply, #state{}}.
 
 handle_call(get_state, _From, State) ->
     {reply, State, State};
@@ -195,7 +195,7 @@ handle_call(Msg, _From, State) ->
 
 %% @private
 -spec handle_cast(term(), #state{}) ->
-    nklib_util:gen_server_cast(#state{}).
+    {noreply, #state{}} | {stop, term(), #state{}}.
 
 handle_cast({send_data, Data}, #state{port=Port}=State) ->
     Port ! {self(), {command, Data}},
@@ -214,7 +214,7 @@ handle_cast(Msg, State) ->
 
 %% @private
 -spec handle_info(term(), #state{}) ->
-    nklib_util:gen_server_info(#state{}).
+    {noreply, #state{}} | {stop, term(), #state{}}.
 
 handle_info({Port, {data, Data}}, #state{port=Port}=State) ->
     do_parse(Data, restart_timer(State));
@@ -251,7 +251,7 @@ handle_info(Info, State) ->
 
 %% @private
 -spec code_change(term(), #state{}, term()) ->
-    nklib_util:gen_server_code_change(#state{}).
+    {ok, #state{}}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -259,7 +259,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 -spec terminate(term(), #state{}) ->
-    nklib_util:gen_server_terminate().
+    ok.
 
 terminate(_Reason, #state{user_pid=UserPid, os_pid=OsPid}=State) ->  
     case is_pid(UserPid) of

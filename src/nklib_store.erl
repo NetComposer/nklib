@@ -155,7 +155,7 @@ stop() ->
 
 %% @private 
 -spec init(term()) ->
-    nklib_util:gen_server_init(#state{}).
+    {ok, #state{}}.
 
 init([Time]) ->
     ets:new(nklib_store, [public, named_table]),
@@ -165,8 +165,8 @@ init([Time]) ->
 
 
 %% @private
--spec handle_call(term(), nklib_util:gen_server_from(), #state{}) ->
-    nklib_util:gen_server_call(#state{}).
+-spec handle_call(term(), {pid(), term()}, #state{}) ->
+    {reply, term(), #state{}} | {noreply, #state{}} | {stop, normal, ok, #state{}}.
 
 handle_call({put, Key, Value, Opts}, _From, State) ->
     case ets:lookup(nklib_store, Key) of
@@ -254,7 +254,7 @@ handle_call(Msg, _From, State) ->
 
 %% @private
 -spec handle_cast(term(), #state{}) ->
-    nklib_util:gen_server_cast(#state{}).
+    {noreply, #state{}}.
 
 handle_cast(Msg, State) -> 
     lager:error("Module ~p received unexpected cast ~p", [?MODULE, Msg]),
@@ -263,7 +263,7 @@ handle_cast(Msg, State) ->
 
 %% @private
 -spec handle_info(term(), #state{}) ->
-    nklib_util:gen_server_info(#state{}).
+    {noreply, #state{}}.
 
 handle_info({timeout, _, timer}, State) -> 
     Self = self(),
@@ -283,7 +283,7 @@ handle_info(Info, State) ->
 
 %% @private
 -spec code_change(term(), #state{}, term()) ->
-    nklib_util:gen_server_code_change(#state{}).
+    {ok, #state{}}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -291,8 +291,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 -spec terminate(term(), #state{}) ->
-    nklib_util:gen_server_terminate().
-
+    ok.
+    
 terminate(_Reason, _State) ->  
     ok.
 

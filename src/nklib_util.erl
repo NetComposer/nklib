@@ -39,10 +39,6 @@
 -export([init/4, handle_call/5, handle_cast/4, handle_info/4, terminate/4, handle_any/5]).
 
 -export_type([optslist/0, timestamp/0, l_timestamp/0]).
--export_type([gen_server_from/0, gen_server_time/0, gen_server_init/1, 
-              gen_server_cast/1, gen_server_info/1, gen_server_call/1,
-              gen_server_code_change/1, gen_server_terminate/0]).
-
 -include("nklib.hrl").
 
 
@@ -57,31 +53,6 @@
 -type timestamp() :: non_neg_integer().
 
 -type l_timestamp() :: non_neg_integer().
-
--type gen_server_from() :: {pid(), reference()}.
-
--type gen_server_time() :: 
-        non_neg_integer() | hibernate.
-
--type gen_server_init(State) ::
-        {ok, State} | {ok, State, gen_server_time()} | ignore.
-
--type gen_server_cast(State) :: 
-        {noreply, State} | {noreply, State, gen_server_time()} |
-        {stop, term(), State}.
-
--type gen_server_info(State) :: 
-        gen_server_cast(State).
-
--type gen_server_call(State) :: 
-        {reply, term(), State} | {reply, term(), State, gen_server_time()} |
-        {stop, term(), term(), State} | gen_server_cast(State).
-
--type gen_server_code_change(State) ::
-        {ok, State}.
-
--type gen_server_terminate() ::
-        ok.
 
 
 %% ===================================================================
@@ -816,7 +787,7 @@ msg(Msg, Vars) ->
 
 %% @private
 -spec init(term(), tuple(), pos_integer(), pos_integer()) ->
-    gen_server_init(tuple()).
+    {ok, tuple()}.
 
 init(Arg, State, PosMod, PosSubState) ->
     SubMod = element(PosMod, State),
@@ -833,9 +804,13 @@ init(Arg, State, PosMod, PosSubState) ->
 
 
 %% @private
--spec handle_call(term(), gen_server_from(), State::tuple(), 
-                  pos_integer(), pos_integer()) ->
-    gen_server_call(tuple()).
+-spec handle_call(term(), {pid(), term()}, tuple(), pos_integer(), pos_integer()) ->
+    {reply, term(), tuple()} |
+    {reply, term(), tuple(), timeout() | hibernate} |
+    {noreply, tuple()} |
+    {noreply, tuple(), timeout() | hibernate} |
+    {stop, term(), term(), tuple()} |
+    {stop, term(), tuple()}.
 
 handle_call(Msg, From, State, PosMod, PosSubState) ->
     SubMod = element(PosMod, State),
@@ -858,7 +833,9 @@ handle_call(Msg, From, State, PosMod, PosSubState) ->
 
 %% @private
 -spec handle_cast(term(), tuple(), pos_integer(), pos_integer()) ->
-    gen_server_cast(tuple()).
+    {noreply, tuple()} |
+    {noreply, tuple(), timeout() | hibernate} |
+    {stop, term(), tuple()}.
 
 handle_cast(Msg, State, PosMod, PosSubState) ->
     SubMod = element(PosMod, State),
@@ -875,7 +852,9 @@ handle_cast(Msg, State, PosMod, PosSubState) ->
 
 %% @private
 -spec handle_info(term(), tuple(), pos_integer(), pos_integer()) ->
-    gen_server_cast(tuple()).
+    {noreply, tuple()} |
+    {noreply, tuple(), timeout() | hibernate} |
+    {stop, term(), tuple()}.
 
 handle_info(Msg, State, PosMod, PosSubState) ->
     SubMod = element(PosMod, State),
@@ -892,7 +871,7 @@ handle_info(Msg, State, PosMod, PosSubState) ->
 
 %% @private
 -spec terminate(term(), tuple(), pos_integer(), pos_integer()) ->
-    gen_server_cast(tuple()).
+    any().
 
 terminate(Reason, State, PosMod, PosSubState) ->
     SubMod = element(PosMod, State),

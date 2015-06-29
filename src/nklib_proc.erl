@@ -269,7 +269,7 @@ start_link() ->
 
 %% @private 
 -spec init(term()) ->
-    nklib_util:gen_server_init(#state{}).
+    {ok, #state{}}.
 
 init([]) ->
     process_flag(priority, high),
@@ -279,8 +279,8 @@ init([]) ->
 
 
 %% @private
--spec handle_call(term(), nklib_util:gen_server_from(), #state{}) ->
-    nklib_util:gen_server_call(#state{}).
+-spec handle_call(term(), {pid(), term()}, #state{}) ->
+    {reply, term(), #state{}} | {noreply, #state{}} | {stop, normal, ok, #state{}}.
 
 handle_call({set_monitor, Pid}, _From, State) ->
     {reply, monitor(process, Pid), State};
@@ -325,7 +325,7 @@ handle_call({wait_del, Name}, {FromPid, FromRef}, State) ->
     end;
                 
 handle_call(stop, _From, State) ->
-    {stop, normal, State};
+    {stop, normal, ok, State};
 
 handle_call(Msg, _From, State) ->
     lager:error("Module ~p received unexpected call ~p", [?MODULE, Msg]),
@@ -334,7 +334,7 @@ handle_call(Msg, _From, State) ->
 
 %% @private
 -spec handle_cast(term(), #state{}) ->
-    nklib_util:gen_server_cast(#state{}).
+    {noreply, #state{}}.
 
 handle_cast({put, Name, Value, Pid}, State) ->
     register(Name, val, Value, Pid),
@@ -355,7 +355,7 @@ handle_cast(Msg, State) ->
 
 %% @private
 -spec handle_info(term(), #state{}) ->
-    nklib_util:gen_server_info(#state{}).
+    {noreply, #state{}}.
 
 handle_info({'DOWN', _Ref, process, Pid, _Reason}, State) ->
     unregister_all(Pid),
@@ -368,7 +368,7 @@ handle_info(Info, State) ->
 
 %% @private
 -spec code_change(term(), #state{}, term()) ->
-    nklib_util:gen_server_code_change(#state{}).
+    {ok, #state{}}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -376,7 +376,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 -spec terminate(term(), #state{}) ->
-    nklib_util:gen_server_terminate().
+    ok.
 
 terminate(_Reason, _State) ->  
     ok.
