@@ -36,13 +36,16 @@
 
 
 -type parse_opt() ::
-    atom | bool | {enum, [atom()]} |
-    integer | {integer, none|integer(), none|integer()} |
-    string | binary | host | host6 |
+    any | atom | boolean | {enum, [atom()]} | list | proc |
+    integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
+    {integer, [integer()]} |
+    string | binary | lower | upper |
+    ip | host | host6 | {function, pos_integer()} |
     {'fun', 
         fun((atom(), term(), [{atom(), term()}]) -> 
-            {ok, term()} | {opts, [{atom(), term()}]} | error)
-    }.
+            ok | {ok, term()} | {opts, [{atom(), term()}]} | error)
+    } |
+    unquote | path.
 
 -type parse_spec() :: #{ atom() => parse_opt()}.
 
@@ -145,6 +148,9 @@ increment_domain(Mod, Domain, Key, Count) ->
 -spec parse_config(map()|list(), parse_spec()) ->
     {ok, [{atom(), term()}], [{atom(), term()}]} | {error, term()}.
 
+parse_config([], _Spec) ->
+    {ok, [], []};
+
 parse_config(Terms, Spec) when is_list(Terms) ->
     try
         parse_config(Terms, [], [], Spec)
@@ -153,7 +159,10 @@ parse_config(Terms, Spec) when is_list(Terms) ->
     end;
 
 parse_config(Terms, Spec) when is_map(Terms) ->
-    parse_config(maps:to_list(Terms), Spec).
+    case maps:size(Terms) of
+        0 -> {ok, [], []};
+        _ -> parse_config(maps:to_list(Terms), Spec)
+    end.
 
 
 %% @doc Loads parsed application environment
@@ -278,7 +287,7 @@ terminate(_Reason, _State) ->
     {ok, [{atom(), term()}], [{atom(), term()}]}.
 
 parse_config([], Opts1, Opts2, _Spec) ->
-    {ok, Opts1, Opts2};
+    {ok, lists:reverse(Opts1), lists:reverse(Opts2)};
 
 parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec) when is_atom(Key) ->
     case maps:get(Key, Spec, not_found) of
@@ -286,6 +295,8 @@ parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec) when is_atom(Key) ->
             parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec);
         {'fun', Fun} ->
             case catch Fun(Key, Val, Opts1) of
+                ok ->
+                    parse_config(Rest, [{Key, Val}|Opts1], Opts2, Spec);
                 {ok, Val1} ->
                     parse_config(Rest, [{Key, Val1}|Opts1], Opts2, Spec);
                 {opts, Opts1B} ->
@@ -325,10 +336,13 @@ to_atom(Term) ->
 -spec do_parse_config(parse_opt(), term()) ->
     {ok, term()} | error.
 
+do_parse_config(any, Val) ->
+    {ok, Val};
+
 do_parse_config(atom, Val) ->
     {ok, to_atom(Val)};
 
-do_parse_config(bool, Val) ->
+do_parse_config(boolean, Val) ->
     case nklib_util:to_boolean(Val) of
         true -> {ok, true};
         false -> {ok, false};
@@ -342,8 +356,26 @@ do_parse_config({enum, List}, Val) ->
         false -> error
     end;
 
+do_parse_config(list, Val) ->
+    case is_list(Val) of
+        true -> {ok, Val};
+        false -> error
+    end;
+
+do_parse_config(proc, Val) ->
+    case is_atom(Val) orelse is_pid(Val) of
+        true -> {ok, Val};
+        false -> error
+    end;
+
 do_parse_config(integer, Val) ->
     do_parse_config({integer, none, none}, Val);
+
+do_parse_config(pos_integer, Val) ->
+    do_parse_config({integer, 0, none}, Val);
+
+do_parse_config(nat_integer, Val) ->
+    do_parse_config({integer, 1, none}, Val);
 
 do_parse_config({integer, Min, Max}, Val) ->
     case nklib_util:to_integer(Val) of
@@ -357,11 +389,34 @@ do_parse_config({integer, Min, Max}, Val) ->
             error
     end;
 
+do_parse_config({integer, List}, Val) when is_list(List) ->
+    case nklib_util:to_integer(Val) of
+        error -> 
+            error;
+        Int ->
+            case lists:member(Int, List) of
+                true -> {ok, Int};
+                false -> error
+        end
+    end;
+    
 do_parse_config(string, Val) ->
     {ok, nklib_util:to_list(Val)};
 
 do_parse_config(binary, Val) ->
     {ok, nklib_util:to_binary(Val)};
+
+do_parse_config(lower, Val) ->
+    {ok, nklib_util:to_lower(Val)};
+
+do_parse_config(upper, Val) ->
+    {ok, nklib_util:to_upper(Val)};
+
+do_parse_config(ip, Val) ->
+    case nklib_util:to_ip(Val) of
+        {ok, Ip} -> {ok, Ip};
+        _ -> error
+    end;
 
 do_parse_config(host, Val) ->
     {ok, nklib_util:to_host(Val)};
@@ -373,6 +428,18 @@ do_parse_config(host6, Val) ->
             {ok, nklib_util:to_host(HostIp6, true)};
         error -> 
             {ok, nklib_util:to_binary(Val)}
+    end;
+
+do_parse_config({function, N}, Val) ->
+    case is_function(Val, N) of
+        true -> {ok, Val};
+        false -> error
+    end;
+
+do_parse_config(unquote, Val) ->
+    case nklib_parse:unquote(Val) of
+        error -> error;
+        Bin -> {ok, Bin}
     end;
 
 do_parse_config([Opt|Rest], Val) ->
@@ -434,7 +501,7 @@ config() ->
 parse1() ->
     Spec = #{
         field01 => atom,
-        field02 => bool,
+        field02 => boolean,
         field03 => {enum, [a, b]},
         field04 => integer,
         field05 => {integer, 1, 5},
@@ -452,19 +519,19 @@ parse1() ->
 
     {error, {invalid_atom, "12345"}} = parse_config([{field01, "12345"}], Spec),
     
-    {ok,[{field02, false}, {field01, fieldXX}],[{unknown, a}]} = 
+    {ok,[{field01, fieldXX}, {field02, false}],[{unknown, a}]} = 
         parse_config(
             [{field01, "fieldXX"}, {field02, <<"false">>}, {"unknown", a}],
             Spec),
 
     {ok,[
-        {field09, <<"[::1]">>},
-        {field08, <<"host">>},
-        {field07, <<"b">>},
-        {field06, "a"},
-        {field05, 2},
+        {field03, b},
         {field04, -1},
-        {field03, b}
+        {field05, 2},
+        {field06, "a"},
+        {field07, <<"b">>},
+        {field08, <<"host">>},
+        {field09, <<"[::1]">>}
     ], []} = 
         parse_config(
             [{field03, <<"b">>}, {"field04", -1}, {field05, 2}, {field06, "a"}, 
