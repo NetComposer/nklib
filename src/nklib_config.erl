@@ -36,9 +36,9 @@
 
 
 -type parse_opt() ::
-    any | atom | boolean | {enum, [atom()]} | list | proc |
+    any | atom | boolean | {enum, [atom()]} | list | pid | proc |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
-    {integer, [integer()]} |
+    {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | host | host6 | {function, pos_integer()} |
     {'fun', 
@@ -368,6 +368,12 @@ do_parse_config(proc, Val) ->
         false -> error
     end;
 
+do_parse_config(pid, Val) ->
+    case is_pid(Val) of
+        true -> {ok, Val};
+        false -> error
+    end;
+
 do_parse_config(integer, Val) ->
     do_parse_config({integer, none, none}, Val);
 
@@ -400,6 +406,12 @@ do_parse_config({integer, List}, Val) when is_list(List) ->
         end
     end;
     
+do_parse_config({record, Type}, Val) ->
+    case is_record(Val, Type) of
+        true -> {ok, Val};
+        false -> error
+    end;
+
 do_parse_config(string, Val) ->
     {ok, nklib_util:to_list(Val)};
 
