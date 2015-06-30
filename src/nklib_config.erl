@@ -41,11 +41,9 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | host | host6 | {function, pos_integer()} |
-    {'fun', 
-        fun((atom(), term(), [{atom(), term()}]) -> 
-            ok | {ok, term()} | {opts, [{atom(), term()}]} | error)
-    } |
-    unquote | path.
+    unquote | path |
+    fun((atom(), term(), [{atom(), term()}]) -> 
+            ok | {ok, term()} | {opts, [{atom(), term()}]} | error).
 
 -type parse_spec() :: #{ atom() => parse_opt()}.
 
@@ -289,35 +287,47 @@ terminate(_Reason, _State) ->
 parse_config([], Opts1, Opts2, _Spec) ->
     {ok, lists:reverse(Opts1), lists:reverse(Opts2)};
 
-parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec) when is_atom(Key) ->
-    case maps:get(Key, Spec, not_found) of
+parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec) ->
+    case is_atom(Key) of
+        true ->
+            find_config(Key, Key, Val, Rest, Opts1, Opts2, Spec);
+        _ ->
+            case catch to_atom(Key) of
+                {invalid_atom, _} ->
+                    parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec);
+                Index -> 
+                    find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec)
+            end
+    end;
+
+parse_config([Key|Rest], Opts1, Opts2, Spec) ->
+    parse_config([{Key, true}|Rest], Opts1, Opts2, Spec).
+
+
+%% @private
+find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec) ->
+    case maps:get(Index, Spec, not_found) of
         not_found ->
             parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec);
-        {'fun', Fun} ->
-            case catch Fun(Key, Val, Opts1) of
+        Fun when is_function(Fun, 3) ->
+            case catch Fun(Index, Val, Opts1) of
                 ok ->
-                    parse_config(Rest, [{Key, Val}|Opts1], Opts2, Spec);
+                    parse_config(Rest, [{Index, Val}|Opts1], Opts2, Spec);
                 {ok, Val1} ->
-                    parse_config(Rest, [{Key, Val1}|Opts1], Opts2, Spec);
+                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec);
                 {opts, Opts1B} ->
                     parse_config(Rest, Opts1B, Opts2, Spec);
                 error ->
-                    throw({invalid_key, Key})
+                    throw({invalid_key, Index})
             end;
         KeySpec ->
             case do_parse_config(KeySpec, Val) of
                 {ok, Val1} ->
-                    parse_config(Rest, [{Key, Val1}|Opts1], Opts2, Spec);
+                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec);
                 error ->
-                    throw({invalid_key, Key})
+                    throw({invalid_key, Index})
             end
-    end;
-
-parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec) ->
-    parse_config([{to_atom(Key), Val}|Rest], Opts1, Opts2, Spec);
-    
-parse_config([Key|Rest], Opts1, Opts2, Spec) ->
-    parse_config([{Key, true}|Rest], Opts1, Opts2, Spec).
+    end.
 
 
 %% @private
@@ -454,6 +464,12 @@ do_parse_config(unquote, Val) ->
         Bin -> {ok, Bin}
     end;
 
+do_parse_config(path, Val) ->
+    case nklib_parse:path(Val) of
+        error -> error;
+        Bin -> {ok, Bin}
+    end;
+
 do_parse_config([Opt|Rest], Val) ->
     case catch do_parse_config(Opt, Val) of
         {ok, Val1} -> {ok, Val1};
@@ -521,7 +537,7 @@ parse1() ->
         field07 => binary,
         field08 => host,
         field09 => host6,
-        field10 => {'fun', fun parse_fun/3},
+        field10 => fun parse_fun/3,
         field11 => [{enum, [a]}, binary],
         fieldXX => invalid
     },
@@ -531,7 +547,7 @@ parse1() ->
 
     {error, {invalid_atom, "12345"}} = parse_config([{field01, "12345"}], Spec),
     
-    {ok,[{field01, fieldXX}, {field02, false}],[{unknown, a}]} = 
+    {ok,[{field01, fieldXX}, {field02, false}],[{"unknown", a}]} = 
         parse_config(
             [{field01, "fieldXX"}, {field02, <<"false">>}, {"unknown", a}],
             Spec),
