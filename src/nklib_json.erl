@@ -22,7 +22,7 @@
 -module(nklib_json).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([encode/1, decode/1]).
+-export([encode/1, encode_pretty/1, decode/1]).
 
 
 %% ===================================================================
@@ -42,11 +42,24 @@
     binary().
 
 encode(Term) ->
-    case erlang:function_exported(jiffy, encode, 2) of
+    case erlang:function_exported(jiffy, encode, 1) of
         true ->
             jiffy:encode(Term);
         false ->
             jsx:encode(Term)
+    end.
+
+
+%% @doc Encodes a term() to JSON
+-spec encode_pretty(term()) ->
+    binary().
+
+encode_pretty(Term) ->
+    case erlang:function_exported(jiffy, encode, 2) of
+        true ->
+            jiffy:encode(Term, [pretty]);
+        false ->
+            jsx:encode(Term, [space, {indent, 2}])
     end.
 
 
