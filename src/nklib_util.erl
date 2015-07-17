@@ -33,7 +33,7 @@
 -export([to_binary/1, to_list/1, to_integer/1, to_boolean/1]).
 -export([to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
--export([bjoin/1, bjoin/2, append_max/3]).
+-export([bjoin/1, bjoin/2, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, msg/2]).
 -export([init/4, handle_call/5, handle_cast/4, handle_info/4, terminate/4, handle_any/5]).
@@ -721,6 +721,31 @@ append_max(Term, List, Max) when length(List) < Max ->
     List ++ [Term];
 append_max(Term, [_|Rest], _) ->
     Rest ++ [Term].
+
+
+%% @private
+-spec randomize(list()) ->
+    list().
+
+randomize([]) ->
+    [];
+randomize([A]) ->
+    [A];
+randomize([A, B]) ->
+    case crypto:rand_uniform(0, 2) of
+        0 -> [A, B];
+        1 -> [B, A]
+    end;
+randomize([A, B, C]) ->
+    case crypto:rand_uniform(0, 3) of
+        0 -> [A, B, C];
+        1 -> [B, C, A];
+        2 -> [C, A, B]
+    end;
+randomize(List) when is_list(List) ->
+    Size = length(List),
+    List1 = [{crypto:rand_uniform(0, Size), Term} || Term <- List],
+    [Term || {_, Term} <- lists:sort(List1)].
 
 
 %% @private
