@@ -41,7 +41,7 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | host | host6 | {function, pos_integer()} |
-    unquote | path |
+    unquote | path | uris | tokens | 
     fun((atom(), term(), [{atom(), term()}]) -> 
             ok | {ok, term()} | {opts, [{atom(), term()}]} | error).
 
@@ -468,6 +468,18 @@ do_parse_config(path, Val) ->
     case nklib_parse:path(Val) of
         error -> error;
         Bin -> {ok, Bin}
+    end;
+
+do_parse_config(uris, Val) ->
+    case nklib_parse:uris(Val) of
+        error -> error;
+        Uris -> {ok, Uris}
+    end;
+
+do_parse_config(tokens, Val) ->
+    case nklib_parse:tokens(Val) of
+        error -> error;
+        Tokens -> {ok, Tokens}
     end;
 
 do_parse_config([Opt|Rest], Val) ->
