@@ -143,6 +143,7 @@ increment_domain(Mod, Domain, Key, Count) ->
 
 
 %% @doc Parses a list of options
+%% For lists, if duplicated entries, the last one wins
 -spec parse_config(map()|list(), parse_spec()) ->
     {ok, [{atom(), term()}], [{atom(), term()}]} | 
     {ok, map(), map()} |
@@ -305,7 +306,8 @@ parse_config([], Opts1, Opts2, _Spec, list) ->
     {ok, lists:reverse(Opts1), lists:reverse(Opts2)};
 
 parse_config([], Opts1, Opts2, _Spec, map) ->
-    {ok, maps:from_list(Opts1), maps:from_list(Opts2)};
+    % We need to reverse to get only the last value
+    {ok, maps:from_list(lists:reverse(Opts1)), maps:from_list(lists:reverse(Opts2))};
 
 parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec, Type) ->
     case is_atom(Key) of
