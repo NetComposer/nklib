@@ -30,7 +30,7 @@
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
 -export([get_integer/2, get_integer/3]).
 -export([store_value/2, store_value/3, store_values/2, filtermap/2]).
--export([to_binary/1, to_list/1, to_integer/1, to_boolean/1]).
+-export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
 -export([to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, append_max/3, randomize/1]).
@@ -430,7 +430,16 @@ to_list(L) when is_list(L) -> L;
 to_list(B) when is_binary(B) -> binary_to_list(B);
 to_list(A) when is_atom(A) -> atom_to_list(A);
 to_list(I) when is_integer(I) -> erlang:integer_to_list(I);
+to_list(M) when is_map(M) -> maps:to_list(M);
 to_list(P) when is_pid(P) -> pid_to_list(P).
+
+
+%% @doc Converts to a `map()'.
+-spec to_map(list()|map()) -> 
+    map().
+
+to_map(M) when is_map(M) -> M;
+to_map(L) when is_list(L) -> maps:from_list(L).
 
 
 %% @doc Converts anything into a `integer()' or `error'.
