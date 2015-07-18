@@ -25,7 +25,7 @@
 
 -export([get/2, get/3, put/3, del/2, increment/3]).
 -export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4]).
--export([parse_config/2, load_env/4, load_domain/5]).
+-export([parse_config/2, parse_config/3, load_env/4, load_domain/5]).
 
 -export([start_link/0, init/1, terminate/2, code_change/3, handle_call/3, handle_cast/2, 
          handle_info/2]).
@@ -41,7 +41,7 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | host | host6 | {function, pos_integer()} |
-    unquote | path | uris | tokens | 
+    unquote | path | uris | tokens | map() |
     fun((atom(), term(), [{atom(), term()}]) -> 
             ok | {ok, term()} | {opts, [{atom(), term()}]} | error).
 
@@ -144,22 +144,39 @@ increment_domain(Mod, Domain, Key, Count) ->
 
 %% @doc Parses a list of options
 -spec parse_config(map()|list(), parse_spec()) ->
-    {ok, [{atom(), term()}], [{atom(), term()}]} | {error, term()}.
+    {ok, [{atom(), term()}], [{atom(), term()}]} | 
+    {ok, map(), map()} |
+    {error, term()}.
 
-parse_config([], _Spec) ->
+parse_config(Terms, Spec) ->
+    parse_config(Terms, Spec, list).
+
+
+%% @doc Parses a list of options
+-spec parse_config(map()|list(), parse_spec(), map|list) ->
+    {ok, [{atom(), term()}], [{atom(), term()}]} | 
+    {ok, map(), map()} |
+    {error, term()}.
+
+parse_config([], _Spec, list) ->
     {ok, [], []};
 
-parse_config(Terms, Spec) when is_list(Terms) ->
+parse_config([], _Spec, map) ->
+    {ok, #{}, []};
+
+
+parse_config(Terms, Spec, Type) when is_list(Terms) ->
     try
-        parse_config(Terms, [], [], Spec)
+        parse_config(Terms, [], [], Spec, Type)
     catch
         throw:Throw -> {error, Throw}
     end;
 
-parse_config(Terms, Spec) when is_map(Terms) ->
+parse_config(Terms, Spec, Type) when is_map(Terms) ->
     case maps:size(Terms) of
-        0 -> {ok, [], []};
-        _ -> parse_config(maps:to_list(Terms), Spec)
+        0 when Type==list -> {ok, [], []};
+        0 when Type==map -> {ok, #{}, #{}};
+        _ -> parse_config(maps:to_list(Terms), Spec, Type)
     end.
 
 
@@ -281,49 +298,64 @@ terminate(_Reason, _State) ->
 
 %% @private
 -spec parse_config([{term(), term()}], [{atom(), term()}], [{atom(), term()}],
-                   parse_spec()) ->
+                   parse_spec(), map|list) ->
     {ok, [{atom(), term()}], [{atom(), term()}]}.
 
-parse_config([], Opts1, Opts2, _Spec) ->
+parse_config([], Opts1, Opts2, _Spec, list) ->
     {ok, lists:reverse(Opts1), lists:reverse(Opts2)};
 
-parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec) ->
+parse_config([], Opts1, Opts2, _Spec, map) ->
+    {ok, maps:from_list(Opts1), maps:from_list(Opts2)};
+
+parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec, Type) ->
     case is_atom(Key) of
         true ->
-            find_config(Key, Key, Val, Rest, Opts1, Opts2, Spec);
+            find_config(Key, Key, Val, Rest, Opts1, Opts2, Spec, Type);
         _ ->
             case catch to_atom(Key) of
                 {invalid_atom, _} ->
-                    parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec);
+                    parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec, Type);
                 Index -> 
-                    find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec)
+                    find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec, Type)
             end
     end;
 
-parse_config([Key|Rest], Opts1, Opts2, Spec) ->
-    parse_config([{Key, true}|Rest], Opts1, Opts2, Spec).
+parse_config([Key|Rest], Opts1, Opts2, Spec, Type) ->
+    parse_config([{Key, true}|Rest], Opts1, Opts2, Spec, Type).
 
 
 %% @private
-find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec) ->
+find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec, Type) ->
     case maps:get(Index, Spec, not_found) of
         not_found ->
-            parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec);
+            parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec, Type);
         Fun when is_function(Fun, 3) ->
             case catch Fun(Index, Val, Opts1) of
                 ok ->
-                    parse_config(Rest, [{Index, Val}|Opts1], Opts2, Spec);
+                    parse_config(Rest, [{Index, Val}|Opts1], Opts2, Spec, Type);
                 {ok, Val1} ->
-                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec);
+                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec, Type);
                 {opts, Opts1B} ->
-                    parse_config(Rest, Opts1B, Opts2, Spec);
+                    parse_config(Rest, Opts1B, Opts2, Spec, Type);
                 error ->
+                    throw({invalid_key, Index})
+            end;
+        SubSpec when is_map(SubSpec) ->
+            case is_list(Val) orelse is_map(Val) of
+                true ->
+                    case parse_config(Val, SubSpec, Type) of
+                        {ok, Val1, _SubOpts2} ->
+                            parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec, Type);
+                        {error, Term} ->
+                            throw(Term)
+                    end;
+                false ->
                     throw({invalid_key, Index})
             end;
         KeySpec ->
             case do_parse_config(KeySpec, Val) of
                 {ok, Val1} ->
-                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec);
+                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec, Type);
                 error ->
                     throw({invalid_key, Index})
             end
@@ -499,7 +531,9 @@ do_parse_config(Type, _Val) ->
 %% EUnit tests
 %% ===================================================================
 
--define(TEST, 1).
+
+% -compile([export_all]).
+% -define(TEST, 1).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -551,6 +585,11 @@ parse1() ->
         field09 => host6,
         field10 => fun parse_fun/3,
         field11 => [{enum, [a]}, binary],
+        field12 => 
+            #{
+                field12_a => atom,
+                field12_b => integer
+            },
         fieldXX => invalid
     },
 
@@ -588,7 +627,28 @@ parse1() ->
 
     {ok, [{field11, a}], []} = parse_config([{field11, a}], Spec),
     {ok, [{field11, <<"b">>}], []} = parse_config([{field11, b}], Spec),
+
+    {error, {invalid_key, field12}} = parse_config([{field12, a}], Spec),
+    {error, {invalid_atom, 1}} = parse_config([{field12, [{field12_a, 1}]}], Spec),
+    % Field 12c is ignored
+    {ok, [{field12, [{field12_a, ok},{field12_b, 1}]}],[]} = Sub1 = 
+        parse_config(
+            [{field12, [{field12_a, "ok"}, {field12_b, "1"}, {field_12_c, none}]}], 
+            Spec),
+    Sub1 = 
+        parse_config(
+            #{field12 => #{field12_a=>"ok", field12_b=>"1", field_12_c=>none}},
+            Spec),
+    {ok, #{field12 := #{field12_a:=ok, field12_b:=1}}, #{}} = Sub2 = 
+        parse_config(
+            [{field12, [{field12_a, "ok"}, {field12_b, "1"}, {field_12_c, none}]}], 
+            Spec, map),
+    Sub2 = 
+        parse_config(
+            #{field12 => #{field12_a=>"ok", field12_b=>"1", field_12_c=>none}},
+            Spec, map),
     ok.
+
 
 
 
