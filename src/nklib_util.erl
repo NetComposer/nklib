@@ -418,6 +418,7 @@ to_binary(undefined) -> <<>>;
 to_binary(A) when is_atom(A) -> atom_to_binary(A, latin1);
 to_binary(I) when is_integer(I) -> list_to_binary(erlang:integer_to_list(I));
 to_binary(#uri{}=Uri) -> nklib_unparse:uri(Uri);
+to_binary(P) when is_pid(P) -> to_binary(to_list(P));
 to_binary(N) -> msg("~p", [N]).
 
 
@@ -428,7 +429,8 @@ to_binary(N) -> msg("~p", [N]).
 to_list(L) when is_list(L) -> L;
 to_list(B) when is_binary(B) -> binary_to_list(B);
 to_list(A) when is_atom(A) -> atom_to_list(A);
-to_list(I) when is_integer(I) -> erlang:integer_to_list(I).
+to_list(I) when is_integer(I) -> erlang:integer_to_list(I);
+to_list(P) when is_pid(P) -> pid_to_list(P).
 
 
 %% @doc Converts anything into a `integer()' or `error'.
