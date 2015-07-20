@@ -386,6 +386,12 @@ do_parse_config(any, Val) ->
 do_parse_config(atom, Val) ->
     {ok, to_atom(Val)};
 
+do_parse_config(boolean, Val) when Val==0; Val=="0" ->
+    {ok, false};
+
+do_parse_config(boolean, Val) when Val==1; Val=="1" ->
+    {ok, true};
+
 do_parse_config(boolean, Val) ->
     case nklib_util:to_boolean(Val) of
         true -> {ok, true};
