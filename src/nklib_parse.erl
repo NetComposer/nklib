@@ -67,6 +67,7 @@ ruris(RUris) ->
     [nklib:token()] | error.
 
 tokens(<<>>) -> [];
+tokens([<<>>]) -> [];
 tokens([]) -> [];
 tokens([First|_]=String) when is_integer(First) -> tokens([String]);  
 tokens(List) when is_list(List) -> parse_tokens(List, []);
