@@ -34,16 +34,18 @@
 
 -compile({no_auto_import, [get/1, put/2]}).
 
-
--type parse_opt() ::
+-type opt() ::
     any | atom | boolean | {enum, [atom()]} | list | pid | proc |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | host | host6 | {function, pos_integer()} |
-    unquote | path | uris | tokens | map() |
+    unquote | path | uris | tokens | map() | list() |
     fun((atom(), term(), [{atom(), term()}]) -> 
             ok | {ok, term()} | {opts, [{atom(), term()}]} | error).
+
+-type parse_opt() ::
+    opt() | {list, opt()}.
 
 -type parse_spec() :: #{ atom() => parse_opt()}.
 
@@ -412,6 +414,14 @@ do_parse_config(list, Val) ->
         false -> error
     end;
 
+do_parse_config({list, Type}, Val) ->
+    case is_list(Val) of
+        true -> 
+            do_parse_config_list(Val, Type, []);
+        false -> 
+            error
+    end;
+
 do_parse_config(proc, Val) ->
     case is_atom(Val) orelse is_pid(Val) of
         true -> {ok, Val};
@@ -535,6 +545,20 @@ do_parse_config(Type, _Val) ->
     throw({invalid_spec, Type}).
 
 
+%% @private
+do_parse_config_list([], _Type, Acc) ->
+    {ok, lists:reverse(Acc)};
+
+do_parse_config_list([Term|Rest], Type, Acc) ->
+    case do_parse_config(Type, Term) of
+        {ok, Val} ->
+            do_parse_config_list(Rest, Type, [Val|Acc]);
+        error ->
+            error
+    end.
+
+        
+
 %% ===================================================================
 %% EUnit tests
 %% ===================================================================
@@ -542,6 +566,7 @@ do_parse_config(Type, _Val) ->
 
 % -compile([export_all]).
 % -define(TEST, 1).
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -598,6 +623,7 @@ parse1() ->
                 field12_a => atom,
                 field12_b => integer
             },
+        field13 => {list, atom},
         fieldXX => invalid
     },
 
@@ -655,7 +681,10 @@ parse1() ->
         parse_config(
             #{field12 => #{field12_a=>"ok", field12_b=>"1", field_12_c=>none}},
             Spec, map),
+
+    {ok, [{field13, [a, b, '3']}], []} = parse_config(#{field13 => [a, "b", 3]}, Spec),
     ok.
+
 
 
 
