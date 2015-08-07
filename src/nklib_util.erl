@@ -62,6 +62,9 @@
 
 %% @doc Ensure that an application and all of its transitive
 %% dependencies are started.
+-spec ensure_all_started(atom(), permanent | transient | temporary) ->
+    {ok, [atom()]} | {error, term()}.
+
 ensure_all_started(Application, Type) ->
     case ensure_all_started(Application, Type, []) of
         {ok, Started} ->
@@ -72,6 +75,7 @@ ensure_all_started(Application, Type) ->
     end.
 
 
+%% @private
 ensure_all_started(Application, Type, Started) ->
     case application:start(Application, Type) of
         ok ->
