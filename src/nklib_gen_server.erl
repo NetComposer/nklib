@@ -46,9 +46,9 @@ init(Arg, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     case SubMod:init(Arg) of
         {ok, User1} ->
-            {ok, setelement(PosUser, User1, State)};
+            {ok, setelement(PosUser, State, User1)};
         {ok, User1, Timeout} ->
-            {ok, setelement(PosUser, User1, State), Timeout};
+            {ok, setelement(PosUser, State, User1), Timeout};
         {stop, Reason} ->
             {stop, Reason};
         ignore ->
@@ -70,17 +70,17 @@ handle_call(Msg, From, State, PosMod, PosUser) ->
     User = element(PosUser, State),
     case SubMod:handle_call(Msg, From, User) of
         {reply, Reply, User1} ->
-            {reply, Reply, setelement(PosUser, User1, State)};
+            {reply, Reply, setelement(PosUser, State, User1)};
         {reply, Reply, User1, Timeout} ->
-            {reply, Reply, setelement(PosUser, User1, State), Timeout};
+            {reply, Reply, setelement(PosUser, State, User1), Timeout};
         {noreply, User1} ->
-            {noreply, setelement(PosUser, User1, State)};
+            {noreply, setelement(PosUser, State, User1)};
         {noreply, User1, Timeout} ->
-            {noreply, setelement(PosUser, User1, State), Timeout};
+            {noreply, setelement(PosUser, State, User1), Timeout};
         {stop, Reason, User1} ->
-            {reply, Reason, setelement(PosUser, User1, State)};
+            {reply, Reason, setelement(PosUser, State, User1)};
         {stop, Reason, Reply, User1} ->
-            {stop, Reason, Reply, setelement(PosUser, User1, State)}
+            {stop, Reason, Reply, setelement(PosUser, State, User1)}
     end.
 
 
@@ -95,11 +95,11 @@ handle_cast(Msg, State, PosMod, PosUser) ->
     User = element(PosUser, State),
     case SubMod:handle_cast(Msg, User) of
         {noreply, User1} ->
-            {noreply, setelement(PosUser, User1, State)};
+            {noreply, setelement(PosUser, State, User1)};
         {noreply, User1, Timeout} ->
-            {noreply, setelement(PosUser, User1, State), Timeout};
+            {noreply, setelement(PosUser, State, User1), Timeout};
         {stop, Reason, User1} ->
-            {reply, Reason, setelement(PosUser, User1, State)}
+            {reply, Reason, setelement(PosUser, State, User1)}
     end.
 
 
@@ -114,11 +114,11 @@ handle_info(Msg, State, PosMod, PosUser) ->
     User = element(PosUser, State),
     case SubMod:handle_info(Msg, User) of
         {noreply, User1} ->
-            {noreply, setelement(PosUser, User1, State)};
+            {noreply, setelement(PosUser, State, User1)};
         {noreply, User1, Timeout} ->
-            {noreply, setelement(PosUser, User1, State), Timeout};
+            {noreply, setelement(PosUser, State, User1), Timeout};
         {stop, Reason, User1} ->
-            {reply, Reason, setelement(PosUser, User1, State)}
+            {reply, Reason, setelement(PosUser, State, User1)}
     end.
 
 
@@ -131,7 +131,7 @@ code_change(OldVsn, State, Extra, PosMod, PosUser) ->
     User = element(PosUser, State),
     case SubMod:code_change(OldVsn, User, Extra) of
         {ok, User1} ->
-            {ok, setelement(PosUser, User1, State)};
+            {ok, setelement(PosUser, State, User1)};
         {error, Reason} ->
             {error, Reason}
     end.
@@ -149,20 +149,23 @@ terminate(Reason, State, PosMod, PosUser) ->
 
 %% @private
 -spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer()) ->
-    term().
+    {ok, tuple()} |
+    {ok, term(), tuple()} |
+    {error, term(), tuple()} |
+    {error, term(), term(), tuple()}.
 
 handle_any(Fun, Args, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     User = element(PosUser, State),
     case apply(SubMod, Fun, Args++[User]) of
         {ok, User1} ->
-            {ok, setelement(PosUser, User1, State)};
+            {ok, setelement(PosUser, State, User1)};
         {ok, Reply, User1} ->
-            {ok, Reply, setelement(PosUser, User1, State)};
-        {error, Error} ->
-            {error, Error};
+            {ok, Reply, setelement(PosUser, State, User1)};
         {error, Error, User1} ->
-            {error, Error, setelement(PosUser, User1, State)}
+            {error, Error, setelement(PosUser, State, User1)};
+        {error, Error, Reply, User1} ->
+            {error, Error, Reply, setelement(PosUser, State, User1)}
     end.
 
 
