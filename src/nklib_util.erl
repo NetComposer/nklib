@@ -35,8 +35,7 @@
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
--export([cancel_timer/1, msg/2]).
--export([init/4, handle_call/5, handle_cast/4, handle_info/4, terminate/4, handle_any/5]).
+-export([cancel_timer/1, demonitor/1, msg/2]).
 
 -export_type([optslist/0, timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -811,6 +810,17 @@ cancel_timer(_) ->
     false.
 
 
+%% @doc Cancels and existig timer.
+-spec demonitor(reference()|undefined) ->
+    boolean().
+
+demonitor(Ref) when is_reference(Ref) ->
+    erlang:demonitor(Ref, [flush]);
+
+demonitor(_) ->
+    false.
+
+
 %% @private
 -spec msg(string(), [term()]) -> 
     binary().
@@ -823,121 +833,6 @@ msg(Msg, Vars) ->
         Result -> 
             Result
     end.
-
-
-%% @private
--spec init(term(), tuple(), pos_integer(), pos_integer()) ->
-    {ok, tuple()}.
-
-init(Arg, State, PosMod, PosSubState) ->
-    SubMod = element(PosMod, State),
-    case SubMod:init(Arg) of
-        {ok, SubState1} ->
-            {ok, setelement(PosSubState, SubState1, State)};
-        {ok, SubState1, Timeout} ->
-            {noreply, setelement(PosSubState, SubState1, State), Timeout};
-        {stop, Reason} ->
-            {stop, Reason};
-        ignore ->
-            ignore
-    end.
-
-
-%% @private
--spec handle_call(term(), {pid(), term()}, tuple(), pos_integer(), pos_integer()) ->
-    {reply, term(), tuple()} |
-    {reply, term(), tuple(), timeout() | hibernate} |
-    {noreply, tuple()} |
-    {noreply, tuple(), timeout() | hibernate} |
-    {stop, term(), term(), tuple()} |
-    {stop, term(), tuple()}.
-
-handle_call(Msg, From, State, PosMod, PosSubState) ->
-    SubMod = element(PosMod, State),
-    SubState = element(PosSubState, State),
-    case SubMod:handle_call(Msg, From, SubState) of
-        {reply, Reply, SubState1} ->
-            {reply, Reply, setelement(PosSubState, SubState1, State)};
-        {reply, Reply, SubState1, Timeout} ->
-            {reply, Reply, setelement(PosSubState, SubState1, State), Timeout};
-        {noreply, SubState1} ->
-            {noreply, setelement(PosSubState, SubState1, State)};
-        {noreply, SubState1, Timeout} ->
-            {noreply, setelement(PosSubState, SubState1, State), Timeout};
-        {stop, Reason, SubState1} ->
-            {reply, Reason, setelement(PosSubState, SubState1, State)};
-        {stop, Reason, Reply, SubState1} ->
-            {stop, Reason, Reply, setelement(PosSubState, SubState1, State)}
-    end.
-
-
-%% @private
--spec handle_cast(term(), tuple(), pos_integer(), pos_integer()) ->
-    {noreply, tuple()} |
-    {noreply, tuple(), timeout() | hibernate} |
-    {stop, term(), tuple()}.
-
-handle_cast(Msg, State, PosMod, PosSubState) ->
-    SubMod = element(PosMod, State),
-    SubState = element(PosSubState, State),
-    case SubMod:handle_cast(Msg, SubState) of
-        {noreply, SubState1} ->
-            {noreply, setelement(PosSubState, SubState1, State)};
-        {noreply, SubState1, Timeout} ->
-            {noreply, setelement(PosSubState, SubState1, State), Timeout};
-        {stop, Reason, SubState1} ->
-            {reply, Reason, setelement(PosSubState, SubState1, State)}
-    end.
-
-
-%% @private
--spec handle_info(term(), tuple(), pos_integer(), pos_integer()) ->
-    {noreply, tuple()} |
-    {noreply, tuple(), timeout() | hibernate} |
-    {stop, term(), tuple()}.
-
-handle_info(Msg, State, PosMod, PosSubState) ->
-    SubMod = element(PosMod, State),
-    SubState = element(PosSubState, State),
-    case SubMod:handle_info(Msg, SubState) of
-        {noreply, SubState1} ->
-            {noreply, setelement(PosSubState, SubState1, State)};
-        {noreply, SubState1, Timeout} ->
-            {noreply, setelement(PosSubState, SubState1, State), Timeout};
-        {stop, Reason, SubState1} ->
-            {reply, Reason, setelement(PosSubState, SubState1, State)}
-    end.
-
-
-%% @private
--spec terminate(term(), tuple(), pos_integer(), pos_integer()) ->
-    any().
-
-terminate(Reason, State, PosMod, PosSubState) ->
-    SubMod = element(PosMod, State),
-    SubState = element(PosSubState, State),
-    SubMod:terminate(Reason, SubState).
-
-
-%% @private
--spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer()) ->
-    term().
-
-handle_any(Fun, Args, State, PosMod, PosSubState) ->
-    SubMod = element(PosMod, State),
-    SubState = element(PosSubState, State),
-    case apply(SubMod, Fun, Args++[SubState]) of
-        {ok, SubState1} ->
-            {ok, setelement(PosSubState, SubState1, State)};
-        {ok, Reply, SubState1} ->
-            {ok, Reply, setelement(PosSubState, SubState1, State)};
-        {error, Error} ->
-            {error, Error};
-        {error, Error, SubState1} ->
-            {error, Error, setelement(PosSubState, SubState1, State)}
-    end.
-
-
 
 
 %% ===================================================================
