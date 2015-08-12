@@ -40,7 +40,7 @@
 -type regterm() :: term().
 
 -type reglist(RegTerm) ::
-    {reglist, dict:map(RegTerm, [pid()]), dict:map(pid(), {reference(), [RegTerm]})}.
+    {reglist, dict:dict(RegTerm, [pid()]), dict:dict(pid(), {reference(), [RegTerm]})}.
 
 
 
