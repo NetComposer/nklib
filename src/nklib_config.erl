@@ -45,7 +45,7 @@
             ok | {ok, term()} | {opts, [{atom(), term()}]} | error).
 
 -type parse_opt() ::
-    opt() | {list, opt()}.
+    opt() | {list, opt()} | {update, map|list, MapOrList::atom(), Key::atom(), opt()}.
 
 -type parse_spec() :: #{ atom() => parse_opt()}.
 
@@ -356,6 +356,23 @@ find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec, Type) ->
                 false ->
                     throw({invalid_key, Index})
             end;
+        {update, UpdType, Index2, Key2, SubSpec} ->
+            case do_parse_config(SubSpec, Val) of
+                {ok, Val2} ->
+                    NewOpts1 = case lists:keytake(Index2, 1, Opts1) of
+                        false when UpdType==map -> 
+                            [{Index2, maps:put(Key2, Val2, #{})}|Opts1];
+                        false when UpdType==list -> 
+                            [{Index2, [{Key2, Val2}]}|Opts1];
+                        {value, {Index2, Base}, Opts1A} when UpdType==map ->
+                            [{Index2, maps:put(Key2, Val2, Base)}|Opts1A];
+                        {value, {Index2, Base}, Opts1A} when UpdType==list ->
+                            [{Index2, [{Key2, Val2}|Base]}|Opts1A]
+                    end,
+                    parse_config(Rest, NewOpts1, Opts2, Spec, Type);
+                error ->
+                    throw({invalid_key, Index})
+            end;
         KeySpec ->
             case do_parse_config(KeySpec, Val) of
                 {ok, Val1} ->
@@ -566,7 +583,6 @@ do_parse_config_list([Term|Rest], Type, Acc) ->
 
 % -compile([export_all]).
 % -define(TEST, 1).
-
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -624,6 +640,8 @@ parse1() ->
                 field12_b => integer
             },
         field13 => {list, atom},
+        field14 => {update, map, map1, m_field14, integer},
+        field15 => {update, map, map1, m_field15, atom},
         fieldXX => invalid
     },
 
@@ -683,10 +701,15 @@ parse1() ->
             Spec, map),
 
     {ok, [{field13, [a, b, '3']}], []} = parse_config(#{field13 => [a, "b", 3]}, Spec),
+
+    {ok, [{field01, a}, {map1, #{m_field14:=1, m_field15:=b}}],[]} = 
+        parse_config(#{field01=>a, field14=>1, field15=>b}, Spec),
+
+    {ok, #{field01:=a, map1:=#{m_field14:=1, m_field15:=b}}, #{}} = 
+        parse_config([{field01, a}, {field14, 1}, {field15, b}], Spec, map),
+
+    {error, {invalid_key, field14}} = parse_config(#{field01=>a, field14=>a}, Spec),
     ok.
-
-
-
 
 
 parse_fun(field10, data, _Opts) ->
