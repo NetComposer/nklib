@@ -29,7 +29,8 @@
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
 -export([get_integer/2, get_integer/3]).
--export([store_value/2, store_value/3, store_values/2, filtermap/2]).
+-export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
+-export([filtermap/2]).
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
 -export([to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
@@ -389,6 +390,35 @@ store_values([Val|Rest], List) ->
 store_values([], List) ->
     List.
 
+
+%% @doc Removes values from a list
+-spec filter_values(list(), nklib:optslist()) ->
+    nklib:optslist().
+
+filter_values(Values, List) ->
+    lists:filter(
+        fun(Term) ->
+            case is_tuple(Term) of
+                true -> lists:member(element(1, Term), Values);
+                false -> lists:member(Term, Values)
+            end
+        end,
+        List).
+
+
+%% @doc Removes values from a list
+-spec remove_values(list(), nklib:optslist()) ->
+    nklib:optslist().
+
+remove_values(Values, List) ->
+    lists:filter(
+        fun(Term) ->
+            not case is_tuple(Term) of
+                true -> lists:member(element(1, Term), Values);
+                false -> lists:member(Term, Values)
+            end
+        end,
+        List).
 
 
 -spec filtermap(Fun, List1) -> List2 when
