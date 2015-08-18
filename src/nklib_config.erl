@@ -184,12 +184,12 @@ parse_config(Terms, Spec, Type) when is_map(Terms) ->
 
 
 %% @doc Loads parsed application environment
--spec load_env(term(), atom(), [{atom(), term()}], parse_spec()) ->
+-spec load_env(term(), atom(), map()|list(), parse_spec()) ->
     ok | {error, term()}.
 
 load_env(Mod, App, Defaults, Spec) ->
     AppEnv = application:get_all_env(App),
-    Env1 = nklib_util:defaults(AppEnv, Defaults),
+    Env1 = nklib_util:defaults(AppEnv, nklib_util:to_list(Defaults)),
     case parse_config(Env1, Spec) of
         {ok, Opts, _} ->
             lists:foreach(fun({K,V}) -> put(Mod, K, V) end, Opts),
@@ -200,14 +200,15 @@ load_env(Mod, App, Defaults, Spec) ->
 
 
 %% @doc Loads a domain configuration
--spec load_domain(term(), nklib:domain(), map()|list(), [{atom(), term()}], 
-                  parse_spec()) ->
+-spec load_domain(term(), nklib:domain(), map()|list(), map()|list(), parse_spec()) ->
     ok | {error, term()}.
 
-load_domain(Mod, Domain, Opts, Defaults, Spec) when is_map(Opts) ->
-    load_domain(Mod, Domain, maps:to_list(Opts), Defaults, Spec);
+load_domain(Mod, Domain, Opts, Defaults, Spec) ->
+    do_load_domain(Mod, Domain, nklib_util:to_list(Opts), 
+                    nklib_util:to_list(Defaults), Spec).
 
-load_domain(Mod, Domain, Opts, Defaults, Spec) when is_list(Opts) ->
+%% @private
+do_load_domain(Mod, Domain, Opts, Defaults, Spec) ->
     ValidDomainKeys = proplists:get_keys(Defaults),
     DomainKeys = proplists:get_keys(Opts),
     case DomainKeys -- ValidDomainKeys of
