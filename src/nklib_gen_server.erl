@@ -40,7 +40,8 @@
 
 %% @private
 -spec init(term(), tuple(), pos_integer(), pos_integer()) ->
-    {ok, tuple()}.
+    {ok, tuple()} | {ok, tuple(), timeout()|hibernate} |
+    {stop, term()} | ignore.
 
 init(Arg, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
