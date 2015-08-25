@@ -42,7 +42,7 @@
     ip | host | host6 | {function, pos_integer()} |
     unquote | path | uris | tokens | map() | list() |
     fun((atom(), term(), [{atom(), term()}]) -> 
-            ok | {ok, term()} | {opts, [{atom(), term()}]} | error).
+            ok | {ok, term()} | {opts, [{atom(), term()}]} | error | {error, term()}).
 
 -type parse_opt() ::
     opt() | {list, opt()} | {update, map|list, MapOrList::atom(), Key::atom(), opt()}.
@@ -343,7 +343,9 @@ find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec, Type) ->
                 {opts, Opts1B} ->
                     parse_config(Rest, Opts1B, Opts2, Spec, Type);
                 error ->
-                    throw({invalid_key, Index})
+                    throw({invalid_key, Index});
+                {error, Error} ->
+                    throw(Error)
             end;
         SubSpec when is_map(SubSpec) ->
             case is_list(Val) orelse is_map(Val) of
@@ -433,11 +435,11 @@ do_parse_config(list, Val) ->
     end;
 
 do_parse_config({list, Type}, Val) ->
-    case is_list(Val) of
+    case is_list(Val) andalso not is_integer(hd(Val)) of
         true -> 
             do_parse_config_list(Val, Type, []);
         false -> 
-            error
+            do_parse_config_list([Val], Type, [])
     end;
 
 do_parse_config(proc, Val) ->
