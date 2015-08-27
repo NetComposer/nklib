@@ -165,7 +165,7 @@ parse_config([], _Spec, list) ->
     {ok, [], []};
 
 parse_config([], _Spec, map) ->
-    {ok, #{}, []};
+    {ok, #{}, #{}};
 
 
 parse_config(Terms, Spec, Type) when is_list(Terms) ->
