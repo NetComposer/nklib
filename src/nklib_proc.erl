@@ -272,6 +272,7 @@ start_link() ->
     {ok, #state{}}.
 
 init([]) ->
+    process_flag(trap_exit, true),
     process_flag(priority, high),
     ets:new(nklib_proc_store, [public, named_table]),
     ets:new(nklib_proc_pids, [public, named_table]),
@@ -358,6 +359,10 @@ handle_cast(Msg, State) ->
     {noreply, #state{}}.
 
 handle_info({'DOWN', _Ref, process, Pid, _Reason}, State) ->
+    unregister_all(Pid),
+    {noreply, State};
+
+handle_info({'EXIT', Pid, _Reason}, State) ->
     unregister_all(Pid),
     {noreply, State};
 
@@ -465,7 +470,8 @@ unregister_all(Pid) ->
 insert_pid(Pid, Type, Name) ->
     case ets:lookup(nklib_proc_pids, Pid) of
         [] -> 
-            Mon = monitor(process, Pid),
+            link(Pid), 
+	    Mon = unused,
             ets:insert(nklib_proc_pids, {Pid, Mon, [{Type, Name}]});
         [{Pid, Mon, PidItems}] ->
             case lists:member({Type, Name}, PidItems) of
@@ -488,7 +494,7 @@ remove_pid(Pid, Type, Name) ->
                 true -> 
                     case PidItems -- [{Type, Name}] of
                         [] -> 
-                            demonitor(Mon),
+                            unlink(Pid),
                             ets:delete(nklib_proc_pids, Pid);
                         Items1 -> 
                             ets:insert(nklib_proc_pids, {Pid, Mon, Items1})
