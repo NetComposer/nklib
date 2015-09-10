@@ -69,19 +69,11 @@ init(Arg, State, PosMod, PosUser) ->
 handle_call(Msg, From, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     User = element(PosUser, State),
-    case SubMod:handle_call(Msg, From, User) of
-        {reply, Reply, User1} ->
-            {reply, Reply, setelement(PosUser, State, User1)};
-        {reply, Reply, User1, Timeout} ->
-            {reply, Reply, setelement(PosUser, State, User1), Timeout};
-        {noreply, User1} ->
-            {noreply, setelement(PosUser, State, User1)};
-        {noreply, User1, Timeout} ->
-            {noreply, setelement(PosUser, State, User1), Timeout};
-        {stop, Reason, User1} ->
-            {reply, Reason, setelement(PosUser, State, User1)};
-        {stop, Reason, Reply, User1} ->
-            {stop, Reason, Reply, setelement(PosUser, State, User1)}
+    case erlang:function_exported(SubMod, handle_call, 3) of
+        true ->
+            proc_reply(SubMod:handle_call(Msg, From, User), PosUser, State);
+        false ->
+            {noreply, State}
     end.
 
 
@@ -94,13 +86,11 @@ handle_call(Msg, From, State, PosMod, PosUser) ->
 handle_cast(Msg, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     User = element(PosUser, State),
-    case SubMod:handle_cast(Msg, User) of
-        {noreply, User1} ->
-            {noreply, setelement(PosUser, State, User1)};
-        {noreply, User1, Timeout} ->
-            {noreply, setelement(PosUser, State, User1), Timeout};
-        {stop, Reason, User1} ->
-            {reply, Reason, setelement(PosUser, State, User1)}
+    case erlang:function_exported(SubMod, handle_cast, 2) of
+        true ->
+            proc_reply(SubMod:handle_cast(Msg, User), PosUser, State);
+        false ->
+            {noreply, State}
     end.
 
 
@@ -113,13 +103,11 @@ handle_cast(Msg, State, PosMod, PosUser) ->
 handle_info(Msg, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     User = element(PosUser, State),
-    case SubMod:handle_info(Msg, User) of
-        {noreply, User1} ->
-            {noreply, setelement(PosUser, State, User1)};
-        {noreply, User1, Timeout} ->
-            {noreply, setelement(PosUser, State, User1), Timeout};
-        {stop, Reason, User1} ->
-            {reply, Reason, setelement(PosUser, State, User1)}
+    case erlang:function_exported(SubMod, handle_info, 2) of
+        true ->
+            proc_reply(SubMod:handle_info(Msg, User), PosUser, State);
+        false ->
+            {noreply, State}
     end.
 
 
@@ -130,11 +118,16 @@ handle_info(Msg, State, PosMod, PosUser) ->
 code_change(OldVsn, State, Extra, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     User = element(PosUser, State),
-    case SubMod:code_change(OldVsn, User, Extra) of
-        {ok, User1} ->
-            {ok, setelement(PosUser, State, User1)};
-        {error, Reason} ->
-            {error, Reason}
+    case erlang:function_exported(SubMod, code_change, 3) of
+        true ->
+            case SubMod:code_change(OldVsn, User, Extra) of
+                {ok, User1} ->
+                    {ok, setelement(PosUser, State, User1)};
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        false ->
+            {ok, State}
     end.
 
 
@@ -145,20 +138,50 @@ code_change(OldVsn, State, Extra, PosMod, PosUser) ->
 terminate(Reason, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     User = element(PosUser, State),
-    SubMod:terminate(Reason, User).
+    case erlang:function_exported(SubMod, terminate, 2) of
+        true -> 
+            SubMod:terminate(Reason, User);
+        false ->
+            ok
+    end.
 
 
 %% @private
 -spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer()) ->
+    ok |
     {ok, tuple()} |
     {ok, term(), tuple()} |
     {error, term(), tuple()} |
-    {error, term(), term(), tuple()}.
+    {error, term(), term(), tuple()} |
+    term().
 
 handle_any(Fun, Args, State, PosMod, PosUser) ->
     SubMod = element(PosMod, State),
     User = element(PosUser, State),
-    case apply(SubMod, Fun, Args++[User]) of
+    Args1 = Args++[User],
+    case erlang:function_exported(SubMod, Fun, length(Args1)) of
+        true ->
+            proc_reply(apply(SubMod, Fun, Args1), PosUser, State);
+        false ->
+            ok
+    end.
+
+
+%% @private
+proc_reply(Term, PosUser, State) ->
+    case Term of
+        {reply, Reply, User1} ->
+            {reply, Reply, setelement(PosUser, State, User1)};
+        {reply, Reply, User1, Timeout} ->
+            {reply, Reply, setelement(PosUser, State, User1), Timeout};
+        {noreply, User1} ->
+            {noreply, setelement(PosUser, State, User1)};
+        {noreply, User1, Timeout} ->
+            {noreply, setelement(PosUser, State, User1), Timeout};
+        {stop, Reason, User1} ->
+            {stop, Reason, setelement(PosUser, State, User1)};
+        {stop, Reason, Reply, User1} ->
+            {stop, Reason, Reply, setelement(PosUser, State, User1)};
         {ok, User1} ->
             {ok, setelement(PosUser, State, User1)};
         {ok, Reply, User1} ->
@@ -166,8 +189,12 @@ handle_any(Fun, Args, State, PosMod, PosUser) ->
         {error, Error, User1} ->
             {error, Error, setelement(PosUser, State, User1)};
         {error, Error, Reply, User1} ->
-            {error, Error, Reply, setelement(PosUser, State, User1)}
+            {error, Error, Reply, setelement(PosUser, State, User1)};
+        Other ->
+            Other
     end.
+
+
 
 
 
