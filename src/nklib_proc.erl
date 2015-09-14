@@ -39,6 +39,8 @@
 -export([dump/0]).
 
 
+-type regtype() :: val|put|del|reg.
+
 
 %% ===================================================================
 %% Public
@@ -106,25 +108,25 @@ reg(Name, Value) -> reg(Name, Value, self()).
 %% @doc Similar to `put(Name, Value, Pid)' but only allows for one single registration.
 %% Returns `true' if this registration has succeded, or `false' if another process
 %% has already registered this name.
--spec reg(term(), term(), pid()) -> true | {false, pid()}.
-reg(Name, Value, Pid) -> 
+-spec reg(term(), term(), pid()) -> true | {false, pid()} | timeout.
+reg(Name, Value, Pid) when is_pid(Pid) -> 
     case ets:insert_new(nklib_proc_store,  {Name, [{val, Value, Pid}]}) of
         true -> 
             put(Name, Value, Pid),
             true;
         false ->
-            gen_server:call(?MODULE, {reg, Name, Value, Pid})
+            timed_call({reg, Name, Value, Pid}, 5000)
     end.
 
 
-%% @doc Similar to `reg(Name, Value, Pid)', but, in case other process has already
-%% registered this name, waits for it to be unregistered and then we are automatically
+%% @doc Similar to `reg(Name, Value, Pid)', but, in case other process have already
+%% registered this name, it waits for it to be unregistered and then we are automatically
 %% registered. 
 -spec reg(term(), term(), pid(), integer()|infinity) -> true | timeout.
-reg(Name, Value, Pid, Timeout) ->
-    case catch gen_server:call(?MODULE, {wait_reg, Name, Value, Pid}, Timeout) of
+reg(Name, Value, Pid, Timeout) when is_pid(Pid) ->
+    case timed_call({wait_reg, Name, Value, Pid}, Timeout) of
         ok -> true;
-        _ -> timeout
+        timeout -> timeout
     end.
 
     
@@ -137,10 +139,7 @@ wait_put(Name) -> wait_put(Name, 5000).
 wait_put(Name, Timeout) ->
     case values(Name) of
         [] ->
-            case catch gen_server:call(?MODULE, {wait_put, Name}, Timeout) of
-                {ok, {Value, Pid}} -> {ok, {Value, Pid}};
-                _ -> timeout
-            end;
+            timed_call({wait_put, Name}, Timeout);
         [{Value, Pid}] ->
             {ok, {Value, Pid}}
     end.
@@ -153,10 +152,7 @@ wait_del(Name) -> wait_del(Name, 5000).
 %% @doc Waits for `Name' to be unregistered from all pids before `Timeout'.
 -spec wait_del(term(),  integer()|infinity) -> ok | timeout.
 wait_del(Name, Timeout) ->
-    case catch gen_server:call(?MODULE, {wait_del, Name}, Timeout) of
-        ok -> ok;
-        _ -> timeout
-    end.
+    timed_call({wait_del, Name}, Timeout).
 
 
 %% @doc Process registration compatible with `global:register_name/2'.
@@ -211,7 +207,7 @@ fold_names(UserFun, Acc0) when is_function(UserFun, 3) ->
 %% `UserFun' will be called for each record as `UserFun(Pid, Items, Acc)' when
 %% `Names :: [{name|put|del|reg, term()}]'.
 fold_pids(UserFun, Acc0) when is_function(UserFun, 3) ->
-    Fun = fun({Pid, _Mon, Names}, Acc) -> UserFun(Pid, Names, Acc) end,
+    Fun = fun({Pid, Names}, Acc) -> UserFun(Pid, Names, Acc) end,
     ets:foldl(Fun, Acc0, nklib_proc_pids).
 
 
@@ -272,6 +268,7 @@ start_link() ->
     {ok, #state{}}.
 
 init([]) ->
+    process_flag(trap_exit, true),
     process_flag(priority, high),
     ets:new(nklib_proc_store, [public, named_table]),
     ets:new(nklib_proc_pids, [public, named_table]),
@@ -282,8 +279,8 @@ init([]) ->
 -spec handle_call(term(), {pid(), term()}, #state{}) ->
     {reply, term(), #state{}} | {noreply, #state{}} | {stop, normal, ok, #state{}}.
 
-handle_call({set_monitor, Pid}, _From, State) ->
-    {reply, monitor(process, Pid), State};
+% handle_call({set_monitor, Pid}, _From, State) ->
+%     {reply, monitor(process, Pid), State};
 
 handle_call({reg, Name, Value, Pid}, _From, State) ->
     case values(Name) of
@@ -357,7 +354,7 @@ handle_cast(Msg, State) ->
 -spec handle_info(term(), #state{}) ->
     {noreply, #state{}}.
 
-handle_info({'DOWN', _Ref, process, Pid, _Reason}, State) ->
+handle_info({'EXIT', Pid, _Reason}, State) ->
     unregister_all(Pid),
     {noreply, State};
 
@@ -388,18 +385,22 @@ terminate(_Reason, _State) ->
 %% ===================================================================
 
 %% @private
--spec register(term(), val|put|del|reg, term(), pid()) -> true.
+-spec register(term(), regtype(), term(), pid()) -> 
+    true.
+
 register(Name, Type, Value, Pid) ->
     insert_pid(Pid, Type, Name),
     NameItems = case lookup_store(Name) of
         [] -> 
             [{Type, Value, Pid}];
         OldNameItems -> 
-            NameItemsR = [{T, V, P} || {T, V, P } <- OldNameItems,
+            NameItemsR = [{T, V, P} || {T, V, P} <- OldNameItems,
                                        T/=Type orelse P/=Pid],
             case Type of
-                reg -> NameItemsR ++ [{Type, Value, Pid}];
-                _ -> [{Type, Value, Pid}|NameItemsR]
+                reg -> 
+                    NameItemsR ++ [{Type, Value, Pid}];
+                _ -> 
+                    [{Type, Value, Pid}|NameItemsR]
             end
     end,
     case Type of
@@ -419,7 +420,9 @@ register(Name, Type, Value, Pid) ->
 
 
 %% @private
--spec unregister(term(), val|put|del|reg, pid()) -> true.
+-spec unregister(term(), regtype(), pid()) -> 
+    true.
+
 unregister(Name, Type, Pid) ->
     remove_pid(Pid, Type, Name),
     NameItems = [{T, Val, P} || {T, Val, P} <- lookup_store(Name), 
@@ -450,54 +453,64 @@ unregister(Name, Type, Pid) ->
 
 
 %% @private
--spec unregister_all(pid()) -> ok.
+-spec unregister_all(pid()) -> 
+    ok.
+
 unregister_all(Pid) ->
     case ets:lookup(nklib_proc_pids, Pid) of
         [] -> 
             ok;
-        [{_, _Mon, Items}] -> 
+        [{_, Items}] -> 
             lists:foreach(fun({Type, Name}) -> unregister(Name, Type, Pid) end, Items)
     end.
     
 
 %% @private
--spec insert_pid(pid(), val|put|del|reg, term()) -> ok.
+-spec insert_pid(pid(), regtype(), term()) -> 
+    ok.
+
 insert_pid(Pid, Type, Name) ->
     case ets:lookup(nklib_proc_pids, Pid) of
         [] -> 
-            Mon = monitor(process, Pid),
-            ets:insert(nklib_proc_pids, {Pid, Mon, [{Type, Name}]});
-        [{Pid, Mon, PidItems}] ->
+            link(Pid), 
+            ets:insert(nklib_proc_pids, {Pid, [{Type, Name}]});
+        [{Pid, PidItems}] ->
             case lists:member({Type, Name}, PidItems) of
-                true -> ok;
-                false -> ets:insert(nklib_proc_pids, {Pid, Mon, [{Type, Name}|PidItems]})
+                true -> 
+                    ok;
+                false -> 
+                    ets:insert(nklib_proc_pids, {Pid, [{Type, Name}|PidItems]})
             end
     end.
 
 
 %% @private
--spec remove_pid(pid(), val|put|del|reg, term()) -> ok.
+-spec remove_pid(pid(), regtype(), term()) -> 
+    ok.
+
 remove_pid(Pid, Type, Name) ->
     case ets:lookup(nklib_proc_pids, Pid) of
         [] -> 
             ok;
-        [{Pid, Mon, PidItems}] ->
+        [{Pid, PidItems}] ->
             case lists:member({Type, Name}, PidItems) of
                 false -> 
                     ok;
                 true -> 
                     case PidItems -- [{Type, Name}] of
                         [] -> 
-                            demonitor(Mon),
+                            unlink(Pid),
                             ets:delete(nklib_proc_pids, Pid);
                         Items1 -> 
-                            ets:insert(nklib_proc_pids, {Pid, Mon, Items1})
+                            ets:insert(nklib_proc_pids, {Pid, Items1})
                     end
             end
     end.
 
 %% @private
--spec lookup_store(term()) -> [{val|put|del|reg, term(), pid()}].
+-spec lookup_store(term()) -> 
+    [{regtype(), term(), pid()}].
+
 lookup_store(Name) ->
     case ets:lookup(nklib_proc_store, Name) of
         [] -> [];
@@ -505,20 +518,36 @@ lookup_store(Name) ->
     end.
 
 %% @private
--spec insert_store(term(), [{val|put|del|reg, term(), pid()}]) -> true.
-insert_store(Name, []) -> ets:delete(nklib_proc_store, Name);
-insert_store(Name, Items) -> ets:insert(nklib_proc_store, {Name, Items}).
+-spec insert_store(term(), [{regtype(), term(), pid()}]) -> 
+    true.
+
+insert_store(Name, []) -> 
+    ets:delete(nklib_proc_store, Name);
+
+insert_store(Name, Items) -> 
+    ets:insert(nklib_proc_store, {Name, Items}).
+
 
 %% @doc Gets the number of registered processes
 -spec size() -> integer().
 size() -> ets:info(nklib_proc_pids, size).
  
 
+%% @private gen_server:call returning timeouts
+timed_call(Msg, Timeout) ->
+    try
+        gen_server:call(?MODULE, Msg, Timeout)
+    catch 
+        exit:{timeout, _} -> timeout
+    end.
+
+
 %% @private
 -spec pending_msgs() -> integer().
 pending_msgs() ->
     {_, Len} = erlang:process_info(whereis(?MODULE), message_queue_len),
     Len.
+
 
 %% @private
 dump() ->
