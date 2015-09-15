@@ -42,10 +42,12 @@
     ip | host | host6 | {function, pos_integer()} |
     unquote | path | uris | tokens | map() | list() |
     fun((atom(), term(), [{atom(), term()}]) -> 
-            ok | {ok, term()} | {opts, [{atom(), term()}]} | error | {error, term()}).
+            ok | {ok, term()} | {ok, term(), term()} |
+            {opts, [{atom(), term()}]} | error | {error, term()}).
 
 -type parse_opt() ::
-    opt() | {list, opt()} | {update, map|list, MapOrList::atom(), Key::atom(), opt()}.
+    opt() | {list|slist|ulist, opt()} | 
+    {update, map|list, MapOrList::atom(), Key::atom(), opt()}.
 
 -type parse_spec() :: #{ atom() => parse_opt()}.
 
@@ -340,6 +342,8 @@ find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec, Type) ->
                     parse_config(Rest, [{Index, Val}|Opts1], Opts2, Spec, Type);
                 {ok, Val1} ->
                     parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec, Type);
+                {ok, Key1, Val1} ->
+                    parse_config(Rest, [{Key1, Val1}|Opts1], Opts2, Spec, Type);
                 {opts, Opts1B} ->
                     parse_config(Rest, Opts1B, Opts2, Spec, Type);
                 error ->
@@ -434,12 +438,12 @@ do_parse_config(list, Val) ->
         false -> error
     end;
 
-do_parse_config({list, Type}, Val) ->
+do_parse_config({List, Type}, Val) when List==list; List==slist; List==ulist ->
     case is_list(Val) andalso not is_integer(hd(Val)) of
         true -> 
-            do_parse_config_list(Val, Type, []);
+            do_parse_config_list(List, Val, Type, []);
         false -> 
-            do_parse_config_list([Val], Type, [])
+            do_parse_config_list(List, [Val], Type, [])
     end;
 
 do_parse_config(proc, Val) ->
@@ -566,13 +570,19 @@ do_parse_config(Type, _Val) ->
 
 
 %% @private
-do_parse_config_list([], _Type, Acc) ->
+do_parse_config_list(list, [], _Type, Acc) ->
     {ok, lists:reverse(Acc)};
 
-do_parse_config_list([Term|Rest], Type, Acc) ->
+do_parse_config_list(slist, [], _Type, Acc) ->
+    {ok, lists:sort(Acc)};
+
+do_parse_config_list(ulist, [], _Type, Acc) ->
+    {ok, lists:usort(Acc)};
+
+do_parse_config_list(ListType, [Term|Rest], Type, Acc) ->
     case do_parse_config(Type, Term) of
         {ok, Val} ->
-            do_parse_config_list(Rest, Type, [Val|Acc]);
+            do_parse_config_list(ListType, Rest, Type, [Val|Acc]);
         error ->
             error
     end.
