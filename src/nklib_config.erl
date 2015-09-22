@@ -29,12 +29,12 @@
 
 -export([start_link/0, init/1, terminate/2, code_change/3, handle_call/3, handle_cast/2, 
          handle_info/2]).
--export_type([parse_opt/0]).
+-export_type([syntax/0, parse_opts/0]).
 
 
 -compile({no_auto_import, [get/1, put/2]}).
 
--type opt() ::
+-type syntax_subopt() ::
     any | atom | boolean | {enum, [atom()]} | list | pid | proc |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | {record, atom()} |
@@ -43,13 +43,19 @@
     unquote | path | uris | tokens | map() | list() |
     fun((atom(), term(), [{atom(), term()}]) -> 
             ok | {ok, term()} | {ok, term(), term()} |
-            {opts, [{atom(), term()}]} | error | {error, term()}).
+            {new_ok, [{atom(), term()}]} | error | {error, term()}).
 
--type parse_opt() ::
-    opt() | {list|slist|ulist, opt()} | 
-    {update, map|list, MapOrList::atom(), Key::atom(), opt()}.
+-type syntax_opt() ::
+    syntax_subopt() | {list|slist|ulist, syntax_subopt()} | 
+    {update, map|list, MapOrList::atom(), Key::atom(), syntax_subopt()}.
 
--type parse_spec() :: #{ atom() => parse_opt()}.
+-type syntax() :: #{ atom() => syntax_opt()}.
+
+-type parse_opts() ::
+    #{
+        return => map|list,     % Default is list
+        context => term()       % Returned in errors
+    }.
 
 
 
@@ -146,53 +152,55 @@ increment_domain(Mod, Domain, Key, Count) ->
     ets:update_counter(?MODULE, {Mod, Domain, Key}, Count).
 
 
-%% @doc Parses a list of options
-%% For lists, if duplicated entries, the last one wins
--spec parse_config(map()|list(), parse_spec()) ->
+%% @doc Equivalent to parse_config(Terms, Spec, #{})
+-spec parse_config(map()|list(), syntax()) ->
     {ok, [{atom(), term()}], [{atom(), term()}]} | 
     {ok, map(), map()} |
     {error, term()}.
 
 parse_config(Terms, Spec) ->
-    parse_config(Terms, Spec, list).
+    parse_config(Terms, Spec, #{}).
 
 
 %% @doc Parses a list of options
--spec parse_config(map()|list(), parse_spec(), map|list) ->
+%% For lists, if duplicated entries, the last one wins
+-spec parse_config(map()|list(), syntax(), parse_opts()) ->
     {ok, [{atom(), term()}], [{atom(), term()}]} | 
     {ok, map(), map()} |
     {error, term()}.
 
-parse_config([], _Spec, list) ->
-    {ok, [], []};
-
-parse_config([], _Spec, map) ->
+parse_config([], _Syntax, #{return:=map}) ->
     {ok, #{}, #{}};
 
+parse_config([], _Syntax, _) ->
+    {ok, [], []};
 
-parse_config(Terms, Spec, Type) when is_list(Terms) ->
+parse_config(Terms, Syntax, Opts) when is_list(Terms) ->
     try
-        parse_config(Terms, [], [], Spec, Type)
+        parse_config(Terms, [], [], Syntax, Opts)
     catch
-        throw:Throw -> {error, Throw}
+        throw:Throw -> 
+            case Opts of
+                #{context:=Context} -> {error, {Context, Throw}};
+                _ -> {error, Throw}
+            end
     end;
 
-parse_config(Terms, Spec, Type) when is_map(Terms) ->
+parse_config(Terms, Syntax, Opts) when is_map(Terms) ->
     case maps:size(Terms) of
-        0 when Type==list -> {ok, [], []};
-        0 when Type==map -> {ok, #{}, #{}};
-        _ -> parse_config(maps:to_list(Terms), Spec, Type)
+        0 -> parse_config([], Syntax, Opts);
+        _ -> parse_config(maps:to_list(Terms), Syntax, Opts)
     end.
 
 
 %% @doc Loads parsed application environment
--spec load_env(term(), atom(), map()|list(), parse_spec()) ->
+-spec load_env(term(), atom(), map()|list(), syntax()) ->
     ok | {error, term()}.
 
-load_env(Mod, App, Defaults, Spec) ->
+load_env(Mod, App, Defaults, Syntax) ->
     AppEnv = application:get_all_env(App),
     Env1 = nklib_util:defaults(AppEnv, nklib_util:to_list(Defaults)),
-    case parse_config(Env1, Spec) of
+    case parse_config(Env1, Syntax) of
         {ok, Opts, _} ->
             lists:foreach(fun({K,V}) -> put(Mod, K, V) end, Opts),
             ok;
@@ -202,15 +210,15 @@ load_env(Mod, App, Defaults, Spec) ->
 
 
 %% @doc Loads a domain configuration
--spec load_domain(term(), nklib:domain(), map()|list(), map()|list(), parse_spec()) ->
+-spec load_domain(term(), nklib:domain(), map()|list(), map()|list(), syntax()) ->
     ok | {error, term()}.
 
-load_domain(Mod, Domain, Opts, Defaults, Spec) ->
+load_domain(Mod, Domain, Opts, Defaults, Syntax) ->
     do_load_domain(Mod, Domain, nklib_util:to_list(Opts), 
-                    nklib_util:to_list(Defaults), Spec).
+                    nklib_util:to_list(Defaults), Syntax).
 
 %% @private
-do_load_domain(Mod, Domain, Opts, Defaults, Spec) ->
+do_load_domain(Mod, Domain, Opts, Defaults, Syntax) ->
     ValidDomainKeys = proplists:get_keys(Defaults),
     DomainKeys = proplists:get_keys(Opts),
     case DomainKeys -- ValidDomainKeys of
@@ -222,7 +230,7 @@ do_load_domain(Mod, Domain, Opts, Defaults, Spec) ->
     ValidOpts = nklib_util:extract(Opts, ValidDomainKeys),
     DefaultDomainOpts = [{K, get(Mod, K)} || K <- ValidDomainKeys],
     Opts2 = nklib_util:defaults(ValidOpts, DefaultDomainOpts),
-    case parse_config(Opts2, Spec) of
+    case parse_config(Opts2, Syntax) of
         {ok, Opts3, _} ->
             lists:foreach(fun({K,V}) -> put_domain(Mod, Domain, K, V) end, Opts3),
             ok;
@@ -304,113 +312,115 @@ terminate(_Reason, _State) ->
 
 %% @private
 -spec parse_config([{term(), term()}], [{atom(), term()}], [{atom(), term()}],
-                   parse_spec(), map|list) ->
+                   syntax(), parse_opts()) ->
     {ok, [{atom(), term()}], [{atom(), term()}]}.
 
-parse_config([], Opts1, Opts2, _Spec, list) ->
-    {ok, lists:reverse(Opts1), lists:reverse(Opts2)};
-
-parse_config([], Opts1, Opts2, _Spec, map) ->
+parse_config([], Ok, NoOk, _Syntax, #{return:=map}) ->
     % We need to reverse to get only the last value
-    {ok, maps:from_list(lists:reverse(Opts1)), maps:from_list(lists:reverse(Opts2))};
+    {ok, maps:from_list(lists:reverse(Ok)), maps:from_list(lists:reverse(NoOk))};
 
-parse_config([{Key, Val}|Rest], Opts1, Opts2, Spec, Type) ->
+parse_config([], Ok, NoOk, _Syntax, _) ->
+    {ok, lists:reverse(Ok), lists:reverse(NoOk)};
+
+parse_config([{Key, Val}|Rest], Ok, NoOk, Syntax, Opts) ->
     case is_atom(Key) of
         true ->
-            find_config(Key, Key, Val, Rest, Opts1, Opts2, Spec, Type);
+            find_config(Key, Key, Val, Rest, Ok, NoOk, Syntax, Opts);
         _ ->
-            case catch to_atom(Key) of
-                {invalid_atom, _} ->
-                    parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec, Type);
+            case catch to_existing_atom(Key) of
+                {unknown_atom, _} ->
+                    parse_config(Rest, Ok, [{Key, Val}|NoOk], Syntax, Opts);
                 Index -> 
-                    find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec, Type)
+                    find_config(Index, Key, Val, Rest, Ok, NoOk, Syntax, Opts)
             end
     end;
 
-parse_config([Key|Rest], Opts1, Opts2, Spec, Type) ->
-    parse_config([{Key, true}|Rest], Opts1, Opts2, Spec, Type).
+parse_config([Key|Rest], Ok, NoOk, Syntax, Opts) ->
+    parse_config([{Key, true}|Rest], Ok, NoOk, Syntax, Opts).
 
 
 %% @private
-find_config(Index, Key, Val, Rest, Opts1, Opts2, Spec, Type) ->
-    case maps:get(Index, Spec, not_found) of
+find_config(AtomKey, Key, Val, Rest, Ok, NoOk, Syntax, Opts) ->
+    case maps:get(AtomKey, Syntax, not_found) of
         not_found ->
-            parse_config(Rest, Opts1, [{Key, Val}|Opts2], Spec, Type);
+            parse_config(Rest, Ok, [{Key, Val}|NoOk], Syntax, Opts);
         Fun when is_function(Fun, 3) ->
-            case catch Fun(Index, Val, Opts1) of
+            case catch Fun(AtomKey, Val, Ok) of
                 ok ->
-                    parse_config(Rest, [{Index, Val}|Opts1], Opts2, Spec, Type);
+                    parse_config(Rest, [{AtomKey, Val}|Ok], NoOk, Syntax, Opts);
                 {ok, Val1} ->
-                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec, Type);
-                {ok, Key1, Val1} ->
-                    parse_config(Rest, [{Key1, Val1}|Opts1], Opts2, Spec, Type);
-                {opts, Opts1B} ->
-                    parse_config(Rest, Opts1B, Opts2, Spec, Type);
+                    parse_config(Rest, [{AtomKey, Val1}|Ok], NoOk, Syntax, Opts);
+                {ok, AtomKey1, Val1} when is_atom(AtomKey1) ->
+                    parse_config(Rest, [{AtomKey1, Val1}|Ok], NoOk, Syntax, Opts);
+                {new_ok, OkB} ->
+                    parse_config(Rest, OkB, NoOk, Syntax, Opts);
                 error ->
-                    throw({invalid_key, Index});
+                    throw({invalid_key, AtomKey});
                 {error, Error} ->
-                    throw(Error)
+                    throw(Error);
+                {'EXIT', Error} ->
+                    throw({internal_error, ?MODULE, ?LINE, Error})
             end;
-        SubSpec when is_map(SubSpec) ->
+        SubSyntax when is_map(SubSyntax) ->
             case is_list(Val) orelse is_map(Val) of
                 true ->
-                    case parse_config(Val, SubSpec, Type) of
-                        {ok, Val1, _SubOpts2} ->
-                            parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec, Type);
+                    case parse_config(Val, SubSyntax, Opts) of
+                        {ok, Val1, _SubNoOk} ->
+                            parse_config(Rest, [{AtomKey, Val1}|Ok], NoOk, Syntax, Opts);
                         {error, Term} ->
                             throw(Term)
                     end;
                 false ->
-                    throw({invalid_key, Index})
+                    throw({invalid_key, AtomKey})
             end;
-        {update, UpdType, Index2, Key2, SubSpec} ->
-            case do_parse_config(SubSpec, Val) of
+        {update, UpdType, Index2, Key2, SubSyntax} ->
+            case do_parse_config(SubSyntax, Val) of
                 {ok, Val2} ->
-                    NewOpts1 = case lists:keytake(Index2, 1, Opts1) of
+                    NewOk = case lists:keytake(Index2, 1, Ok) of
                         false when UpdType==map -> 
-                            [{Index2, maps:put(Key2, Val2, #{})}|Opts1];
+                            [{Index2, maps:put(Key2, Val2, #{})}|Ok];
                         false when UpdType==list -> 
-                            [{Index2, [{Key2, Val2}]}|Opts1];
-                        {value, {Index2, Base}, Opts1A} when UpdType==map ->
-                            [{Index2, maps:put(Key2, Val2, Base)}|Opts1A];
-                        {value, {Index2, Base}, Opts1A} when UpdType==list ->
-                            [{Index2, [{Key2, Val2}|Base]}|Opts1A]
+                            [{Index2, [{Key2, Val2}]}|Ok];
+                        {value, {Index2, Base}, OkA} when UpdType==map ->
+                            [{Index2, maps:put(Key2, Val2, Base)}|OkA];
+                        {value, {Index2, Base}, OkA} when UpdType==list ->
+                            [{Index2, [{Key2, Val2}|Base]}|OkA]
                     end,
-                    parse_config(Rest, NewOpts1, Opts2, Spec, Type);
+                    parse_config(Rest, NewOk, NoOk, Syntax, Opts);
                 error ->
-                    throw({invalid_key, Index})
+                    throw({invalid_key, AtomKey})
             end;
-        KeySpec ->
-            case do_parse_config(KeySpec, Val) of
+        SyntaxOp ->
+            case do_parse_config(SyntaxOp, Val) of
                 {ok, Val1} ->
-                    parse_config(Rest, [{Index, Val1}|Opts1], Opts2, Spec, Type);
+                    parse_config(Rest, [{AtomKey, Val1}|Ok], NoOk, Syntax, Opts);
                 error ->
-                    throw({invalid_key, Index})
+                    throw({invalid_key, AtomKey})
             end
     end.
 
 
 %% @private
-to_atom(Term) when is_atom(Term) ->
+to_existing_atom(Term) when is_atom(Term) ->
     Term;
 
-to_atom(Term) ->
+to_existing_atom(Term) ->
     case catch list_to_existing_atom(nklib_util:to_list(Term)) of
-        {'EXIT', _} -> throw({invalid_atom, Term});
+        {'EXIT', _} -> throw({unknown_atom, Term});
         Atom -> Atom
     end.
 
 
 
 %% @private
--spec do_parse_config(parse_opt(), term()) ->
+-spec do_parse_config(syntax_opt(), term()) ->
     {ok, term()} | error.
 
 do_parse_config(any, Val) ->
     {ok, Val};
 
 do_parse_config(atom, Val) ->
-    {ok, to_atom(Val)};
+    {ok, to_existing_atom(Val)};
 
 do_parse_config(boolean, Val) when Val==0; Val=="0" ->
     {ok, false};
@@ -426,7 +436,7 @@ do_parse_config(boolean, Val) ->
     end;
 
 do_parse_config({enum, List}, Val) ->
-    Atom = to_atom(Val),
+    Atom = to_existing_atom(Val),
     case lists:member(Atom, List) of
         true -> {ok, Atom};
         false -> error
@@ -661,7 +671,7 @@ parse1() ->
     {ok, [], []} = parse_config([], Spec),
     {ok, [], []} = parse_config(#{}, Spec),
 
-    {error, {invalid_atom, "12345"}} = parse_config([{field01, "12345"}], Spec),
+    {error, {unknown_atom, "12345"}} = parse_config([{field01, "12345"}], Spec),
     
     {ok,[{field01, fieldXX}, {field02, false}],[{"unknown", a}]} = 
         parse_config(
@@ -694,7 +704,7 @@ parse1() ->
     {ok, [{field11, <<"b">>}], []} = parse_config([{field11, b}], Spec),
 
     {error, {invalid_key, field12}} = parse_config([{field12, a}], Spec),
-    {error, {invalid_atom, 1}} = parse_config([{field12, [{field12_a, 1}]}], Spec),
+    {error, {unknown_atom, 1}} = parse_config([{field12, [{field12_a, 1}]}], Spec),
     % Field 12c is ignored
     {ok, [{field12, [{field12_a, ok},{field12_b, 1}]}],[]} = Sub1 = 
         parse_config(
