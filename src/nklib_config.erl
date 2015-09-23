@@ -40,10 +40,15 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | host | host6 | {function, pos_integer()} |
-    unquote | path | uris | tokens | map() | list() |
-    fun((atom(), term(), [{atom(), term()}]) -> 
-            ok | {ok, term()} | {ok, term(), term()} |
-            {new_ok, [{atom(), term()}]} | error | {error, term()}).
+    unquote | path | uris | tokens | map() | list() | syntax_fun().
+
+-type syntax_fun() ::
+    fun((atom(), term(), fun_ctx()) -> 
+        ok | {ok, term()} | {ok, term(), term()} |
+        {new_ok, [{atom(), term()}]} | error | {error, term()}).
+
+-type fun_ctx() ::
+    parse_opts() | #{ok=>[{atom(), term()}], no_ok=>[{binary(), term()}]}.
 
 -type syntax_opt() ::
     syntax_subopt() | {list|slist|ulist, syntax_subopt()} | 
@@ -54,7 +59,7 @@
 -type parse_opts() ::
     #{
         return => map|list,     % Default is list
-        context => term()       % Returned in errors
+        path => binary()        % Returned in errors
     }.
 
 
@@ -154,9 +159,13 @@ increment_domain(Mod, Domain, Key, Count) ->
 
 %% @doc Equivalent to parse_config(Terms, Spec, #{})
 -spec parse_config(map()|list(), syntax()) ->
-    {ok, [{atom(), term()}], [{atom(), term()}]} | 
-    {ok, map(), map()} |
-    {error, term()}.
+    {ok, [{atom(), term()}], [{binary(), term()}]} | 
+    {ok, #{atom()=>term()}, #{binary()=>term()}} |
+    {error, Error}
+    when Error :: 
+        {syntax_error, binary()} | 
+        {invalid_spec, syntax_opt()} |
+        term().
 
 parse_config(Terms, Spec) ->
     parse_config(Terms, Spec, #{}).
@@ -166,8 +175,12 @@ parse_config(Terms, Spec) ->
 %% For lists, if duplicated entries, the last one wins
 -spec parse_config(map()|list(), syntax(), parse_opts()) ->
     {ok, [{atom(), term()}], [{atom(), term()}]} | 
-    {ok, map(), map()} |
-    {error, term()}.
+    {ok, #{atom()=>term()}, #{binary()=>term()}} | 
+    {error, Error}
+    when Error :: 
+        {syntax_error, binary()} | 
+        {invalid_spec, syntax_opt()} |
+        term().
 
 parse_config([], _Syntax, #{return:=map}) ->
     {ok, #{}, #{}};
@@ -175,18 +188,15 @@ parse_config([], _Syntax, #{return:=map}) ->
 parse_config([], _Syntax, _) ->
     {ok, [], []};
 
-parse_config(Terms, Syntax, Opts) when is_list(Terms) ->
+parse_config(Terms, Syntax, Opts) when is_list(Terms), is_map(Opts) ->
     try
         parse_config(Terms, [], [], Syntax, Opts)
     catch
-        throw:Throw -> 
-            case Opts of
-                #{context:=Context} -> {error, {Context, Throw}};
-                _ -> {error, Throw}
-            end
+        throw:Throw ->
+            {error, Throw}
     end;
 
-parse_config(Terms, Syntax, Opts) when is_map(Terms) ->
+parse_config(Terms, Syntax, Opts) when is_map(Terms), is_map(Opts) ->
     case maps:size(Terms) of
         0 -> parse_config([], Syntax, Opts);
         _ -> parse_config(maps:to_list(Terms), Syntax, Opts)
@@ -313,7 +323,7 @@ terminate(_Reason, _State) ->
 %% @private
 -spec parse_config([{term(), term()}], [{atom(), term()}], [{atom(), term()}],
                    syntax(), parse_opts()) ->
-    {ok, [{atom(), term()}], [{atom(), term()}]}.
+    {ok, [{atom(), term()}], [{binary(), term()}]}.
 
 parse_config([], Ok, NoOk, _Syntax, #{return:=map}) ->
     % We need to reverse to get only the last value
@@ -323,16 +333,12 @@ parse_config([], Ok, NoOk, _Syntax, _) ->
     {ok, lists:reverse(Ok), lists:reverse(NoOk)};
 
 parse_config([{Key, Val}|Rest], Ok, NoOk, Syntax, Opts) ->
-    case is_atom(Key) of
-        true ->
-            find_config(Key, Key, Val, Rest, Ok, NoOk, Syntax, Opts);
-        _ ->
-            case catch to_existing_atom(Key) of
-                {unknown_atom, _} ->
-                    parse_config(Rest, Ok, [{Key, Val}|NoOk], Syntax, Opts);
-                Index -> 
-                    find_config(Index, Key, Val, Rest, Ok, NoOk, Syntax, Opts)
-            end
+    case to_existing_atom(Key) of
+        {ok, AtomKey} ->
+            find_config(AtomKey, Val, Rest, Ok, NoOk, Syntax, Opts);
+        error ->
+            BinKey = nklib_util:to_binary(Key),
+            parse_config(Rest, Ok, [{BinKey, Val}|NoOk], Syntax, Opts)
     end;
 
 parse_config([Key|Rest], Ok, NoOk, Syntax, Opts) ->
@@ -340,38 +346,41 @@ parse_config([Key|Rest], Ok, NoOk, Syntax, Opts) ->
 
 
 %% @private
-find_config(AtomKey, Key, Val, Rest, Ok, NoOk, Syntax, Opts) ->
-    case maps:get(AtomKey, Syntax, not_found) of
+find_config(Key, Val, Rest, Ok, NoOk, Syntax, Opts) ->
+    case maps:get(Key, Syntax, not_found) of
         not_found ->
-            parse_config(Rest, Ok, [{Key, Val}|NoOk], Syntax, Opts);
+            parse_config(Rest, Ok, [{nklib_util:to_binary(Key), Val}|NoOk], Syntax, Opts);
         Fun when is_function(Fun, 3) ->
-            case catch Fun(AtomKey, Val, Ok) of
+            FunOpts = Opts#{ok=>Ok, no_ok=>NoOk},
+            case catch Fun(Key, Val, FunOpts) of
                 ok ->
-                    parse_config(Rest, [{AtomKey, Val}|Ok], NoOk, Syntax, Opts);
+                    parse_config(Rest, [{Key, Val}|Ok], NoOk, Syntax, Opts);
                 {ok, Val1} ->
-                    parse_config(Rest, [{AtomKey, Val1}|Ok], NoOk, Syntax, Opts);
-                {ok, AtomKey1, Val1} when is_atom(AtomKey1) ->
-                    parse_config(Rest, [{AtomKey1, Val1}|Ok], NoOk, Syntax, Opts);
+                    parse_config(Rest, [{Key, Val1}|Ok], NoOk, Syntax, Opts);
+                {ok, Key1, Val1} when is_atom(Key1) ->
+                    parse_config(Rest, [{Key1, Val1}|Ok], NoOk, Syntax, Opts);
                 {new_ok, OkB} ->
                     parse_config(Rest, OkB, NoOk, Syntax, Opts);
                 error ->
-                    throw({invalid_key, AtomKey});
+                    throw_syntax_error(Key, Opts);
                 {error, Error} ->
                     throw(Error);
                 {'EXIT', Error} ->
-                    throw({internal_error, ?MODULE, ?LINE, Error})
+                    lager:warning("Error calling syntax fun: ~p", [Error]),
+                    throw({internal_error, ?MODULE, ?LINE})
             end;
         SubSyntax when is_map(SubSyntax) ->
             case is_list(Val) orelse is_map(Val) of
                 true ->
-                    case parse_config(Val, SubSyntax, Opts) of
+                    BinKey = nklib_util:to_binary(Key),
+                    case parse_config(Val, SubSyntax, Opts#{path=>BinKey}) of
                         {ok, Val1, _SubNoOk} ->
-                            parse_config(Rest, [{AtomKey, Val1}|Ok], NoOk, Syntax, Opts);
+                            parse_config(Rest, [{Key, Val1}|Ok], NoOk, Syntax, Opts);
                         {error, Term} ->
                             throw(Term)
                     end;
                 false ->
-                    throw({invalid_key, AtomKey})
+                    throw_syntax_error(Key, Opts)
             end;
         {update, UpdType, Index2, Key2, SubSyntax} ->
             case do_parse_config(SubSyntax, Val) of
@@ -388,39 +397,51 @@ find_config(AtomKey, Key, Val, Rest, Ok, NoOk, Syntax, Opts) ->
                     end,
                     parse_config(Rest, NewOk, NoOk, Syntax, Opts);
                 error ->
-                    throw({invalid_key, AtomKey})
+                    throw_syntax_error(Key, Opts)
             end;
         SyntaxOp ->
             case do_parse_config(SyntaxOp, Val) of
                 {ok, Val1} ->
-                    parse_config(Rest, [{AtomKey, Val1}|Ok], NoOk, Syntax, Opts);
+                    parse_config(Rest, [{Key, Val1}|Ok], NoOk, Syntax, Opts);
                 error ->
-                    throw({invalid_key, AtomKey})
+                    throw_syntax_error(Key, Opts);
+                unknown ->
+                    throw({invalid_spec, SyntaxOp})
             end
     end.
 
 
 %% @private
 to_existing_atom(Term) when is_atom(Term) ->
-    Term;
+    {ok, Term};
 
 to_existing_atom(Term) ->
     case catch list_to_existing_atom(nklib_util:to_list(Term)) of
-        {'EXIT', _} -> throw({unknown_atom, Term});
-        Atom -> Atom
+        {'EXIT', _} -> error;
+        Atom -> {ok, Atom}
     end.
 
+
+%% @private
+throw_syntax_error(Key, #{path:=Path}) ->
+    Path1 = <<
+        (nklib_util:to_binary(Path))/binary, $.,
+        (nklib_util:to_binary(Key))/binary>>,
+    throw({syntax_error, Path1});
+
+throw_syntax_error(Key, _) ->
+    throw({syntax_error, nklib_util:to_binary(Key)}).
 
 
 %% @private
 -spec do_parse_config(syntax_opt(), term()) ->
-    {ok, term()} | error.
+    {ok, term()} | error | unknown.
 
 do_parse_config(any, Val) ->
     {ok, Val};
 
 do_parse_config(atom, Val) ->
-    {ok, to_existing_atom(Val)};
+    to_existing_atom(Val);
 
 do_parse_config(boolean, Val) when Val==0; Val=="0" ->
     {ok, false};
@@ -436,10 +457,14 @@ do_parse_config(boolean, Val) ->
     end;
 
 do_parse_config({enum, List}, Val) ->
-    Atom = to_existing_atom(Val),
-    case lists:member(Atom, List) of
-        true -> {ok, Atom};
-        false -> error
+    case to_existing_atom(Val) of
+        {ok, Atom} ->
+            case lists:member(Atom, List) of
+                true -> {ok, Atom};
+                false -> error
+            end;
+        error ->
+            error
     end;
 
 do_parse_config(list, Val) ->
@@ -507,16 +532,46 @@ do_parse_config({record, Type}, Val) ->
     end;
 
 do_parse_config(string, Val) ->
-    {ok, nklib_util:to_list(Val)};
+    if 
+        is_list(Val) ->
+            case catch erlang:list_to_binary(Val) of
+                {'EXIT', _} -> error;
+                Bin -> {ok, erlang:binary_to_list(Bin)}
+            end;
+        is_binary(Val); is_atom(Val); is_integer(Val) ->
+            {ok, nklib_util:to_list(Val)};
+        true ->
+            error
+    end;
 
 do_parse_config(binary, Val) ->
-    {ok, nklib_util:to_binary(Val)};
-
+    if
+        is_binary(Val) ->
+            {ok, Val};
+        Val==[] ->
+            {ok, <<>>};
+        is_list(Val), is_integer(hd(Val)) ->
+            case catch list_to_binary(Val) of
+                {'EXIT', _} -> error;
+                Bin -> {ok, Bin}
+            end;
+        is_atom(Val); is_integer(Val) ->
+            {ok, nklib_util:to_binary(Val)};
+        true ->
+            error
+    end;
+ 
 do_parse_config(lower, Val) ->
-    {ok, nklib_util:to_lower(Val)};
+    case do_parse_config(string, Val) of
+        {ok, List} -> {ok, nklib_util:to_lower(List)};
+        error -> error
+    end;
 
 do_parse_config(upper, Val) ->
-    {ok, nklib_util:to_upper(Val)};
+    case do_parse_config(string, Val) of
+        {ok, List} -> {ok, nklib_util:to_upper(List)};
+        error -> error
+    end;
 
 do_parse_config(ip, Val) ->
     case nklib_util:to_ip(Val) of
@@ -575,8 +630,8 @@ do_parse_config([Opt|Rest], Val) ->
 do_parse_config([], _Val) ->
     error;
 
-do_parse_config(Type, _Val) ->
-    throw({invalid_spec, Type}).
+do_parse_config(_Type, _Val) ->
+    unknown.
 
 
 %% @private
@@ -671,9 +726,9 @@ parse1() ->
     {ok, [], []} = parse_config([], Spec),
     {ok, [], []} = parse_config(#{}, Spec),
 
-    {error, {unknown_atom, "12345"}} = parse_config([{field01, "12345"}], Spec),
+    {error, {syntax_error, <<"field01">>}} = parse_config([{field01, "12345"}], Spec),
     
-    {ok,[{field01, fieldXX}, {field02, false}],[{"unknown", a}]} = 
+    {ok,[{field01, fieldXX}, {field02, false}],[{<<"unknown">>, a}]} = 
         parse_config(
             [{field01, "fieldXX"}, {field02, <<"false">>}, {"unknown", a}],
             Spec),
@@ -692,9 +747,10 @@ parse1() ->
             {field07, "b"}, {<<"field08">>, "host"}, {field09, <<"::1">>}],
             Spec),
 
-    {error, {invalid_key, field03}} = parse_config([{field03, c}], Spec),
-    {error, {invalid_key, field05}} = parse_config([{field05, 0}], Spec),
-    {error, {invalid_key, field05}} = parse_config([{field05, 6}], Spec),
+    {error, {syntax_error, <<"field03">>}} = parse_config([{field03, c}], Spec),
+    {error, {syntax_error, <<"mypath.field05">>}} = 
+        parse_config([{field05, 0}], Spec, #{path=><<"mypath">>}),
+    {error, {syntax_error, <<"field05">>}} = parse_config([{field05, 6}], Spec),
     {error, {invalid_spec, invalid}} = parse_config([{fieldXX, a}], Spec),
 
     {ok, [{field10, data1}], []} = parse_config([{field10, data}], Spec),
@@ -703,8 +759,12 @@ parse1() ->
     {ok, [{field11, a}], []} = parse_config([{field11, a}], Spec),
     {ok, [{field11, <<"b">>}], []} = parse_config([{field11, b}], Spec),
 
-    {error, {invalid_key, field12}} = parse_config([{field12, a}], Spec),
-    {error, {unknown_atom, 1}} = parse_config([{field12, [{field12_a, 1}]}], Spec),
+    {error, {syntax_error, <<"field12">>}} = parse_config([{field12, a}], Spec),
+    {error, {syntax_error, <<"field12.field12_a">>}} = 
+        parse_config([{field12, [{field12_a, 1}]}], Spec),
+    {error, {syntax_error, <<"mypath.field12.field12_a">>}} = 
+        parse_config([{field12, [{field12_a, 1}]}], Spec, #{path=><<"mypath">>}),
+
     % Field 12c is ignored
     {ok, [{field12, [{field12_a, ok},{field12_b, 1}]}],[]} = Sub1 = 
         parse_config(
@@ -717,11 +777,11 @@ parse1() ->
     {ok, #{field12 := #{field12_a:=ok, field12_b:=1}}, #{}} = Sub2 = 
         parse_config(
             [{field12, [{field12_a, "ok"}, {field12_b, "1"}, {field_12_c, none}]}], 
-            Spec, map),
+            Spec, #{return=>map}),
     Sub2 = 
         parse_config(
             #{field12 => #{field12_a=>"ok", field12_b=>"1", field_12_c=>none}},
-            Spec, map),
+            Spec, #{return=>map}),
 
     {ok, [{field13, [a, b, '3']}], []} = parse_config(#{field13 => [a, "b", 3]}, Spec),
 
@@ -729,16 +789,16 @@ parse1() ->
         parse_config(#{field01=>a, field14=>1, field15=>b}, Spec),
 
     {ok, #{field01:=a, map1:=#{m_field14:=1, m_field15:=b}}, #{}} = 
-        parse_config([{field01, a}, {field14, 1}, {field15, b}], Spec, map),
+        parse_config([{field01, a}, {field14, 1}, {field15, b}], Spec, #{return=>map}),
 
-    {error, {invalid_key, field14}} = parse_config(#{field01=>a, field14=>a}, Spec),
+    {error, {syntax_error, <<"field14">>}} = parse_config(#{field01=>a, field14=>a}, Spec),
     ok.
 
 
 parse_fun(field10, data, _Opts) ->
     {ok, data1};
-parse_fun(field10, opts, Opts) ->
-    {opts, lists:keystore(field01, 1, Opts, {field01, false})}.
+parse_fun(field10, opts, #{ok:=Ok}) ->
+    {new_ok, lists:keystore(field01, 1, Ok, {field01, false})}.
 
 
 -endif.
