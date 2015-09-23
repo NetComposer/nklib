@@ -39,14 +39,23 @@
 
 %% @doc Encodes a term() to JSON
 -spec encode(term()) ->
-    binary().
+    binary() | error.
 
 encode(Term) ->
-    case erlang:function_exported(jiffy, encode, 1) of
-        true ->
-            jiffy:encode(Term);
-        false ->
-            jsx:encode(Term)
+    try 
+        case erlang:function_exported(jiffy, encode, 1) of
+            true ->
+                jiffy:encode(Term);
+            false ->
+                jsx:encode(Term)
+        end
+    catch
+        error:Error -> 
+            lager:debug("Error encoding JSON: ~p", [Error]),
+            error;
+        throw:Error ->
+            lager:debug("Error encoding JSON: ~p", [Error]),
+            error
     end.
 
 
@@ -55,11 +64,20 @@ encode(Term) ->
     binary().
 
 encode_pretty(Term) ->
-    case erlang:function_exported(jiffy, encode, 2) of
-        true ->
-            jiffy:encode(Term, [pretty]);
-        false ->
-            jsx:encode(Term, [space, {indent, 2}])
+    try
+        case erlang:function_exported(jiffy, encode, 2) of
+            true ->
+                jiffy:encode(Term, [pretty]);
+            false ->
+                jsx:encode(Term, [space, {indent, 2}])
+        end
+    catch
+        error:Error -> 
+            lager:debug("Error encoding JSON: ~p", [Error]),
+            error;
+        throw:Error ->
+            lager:debug("Error encoding JSON: ~p", [Error]),
+            error
     end.
 
 
