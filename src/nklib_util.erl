@@ -723,7 +723,7 @@ delete(PropList, KeyOrKeys) ->
     lists:filter(Fun, PropList).
 
 %% @doc Inserts defaults in a proplist
--spec defaults([{term(), term()}], [{term(), term()}]) ->
+-spec defaults(List::[{term(), term()}], Defaults::[{term(), term()}]) ->
     [{term(), term()}].
 
 defaults(List, []) ->
