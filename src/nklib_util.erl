@@ -32,7 +32,7 @@
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
 -export([filtermap/2]).
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
--export([to_ip/1, to_host/1, to_host/2]).
+-export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
@@ -481,7 +481,27 @@ to_list(M) when is_map(M) -> maps:to_list(M);
 to_list(P) when is_pid(P) -> pid_to_list(P).
 
 
-%% @doc Converts to a `map()'.
+%% @doc Converts anything into a `atom()'.
+%% WARNING: Can create new atoms
+-spec to_atom(string()|binary()|atom()|integer()) -> 
+    string().
+
+to_atom(A) when is_atom(A) -> A;
+to_atom(B) when is_binary(B) -> binary_to_atom(B, utf8);
+to_atom(L) when is_list(L) -> list_to_atom(L);
+to_atom(I) when is_integer(I) -> list_to_atom(integer_to_list(I)).
+
+
+%% @doc Converts anything into an existing atom or throws an error
+-spec to_existing_atom(string()|binary()|atom()|integer()) -> 
+    string().
+
+to_existing_atom(A) when is_atom(A) -> A;
+to_existing_atom(B) when is_binary(B) -> binary_to_existing_atom(B, utf8);
+to_existing_atom(L) when is_list(L) -> list_to_existing_atom(L);
+to_existing_atom(I) when is_integer(I) -> to_existing_atom(integer_to_list(I)).
+
+
 -spec to_map(list()|map()) -> 
     map().
 
