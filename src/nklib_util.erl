@@ -34,7 +34,7 @@
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
 -export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
--export([bjoin/1, bjoin/2, words/1, append_max/3, randomize/1]).
+-export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, demonitor/1, msg/2]).
 
@@ -815,6 +815,29 @@ words([Ch|Rest], Chs, Tokens) when Ch==32; Ch==9; Ch==13; Ch==10 ->
     end;
 words([Ch|Rest], Chs, Tokens) ->
     words(Rest, [Ch|Chs], Tokens).
+
+
+
+% @dod
+capitalize(Name) ->
+    capitalize(nklib_util:to_binary(Name), true, <<>>).
+
+
+% @private 
+capitalize(<<>>, _, Acc) ->
+    Acc;
+
+capitalize(<<$-, Rest/bits >>, _, Acc) ->
+    capitalize(Rest, true, <<Acc/binary, $->>);
+
+capitalize(<<Ch, Rest/bits>>, true, Acc) when Ch>=$a, Ch=<$z ->
+    capitalize(Rest, false, <<Acc/binary, (Ch-32)>>);
+
+capitalize(<<Ch, Rest/bits>>, true, Acc) ->
+    capitalize(Rest, false, <<Acc/binary, Ch>>);
+
+capitalize(<<Ch, Rest/bits>>, false, Acc) ->
+    capitalize(Rest, false, <<Acc/binary, Ch>>).
 
 
 %% @doc Appends to a list with a maximum length (not efficient for large lists!!)
