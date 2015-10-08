@@ -26,6 +26,7 @@
 -export([get/2, get/3, put/3, del/2, increment/3]).
 -export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4]).
 -export([parse_config/2, parse_config/3, load_env/4, load_domain/5]).
+-export([make_cache/5]).
 
 -export([start_link/0, init/1, terminate/2, code_change/3, handle_call/3, handle_cast/2, 
          handle_info/2]).
@@ -40,7 +41,8 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | host | host6 | {function, pos_integer()} |
-    unquote | path | uris | tokens | map() | list() | syntax_fun().
+    unquote | path | uri | uris | tokens | words | log_level |
+    map() | list() | syntax_fun().
 
 -type syntax_fun() ::
     fun((atom(), term(), fun_ctx()) -> 
@@ -239,6 +241,24 @@ do_load_domain(Mod, Domain, Opts, Defaults, Syntax) ->
         {error, Error} ->
             {error, Error}
     end.
+
+
+%% Generates on the fly a 'cache' module for the indicated keys
+-spec make_cache([atom()], module(), nklib:domain(), module(), string()|binary()) ->
+    ok.
+
+make_cache(KeyList, Mod, Domain, Module, Path) ->
+    Syntax = lists:foldl(
+        fun(Key, Acc) ->
+            Val = get_domain(Mod, Domain, Key),
+            [nklib_code:getter(Key, Val)|Acc] 
+        end,
+        [],
+        KeyList),
+    {ok, Tree} = nklib_code:compile(Module, Syntax),
+    ok = nklib_code:write(Module, Tree, Path).
+
+
 
 
 %% ===================================================================
@@ -612,6 +632,12 @@ do_parse_config(path, Val) ->
         Bin -> {ok, Bin}
     end;
 
+do_parse_config(uri, Val) ->
+    case nklib_parse:uris(Val) of
+        [Uri] -> {ok, Uri};
+        _r -> error
+    end;
+
 do_parse_config(uris, Val) ->
     case nklib_parse:uris(Val) of
         error -> error;
@@ -622,6 +648,29 @@ do_parse_config(tokens, Val) ->
     case nklib_parse:tokens(Val) of
         error -> error;
         Tokens -> {ok, Tokens}
+    end;
+
+do_parse_config(words, Val) ->
+    case nklib_parse:tokens(Val) of
+        error -> error;
+        Tokens -> {ok, [W || {W, _} <- Tokens]}
+    end;
+
+do_parse_config(log_level, Val) when Val>=0, Val=<8 -> 
+    {ok, Val};
+
+do_parse_config(log_level, Val) ->
+    case Val of
+        debug -> {ok, 8};
+        info -> {ok, 7};
+        notice -> {ok, 6};
+        warning -> {ok, 5};
+        error -> {ok, 4};
+        critical -> {ok, 3};
+        alert -> {ok, 2};
+        emergency -> {ok, 1};
+        none -> {ok, 0};
+        _ -> error
     end;
 
 do_parse_config([Opt|Rest], Val) ->
