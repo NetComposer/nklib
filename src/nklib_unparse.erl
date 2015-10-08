@@ -22,7 +22,7 @@
 -module(nklib_unparse).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([uri/1, uri2/1, token/1, header/1, capitalize/1]).
+-export([uri/1, uri2/1, uri3/1, token/1, header/1, gen_opts/1]).
 
 -include("nklib.hrl").
 
@@ -55,6 +55,15 @@ uri2(#uri{domain=Domain}=Uri) ->
     list_to_binary(raw_uri(Uri#uri{domain= <<"//", Domain/binary>>})).
 
 
+%% @private Serializes an `nksip:uri()'  without `<' and `>' as delimiters
+%% and no disp, headers or external opts
+uri3(UriList) when is_list(UriList) ->
+    nklib_util:bjoin([uri3(Uri) || Uri <- UriList]);
+
+uri3(#uri{}=Uri) ->
+    list_to_binary(raw_uri3(Uri)).
+
+
 
 %% @doc Serializes a list of `token()'
 -spec token(nklib:token() | [nklib:token()] | undefined) ->
@@ -72,12 +81,12 @@ token(Tokens) when is_list(Tokens) ->
 
 %% @doc
 -spec header(nklib:header_value()) ->
-    binary().
+    binary() | {unknown, term()}.
 
 header(Value) ->
     case unparse_header(Value) of
         Binary when is_binary(Binary) -> Binary;
-        IoList -> list_to_binary(IoList) 
+        IoList when is_list(IoList) -> list_to_binary(IoList)
     end.
 
 
@@ -118,6 +127,30 @@ raw_uri(#uri{}=Uri) ->
         gen_headers(Uri#uri.ext_headers)
     ].
 
+
+%% @private Serializes an `nksip:uri()'  without `<' and `>' as delimiters
+%% and no disp, headers or external opts
+-spec raw_uri3(nksip:uri()) -> 
+    iolist().
+
+raw_uri3(#uri{}=Uri) ->
+    [
+        nklib_util:to_binary(Uri#uri.scheme), $:,
+        case Uri#uri.user of
+            <<>> -> <<>>;
+            User ->
+                case Uri#uri.pass of
+                    <<>> -> [User, $@];
+                    Pass -> [User, $:, Pass, $@]
+                end
+        end,
+        Uri#uri.domain, 
+        case Uri#uri.port of
+            0 -> [];
+            Port -> [$:, integer_to_list(Port)]
+        end,
+        gen_opts(Uri#uri.opts)
+    ].
 
 
 %% @private Serializes a list of `token()'
@@ -167,7 +200,6 @@ unparse_header(Value) when is_integer(Value); is_atom(Value) ->
     nklib_util:to_binary(Value).
 
 
-
 %% @private
 join([], Acc) ->
     Acc;
@@ -177,7 +209,6 @@ join([A, B | Rest], Acc) ->
 
 join([A], Acc) ->
     lists:reverse([A|Acc]).
-
 
 
 
@@ -214,26 +245,6 @@ gen_headers([K|Rest], Acc) ->
     gen_headers(Rest, [[$&, nklib_util:to_binary(K)] | Acc]).
 
 
-% @private 
-capitalize(Name) ->
-    capitalize(nklib_util:to_binary(Name), true, <<>>).
-
-
-% @private 
-capitalize(<<>>, _, Acc) ->
-    Acc;
-
-capitalize(<<$-, Rest/bits >>, _, Acc) ->
-    capitalize(Rest, true, <<Acc/binary, $->>);
-
-capitalize(<<Ch, Rest/bits>>, true, Acc) when Ch>=$a, Ch=<$z ->
-    capitalize(Rest, false, <<Acc/binary, (Ch-32)>>);
-
-capitalize(<<Ch, Rest/bits>>, true, Acc) ->
-    capitalize(Rest, false, <<Acc/binary, Ch>>);
-
-capitalize(<<Ch, Rest/bits>>, false, Acc) ->
-    capitalize(Rest, false, <<Acc/binary, Ch>>).
 
 
 
