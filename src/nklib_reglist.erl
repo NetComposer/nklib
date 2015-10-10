@@ -182,7 +182,7 @@ get_all({reglist, Regs, _Pids}) ->
 %% EUnit tests
 %% ===================================================================
 
--define(TEST, a).
+% -define(TEST, a).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
