@@ -21,6 +21,11 @@ tests: compile eunit
 eunit:
 	./rebar eunit skip_deps=true
 
+shell:
+	erl -pa deps/lager -pa deps/goldrush -pa deps/jsx -pa deps/jiffy \
+	    -pa ebin -s nklib_app
+
+
 docs:
 	./rebar skip_deps=true doc
 
