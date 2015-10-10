@@ -1,4 +1,4 @@
-% -------------------------------------------------------------------
+%% -------------------------------------------------------------------
 %%
 %% Copyright (c) 2014 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
@@ -287,8 +287,8 @@ handle_call({reg, Name, Value, Pid}, _From, State) ->
         [] ->
             register(Name, val, Value, Pid),
             {reply, true, State};
-        [{_, Pid}|_] -> 
-            {reply, {false, Pid}, State}
+        [{_, OldPid}|_] -> 
+            {reply, {false, OldPid}, State}
     end;
 
 handle_call({wait_reg, Name, Value, Pid}, {FromPid, FromRef}, State) ->
@@ -623,6 +623,7 @@ do_start(Type, Name, Module, Args, Pid, Ref) ->
 %% ===================================================================
 
 
+% -define(TEST, 1).
 -ifdef(TEST).
 -compile({no_auto_import, [put/2]}).
 -include_lib("eunit/include/eunit.hrl").
@@ -726,6 +727,13 @@ test_reg() ->
     ok = wait_del(name),
     Pid1 = spawn(fun() -> true = reg(name) end),
     {ok, {undefined, Pid1}} = wait_put(name),
+    ok = wait_del(name),
+
+    true = reg(name),
+    [{undefined, Self}] = values(name),
+    spawn(fun() -> Self ! reg(name) end),
+    receive {false, Self} -> ok after 1000 -> error(?LINE) end,
+    del(name),
     ok = wait_del(name),
 
     spawn(fun() -> true = reg(name), timer:sleep(100) end),
