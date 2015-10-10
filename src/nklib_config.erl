@@ -397,6 +397,8 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
                     case parse_config(Val, SubSyntax, Opts#{path=>BinKey}) of
                         {ok, Val1, _SubNoOK} ->
                             parse_config(Rest, [{Key, Val1}|OK], NoOK, Syntax, Opts);
+                        {error, {syntax_error, Error}} ->
+                            throw_syntax_error(Error, Opts);
                         {error, Term} ->
                             throw(Term)
                     end;
