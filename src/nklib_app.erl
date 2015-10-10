@@ -45,7 +45,7 @@ start() ->
 
 %% @private OTP standard start callback
 start(_Type, _Args) ->
-	{module, jsx} = code:ensure_loaded(jsx),
+	code:ensure_loaded(jsx),
 	code:ensure_loaded(jiffy),     % We can work without it
     nklib_sup:start_link().
 
