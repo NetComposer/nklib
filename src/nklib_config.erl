@@ -198,16 +198,15 @@ parse_config(Terms, Syntax, Opts) when is_map(Terms), is_map(Opts) ->
 
 
 %% @doc Loads parsed application environment
--spec load_env(term(), atom(), map()|list(), syntax()) ->
+-spec load_env(term(), atom(), syntax(), map()|list()) ->
     ok | {error, term()}.
 
-load_env(Mod, App, Defaults, Syntax) ->
+load_env(Mod, App, Syntax, Defaults) ->
     AppEnv = application:get_all_env(App),
-    Env1 = nklib_util:defaults(AppEnv, nklib_util:to_list(Defaults)),
-    case parse_config(Env1, Syntax) of
+    case parse_config(AppEnv, Syntax, #{defaults=>Defaults}) of
         {ok, Opts, _} ->
             lists:foreach(fun({K,V}) -> put(Mod, K, V) end, Opts),
-            ok;
+            {ok, Opts};
         {error, Error} ->
             {error, Error}
     end.
@@ -358,8 +357,7 @@ parse_config([{Key, Val}|Rest], OK, NoOK, Syntax, Opts) ->
         {ok, AtomKey} ->
             find_config(AtomKey, Val, Rest, OK, NoOK, Syntax, Opts);
         error ->
-            BinKey = nklib_util:to_binary(Key),
-            parse_config(Rest, OK, [{BinKey, Val}|NoOK], Syntax, Opts)
+            parse_config(Rest, OK, [{Key, Val}|NoOK], Syntax, Opts)
     end;
 
 parse_config([Key|Rest], OK, NoOK, Syntax, Opts) ->
@@ -370,7 +368,7 @@ parse_config([Key|Rest], OK, NoOK, Syntax, Opts) ->
 find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
     case maps:get(Key, Syntax, not_found) of
         not_found ->
-            parse_config(Rest, OK, [{nklib_util:to_binary(Key), Val}|NoOK], Syntax, Opts);
+            parse_config(Rest, OK, [{Key, Val}|NoOK], Syntax, Opts);
         Fun when is_function(Fun, 3) ->
             FunOpts = Opts#{ok=>OK, no_ok=>NoOK},
             case catch Fun(Key, Val, FunOpts) of
@@ -704,7 +702,10 @@ do_parse_config_list(ListType, [Term|Rest], Type, Acc) ->
             do_parse_config_list(ListType, Rest, Type, [Val|Acc]);
         error ->
             error
-    end.
+    end;
+
+do_parse_config_list(_, _, _, _) ->
+    error.
 
 
        
@@ -783,7 +784,7 @@ parse1() ->
 
     {error, {syntax_error, <<"field01">>}} = parse_config([{field01, "12345"}], Spec),
     
-    {ok,[{field01, fieldXX}, {field02, false}],[{<<"unknown">>, a}]} = 
+    {ok,[{field01, fieldXX}, {field02, false}],[{unknown, a}]} = 
         parse_config(
             [{field01, "fieldXX"}, {field02, <<"false">>}, {"unknown", a}],
             Spec),
