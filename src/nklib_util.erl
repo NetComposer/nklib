@@ -28,7 +28,7 @@
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
--export([get_integer/2, get_integer/3]).
+-export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
 -export([filtermap/2]).
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
@@ -372,6 +372,24 @@ get_integer(Key, List) ->
 get_integer(Key, List, Default) ->
     to_integer(get_value(Key, List, Default)).
 
+
+%% @doc Get the keys of a map or list (the first element of any tuple, 
+%% or the element itself)
+-spec keys(map()|list()) ->
+    [term()].
+
+keys(Map) when is_map(Map) ->
+    maps:keys(Map);
+
+keys(List) when is_list(List) ->
+    lists:map(
+        fun(Term) ->
+            case is_tuple(Term) of
+                true -> element(1, Term);
+                false -> Term
+            end
+        end,
+        List).
 
 
 %% @doc Stores a value in a list
