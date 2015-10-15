@@ -19,10 +19,10 @@
 %% -------------------------------------------------------------------
 
 %% @doc Sorting of dependant elements
--module(nklib_dep_sort).
+-module(nklib_sort).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([sort/1]).
+-export([top_sort/1]).
 
 
 %% ===================================================================
@@ -30,16 +30,19 @@
 %% =================================================================
 
 
-%% @doc Sortes a lists of elements with dependencies, so that 
+%% @doc Sortes a lists of elements with dependencies, so that no element is
+%% placed before any of its dependencies
+-spec top_sort([{term(), [term()]}]) ->
+    {ok, [term()]} | {error, {circular_dependencies, [term()]}}.
 
-sort(Library) ->
+top_sort(Library) ->
     Digraph = digraph:new(),
     try
-        sort_insert(Library, Digraph),
+        topsort_insert(Library, Digraph),
         case digraph_utils:topsort(Digraph) of
             false ->
                 Vertices = digraph:vertices(Digraph),
-                Circular = get_circular(Vertices, Digraph),
+                Circular = top_sort_get_circular(Vertices, Digraph),
                 {error, {circular_dependencies, Circular}};
             DepList ->
                 {ok, DepList}
@@ -50,11 +53,16 @@ sort(Library) ->
 
 
 
+%% ===================================================================
+%% Internal
+%% =================================================================
 
-sort_insert([], _Digraph) ->
+
+%% @private
+topsort_insert([], _Digraph) ->
     ok;
 
-sort_insert([{Name, Deps}|Rest], Digraph) ->
+topsort_insert([{Name, Deps}|Rest], Digraph) ->
     digraph:add_vertex(Digraph, Name),
     lists:foreach(
         fun(Dep) -> 
@@ -67,19 +75,23 @@ sort_insert([{Name, Deps}|Rest], Digraph) ->
             end
         end,
         Deps),
-    sort_insert(Rest, Digraph).
+    topsort_insert(Rest, Digraph).
 
 
-get_circular([], _Digraph) ->
+%% @private
+top_sort_get_circular([], _Digraph) ->
     [];
 
-get_circular([Vertice|Rest], Digraph) ->
+top_sort_get_circular([Vertice|Rest], Digraph) ->
     case digraph:get_short_cycle(Digraph, Vertice) of
         false ->
-            get_circular(Rest, Digraph);
+            top_sort_get_circular(Rest, Digraph);
         Vs ->
             lists:usort(Vs)
     end.
+
+
+
 
 
 
@@ -101,7 +113,6 @@ ok_test() ->
 
 fail_test() ->
     {error, {circular_dependencies,[dw01,dw04]}} = sort(lib2()).
-
 
 
 lib1() -> 
