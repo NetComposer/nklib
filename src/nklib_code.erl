@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([expression/1, getter/2, fun_expr/4, call_expr/4, callback_expr/3]).
--export([case_expr/5, compile/2, write/3]).
+-export([case_expr/5, case_expr_ok/4, compile/2, write/3]).
 -export([get_funs/1]).
 
 
@@ -129,6 +129,47 @@ case_expr(Mod, Fun, Arity, Vers, NextCode) ->
                 none,
                 [erl_syntax:variable('Other')])
         ]).
+
+
+%% @doc Generates a case expression
+%% case mod:fun(A2,B2) of
+%%     ok -> [A1,B1..] = [A2,B2..], (NextCode);
+%%     {ok, B1} -> [A1=A2], (NextCode); 
+%%     Other -> Other
+%% end
+%% Vers represents the suffix to use in the variable names.
+-spec case_expr_ok(atom(), atom(), integer(),  
+               [erl_syntax:syntaxTree()]) ->
+    erl_syntax:syntaxTree().
+
+case_expr_ok(Mod, Fun, Vers, NextCode) ->
+    erl_syntax:case_expr(
+        call_expr(Mod, Fun, 2, Vers),
+        [
+            erl_syntax:clause(
+                [erl_syntax:atom(ok)],
+                none,
+                [
+                    erl_syntax:match_expr(
+                        erl_syntax:list(var_list(2, Vers-1)),
+                        erl_syntax:list(var_list(2, Vers)))
+                | NextCode]),
+            erl_syntax:clause(
+                [erl_syntax:tuple([
+                    erl_syntax:atom(ok), 
+                    erl_syntax:variable([$B|integer_to_list(Vers-1)])])],
+                none,
+                [
+                    erl_syntax:match_expr(
+                        erl_syntax:list(var_list(1, Vers-1)),
+                        erl_syntax:list(var_list(1, Vers)))
+                | NextCode]),
+            erl_syntax:clause(
+                [erl_syntax:variable('Other')],
+                none,
+                [erl_syntax:variable('Other')])
+        ]).
+
 
 
 %% @doc Compiles a syntaxTree into a module
