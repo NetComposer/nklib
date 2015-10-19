@@ -243,7 +243,7 @@ do_load_domain(Mod, Domain, Opts, Defaults, Syntax) ->
 
 
 %% Generates on the fly a 'cache' module for the indicated keys
--spec make_cache([atom()], module(), nklib:domain(), module(), string()|binary()) ->
+-spec make_cache([atom()], module(), nklib:domain(), module(), string()|binary()|none) ->
     ok.
 
 make_cache(KeyList, Mod, Domain, Module, Path) ->
@@ -255,7 +255,10 @@ make_cache(KeyList, Mod, Domain, Module, Path) ->
         [],
         KeyList),
     {ok, Tree} = nklib_code:compile(Module, Syntax),
-    ok = nklib_code:write(Module, Tree, Path).
+    case Path of
+        none -> ok;
+        _ -> ok = nklib_code:write(Module, Tree, Path)
+    end.
 
 
 
