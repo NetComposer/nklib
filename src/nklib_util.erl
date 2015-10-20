@@ -95,8 +95,9 @@ ensure_all_started(Application, Type, Started) ->
 
 
 %% @doc Like gen_server:call/3 but traps exceptions
--spec call(atom()|pid(), term(), #{timeout=>timeout()}) ->
-    term() | {error, {exit|error|throw, term()}}.
+%% For timeouts: {error, {exit, {timeout, _}}}
+-spec call(atom()|pid(), term(), #{timeout=>pos_integer()|infinity}) ->
+    term() | {error, timeout | {exit|error|throw, {term(), list()}}}.
 
 call(Dest, Msg, Opts) ->
     Timeout = maps:get(timeout, Opts, 5000),
@@ -106,7 +107,6 @@ call(Dest, Msg, Opts) ->
         Class:Error ->
             {error, {Class, {Error, erlang:get_stacktrace()}}}
     end.
-
 
 
 %% @doc Safe gen_server:call/3
@@ -523,8 +523,18 @@ to_existing_atom(I) when is_integer(I) -> to_existing_atom(integer_to_list(I)).
 -spec to_map(list()|map()) -> 
     map().
 
-to_map(M) when is_map(M) -> M;
-to_map(L) when is_list(L) -> maps:from_list(L).
+to_map(M) when is_map(M) -> 
+    M;
+to_map(L) when is_list(L) -> 
+    L1 = lists:map(
+        fun(T) ->
+            case T of
+                {K, V} -> {K, V};
+                K -> {K, true}
+            end
+        end,
+        L),
+    maps:from_list(L1).
 
 
 %% @doc Converts anything into a `integer()' or `error'.
