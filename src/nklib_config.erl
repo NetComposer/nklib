@@ -623,13 +623,13 @@ do_parse_config({function, N}, Val) ->
         false -> error
     end;
 
-do_parse_config(unquote, Val) ->
+do_parse_config(unquote, Val) when is_list(Val); is_binary(Val) ->
     case nklib_parse:unquote(Val) of
         error -> error;
         Bin -> {ok, Bin}
     end;
 
-do_parse_config(path, Val) ->
+do_parse_config(path, Val) when is_list(Val); is_binary(Val) ->
     case nklib_parse:path(Val) of
         error -> error;
         Bin -> {ok, Bin}
