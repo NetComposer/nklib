@@ -25,7 +25,7 @@
 
 -export([get/2, get/3, put/3, del/2, increment/3]).
 -export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4]).
--export([parse_config/2, parse_config/3, load_env/4, load_domain/5]).
+-export([parse_config/2, parse_config/3, load_env/3, load_domain/5]).
 -export([make_cache/5]).
 
 -export([start_link/0, init/1, terminate/2, code_change/3, handle_call/3, handle_cast/2, 
@@ -198,14 +198,14 @@ parse_config(Terms, Syntax, Opts) when is_map(Terms), is_map(Opts) ->
 
 
 %% @doc Loads parsed application environment
--spec load_env(term(), atom(), syntax(), map()|list()) ->
+-spec load_env(atom(), syntax(), map()|list()) ->
     ok | {error, term()}.
 
-load_env(Mod, App, Syntax, Defaults) ->
+load_env(App, Syntax, Defaults) ->
     AppEnv = application:get_all_env(App),
     case parse_config(AppEnv, Syntax, #{defaults=>Defaults}) of
         {ok, Opts, _} ->
-            lists:foreach(fun({K,V}) -> put(Mod, K, V) end, Opts),
+            lists:foreach(fun({K,V}) -> put(App, K, V) end, Opts),
             {ok, Opts};
         {error, Error} ->
             {error, Error}
@@ -395,7 +395,9 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
             case is_list(Val) orelse is_map(Val) of
                 true ->
                     BinKey = nklib_util:to_binary(Key),
-                    case parse_config(Val, SubSyntax, Opts#{path=>BinKey}) of
+                    Opts1 = maps:remove(defaults, Opts),
+                    Opts2 = Opts1#{path=>BinKey},
+                    case parse_config(Val, SubSyntax, Opts2) of
                         {ok, Val1, _SubNoOK} ->
                             parse_config(Rest, [{Key, Val1}|OK], NoOK, Syntax, Opts);
                         {error, {syntax_error, Error}} ->
