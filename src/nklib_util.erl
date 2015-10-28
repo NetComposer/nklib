@@ -28,13 +28,13 @@
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
--export([get_integer/2, get_integer/3]).
+-export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
 -export([filtermap/2]).
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
--export([to_ip/1, to_host/1, to_host/2]).
+-export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
--export([bjoin/1, bjoin/2, append_max/3, randomize/1]).
+-export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, demonitor/1, msg/2]).
 
@@ -95,8 +95,9 @@ ensure_all_started(Application, Type, Started) ->
 
 
 %% @doc Like gen_server:call/3 but traps exceptions
--spec call(atom()|pid(), term(), #{timeout=>timeout()}) ->
-    term() | {error, {exit|error|throw, term()}}.
+%% For timeouts: {error, {exit, {{timeout, _}, _}}}
+-spec call(atom()|pid(), term(), #{timeout=>pos_integer()|infinity}) ->
+    term() | {error, timeout | {exit|error|throw, {term(), list()}}}.
 
 call(Dest, Msg, Opts) ->
     Timeout = maps:get(timeout, Opts, 5000),
@@ -106,7 +107,6 @@ call(Dest, Msg, Opts) ->
         Class:Error ->
             {error, {Class, {Error, erlang:get_stacktrace()}}}
     end.
-
 
 
 %% @doc Safe gen_server:call/3
@@ -373,6 +373,24 @@ get_integer(Key, List, Default) ->
     to_integer(get_value(Key, List, Default)).
 
 
+%% @doc Get the keys of a map or list (the first element of any tuple, 
+%% or the element itself)
+-spec keys(map()|list()) ->
+    [term()].
+
+keys(Map) when is_map(Map) ->
+    maps:keys(Map);
+
+keys(List) when is_list(List) ->
+    lists:map(
+        fun(Term) ->
+            case is_tuple(Term) of
+                true -> element(1, Term);
+                false -> Term
+            end
+        end,
+        List).
+
 
 %% @doc Stores a value in a list
 -spec store_value(term(), list()) ->
@@ -481,12 +499,42 @@ to_list(M) when is_map(M) -> maps:to_list(M);
 to_list(P) when is_pid(P) -> pid_to_list(P).
 
 
-%% @doc Converts to a `map()'.
+%% @doc Converts anything into a `atom()'.
+%% WARNING: Can create new atoms
+-spec to_atom(string()|binary()|atom()|integer()) -> 
+    string().
+
+to_atom(A) when is_atom(A) -> A;
+to_atom(B) when is_binary(B) -> binary_to_atom(B, utf8);
+to_atom(L) when is_list(L) -> list_to_atom(L);
+to_atom(I) when is_integer(I) -> list_to_atom(integer_to_list(I)).
+
+
+%% @doc Converts anything into an existing atom or throws an error
+-spec to_existing_atom(string()|binary()|atom()|integer()) -> 
+    string().
+
+to_existing_atom(A) when is_atom(A) -> A;
+to_existing_atom(B) when is_binary(B) -> binary_to_existing_atom(B, utf8);
+to_existing_atom(L) when is_list(L) -> list_to_existing_atom(L);
+to_existing_atom(I) when is_integer(I) -> to_existing_atom(integer_to_list(I)).
+
+
 -spec to_map(list()|map()) -> 
     map().
 
-to_map(M) when is_map(M) -> M;
-to_map(L) when is_list(L) -> maps:from_list(L).
+to_map(M) when is_map(M) -> 
+    M;
+to_map(L) when is_list(L) -> 
+    L1 = lists:map(
+        fun(T) ->
+            case T of
+                {K, V} -> {K, V};
+                K -> {K, true}
+            end
+        end,
+        L),
+    maps:from_list(L1).
 
 
 %% @doc Converts anything into a `integer()' or `error'.
@@ -769,6 +817,55 @@ bjoin2([Next|Rest], Acc, J) ->
     bjoin2(Rest, <<Acc/binary, J/binary, (to_binary(Next))/binary>>, J);
 bjoin2([], Acc, _J) ->
     Acc.
+
+
+%% @doc Splits a `string()' or `binary()' into a list of words
+-spec words(string() | binary()) ->
+    [string()] | error.
+
+words(Bin) when is_binary(Bin) ->
+    words(binary_to_list(Bin));
+words(List) when is_list(List) ->
+    words(List, [], []);
+words(_) ->
+    error.
+
+
+%% @private
+words([], [], Tokens) ->
+    lists:reverse(Tokens);
+words([], Chs, Tokens) ->
+    lists:reverse([lists:reverse(Chs)|Tokens]);
+words([Ch|Rest], Chs, Tokens) when Ch==32; Ch==9; Ch==13; Ch==10 ->
+    case Chs of
+        [] -> words(Rest, [], Tokens);
+        _ -> words(Rest, [], [lists:reverse(Chs)|Tokens])
+    end;
+words([Ch|Rest], Chs, Tokens) ->
+    words(Rest, [Ch|Chs], Tokens).
+
+
+
+% @dod
+capitalize(Name) ->
+    capitalize(nklib_util:to_binary(Name), true, <<>>).
+
+
+% @private 
+capitalize(<<>>, _, Acc) ->
+    Acc;
+
+capitalize(<<$-, Rest/bits >>, _, Acc) ->
+    capitalize(Rest, true, <<Acc/binary, $->>);
+
+capitalize(<<Ch, Rest/bits>>, true, Acc) when Ch>=$a, Ch=<$z ->
+    capitalize(Rest, false, <<Acc/binary, (Ch-32)>>);
+
+capitalize(<<Ch, Rest/bits>>, true, Acc) ->
+    capitalize(Rest, false, <<Acc/binary, Ch>>);
+
+capitalize(<<Ch, Rest/bits>>, false, Acc) ->
+    capitalize(Rest, false, <<Acc/binary, Ch>>).
 
 
 %% @doc Appends to a list with a maximum length (not efficient for large lists!!)

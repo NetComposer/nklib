@@ -35,6 +35,7 @@
 -export([start_link/0, stop/0]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
          handle_cast/2, handle_info/2]).
+-export([update_timer/1]).
 
 -define(STORE_TIMER, 5000).
 
@@ -127,6 +128,10 @@ pending() ->
     gen_server:call(?MODULE, get_pending).
 
 
+%% @private
+update_timer(Time) ->
+    gen_server:cast(?MODULE, {update_timer, Time}).
+
 
 %% ===================================================================
 %% gen_server
@@ -134,7 +139,8 @@ pending() ->
 
 
 -record(state, {
-    time
+    time,
+    timer
 }).
 
 
@@ -160,8 +166,8 @@ stop() ->
 init([Time]) ->
     ets:new(nklib_store, [public, named_table]),
     ets:new(nklib_store_ord, [protected, ordered_set, named_table]),
-    erlang:start_timer(Time, self(), timer),
-    {ok, #state{time=Time}}.
+    Timer = erlang:start_timer(Time, self(), timer),
+    {ok, #state{time=Time, timer=Timer}}.
 
 
 %% @private
@@ -256,6 +262,10 @@ handle_call(Msg, _From, State) ->
 -spec handle_cast(term(), #state{}) ->
     {noreply, #state{}}.
 
+handle_cast({update_timer, Time}, #state{timer=Timer}=State) ->
+    nklib_util:cancel_timer(Timer),
+    handle_info({timeout, none, timer}, State#state{time=Time});
+
 handle_cast(Msg, State) -> 
     lager:error("Module ~p received unexpected cast ~p", [?MODULE, Msg]),
     {noreply, State}.
@@ -265,16 +275,15 @@ handle_cast(Msg, State) ->
 -spec handle_info(term(), #state{}) ->
     {noreply, #state{}}.
 
-handle_info({timeout, _, timer}, State) -> 
-    Self = self(),
+handle_info({timeout, _, timer}, #state{time=Time}=State) -> 
     proc_lib:spawn(
         fun() -> 
             Now = nklib_util:timestamp(),
             Last = ets:prev(nklib_store_ord, {ttl, Now, 0}),
-            delete_expired_iter(Last),
-            erlang:start_timer(State#state.time, Self, timer)
+            delete_expired_iter(Last)
         end),
-    {noreply, State};
+    Timer = erlang:start_timer(Time, self(), timer),
+    {noreply, State#state{timer=Timer}};
 
 handle_info(Info, State) -> 
     lager:warning("Module ~p received unexpected info: ~p", [?MODULE, Info]),
