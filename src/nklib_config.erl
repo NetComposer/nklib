@@ -339,10 +339,11 @@ terminate(_Reason, _State) ->
                    syntax(), parse_opts()) ->
     {ok, [{atom(), term()}], [{binary(), term()}]}.
 
-parse_config([], OK, NoOK, _Syntax, Opts) ->
+parse_config([], OK, NoOK, Syntax, Opts) ->
     OK1 = case Opts of
         #{defaults:=Defaults} ->
-            nklib_util:defaults(OK, nklib_util:to_list(Defaults));
+            {ok, Defaults1, []} = parse_config(Defaults, Syntax),
+            nklib_util:defaults(OK, Defaults1);
         _ ->
             OK
     end,
