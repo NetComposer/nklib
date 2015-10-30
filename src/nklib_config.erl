@@ -339,15 +339,18 @@ terminate(_Reason, _State) ->
                    syntax(), parse_opts()) ->
     {ok, [{atom(), term()}], [{binary(), term()}]}.
 
-parse_config([], OK, NoOK, Syntax, Opts) ->
-    OK1 = case Opts of
-        #{defaults:=Defaults} ->
-            {ok, Defaults1, []} = parse_config(Defaults, Syntax),
-            nklib_util:defaults(OK, Defaults1);
-        _ ->
-            OK
-    end,
-    OK2 = lists:reverse(OK1),
+parse_config([], OK, NoOK, Syntax, #{defaults:=Defaults}=Opts) ->
+    case parse_config(Defaults, Syntax) of
+        {ok, Defaults2, []} ->
+            OK2 = nklib_util:defaults(OK, Defaults2),
+            parse_config([], OK2, NoOK, Syntax, maps:remove(defaults, Opts));
+        {error, Error} ->
+            lager:warning("Error parsing in defaults: ~p", [Defaults]),
+            {error, Error}
+    end;
+
+parse_config([], OK, NoOK, _Syntax, Opts) ->
+    OK2 = lists:reverse(OK),
     NoOK2 = lists:reverse(NoOK),
     case Opts of
         #{return:=map} ->
