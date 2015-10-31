@@ -36,7 +36,7 @@
 -compile({no_auto_import, [get/1, put/2]}).
 
 -type syntax_subopt() ::
-    any | atom | boolean | {enum, [atom()]} | list | pid | proc |
+    ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
@@ -429,6 +429,8 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
                 error ->
                     throw_syntax_error(Key, Opts)
             end;
+        ignore ->
+            parse_config(Rest, OK, NoOK, Syntax, Opts);
         SyntaxOp ->
             case do_parse_config(SyntaxOp, Val) of
                 {ok, Val1} ->
