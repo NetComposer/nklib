@@ -36,7 +36,7 @@
 -compile({no_auto_import, [get/1, put/2]}).
 
 -type syntax_subopt() ::
-    any | atom | boolean | {enum, [atom()]} | list | pid | proc |
+    ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
@@ -339,14 +339,18 @@ terminate(_Reason, _State) ->
                    syntax(), parse_opts()) ->
     {ok, [{atom(), term()}], [{binary(), term()}]}.
 
+parse_config([], OK, NoOK, Syntax, #{defaults:=Defaults}=Opts) ->
+    case parse_config(Defaults, Syntax) of
+        {ok, Defaults2, []} ->
+            OK2 = nklib_util:defaults(OK, Defaults2),
+            parse_config([], OK2, NoOK, Syntax, maps:remove(defaults, Opts));
+        {error, Error} ->
+            lager:warning("Error parsing in defaults: ~p", [Defaults]),
+            {error, Error}
+    end;
+
 parse_config([], OK, NoOK, _Syntax, Opts) ->
-    OK1 = case Opts of
-        #{defaults:=Defaults} ->
-            nklib_util:defaults(OK, nklib_util:to_list(Defaults));
-        _ ->
-            OK
-    end,
-    OK2 = lists:reverse(OK1),
+    OK2 = lists:reverse(OK),
     NoOK2 = lists:reverse(NoOK),
     case Opts of
         #{return:=map} ->
@@ -425,6 +429,8 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
                 error ->
                     throw_syntax_error(Key, Opts)
             end;
+        ignore ->
+            parse_config(Rest, OK, NoOK, Syntax, Opts);
         SyntaxOp ->
             case do_parse_config(SyntaxOp, Val) of
                 {ok, Val1} ->
