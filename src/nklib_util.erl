@@ -97,7 +97,7 @@ ensure_all_started(Application, Type, Started) ->
 %% @doc Like gen_server:call/3 but traps exceptions
 %% For timeouts: {error, {exit, {{timeout, _}, _}}}
 -spec call(atom()|pid(), term(), #{timeout=>pos_integer()|infinity}) ->
-    term() | {error, timeout | {exit|error|throw, {term(), list()}}}.
+    term() | {error, {exit|error|throw, {term(), list()}}}.
 
 call(Dest, Msg, Opts) ->
     Timeout = maps:get(timeout, Opts, 5000),
