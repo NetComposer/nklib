@@ -250,6 +250,10 @@ proc_reply(Term, PosUser, State) ->
             {error, Error, setelement(PosUser, State, User1)};
         {error, Error, Reply, User1} ->
             {error, Error, Reply, setelement(PosUser, State, User1)};
+        {Class, User1} ->
+            {Class, setelement(PosUser, State, User1)};
+        {Class, Msg, User1} ->
+            {Class, Msg, setelement(PosUser, State, User1)};
         Other ->
             Other
     end.
