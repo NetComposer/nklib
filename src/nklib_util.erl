@@ -22,7 +22,7 @@
 -module(nklib_util).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([ensure_all_started/2, call/3, safe_call/3]).
+-export([ensure_all_started/2, call/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
 -export([timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
@@ -107,6 +107,25 @@ call(Dest, Msg, Opts) ->
         Class:Error ->
             {error, {Class, {Error, erlang:get_stacktrace()}}}
     end.
+
+
+%% @private
+-spec apply(atom(), atom(), list()) ->
+    term() | not_exported | {error, {exit|error|throw, {term(), list()}}}.
+
+apply(Mod, Fun, Args) ->
+    try
+        case erlang:function_exported(Mod, Fun, length(Args)) of
+            false ->
+                not_exported;
+            true ->
+                erlang:apply(Mod, Fun, Args)
+        end
+    catch
+        Class:Error ->
+            {error, {Class, {Error, erlang:get_stacktrace()}}}
+    end.
+
 
 
 %% @doc Safe gen_server:call/3
