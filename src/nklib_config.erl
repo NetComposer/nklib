@@ -344,6 +344,9 @@ parse_config([], OK, NoOK, Syntax, #{defaults:=Defaults}=Opts) ->
         {ok, Defaults2, []} ->
             OK2 = nklib_util:defaults(OK, Defaults2),
             parse_config([], OK2, NoOK, Syntax, maps:remove(defaults, Opts));
+        {ok, _, DefNoOK} ->
+            lager:warning("Error parsing in defaults: ~p", [Defaults]),
+            {error, {no_pk, DefNoOK}};
         {error, Error} ->
             lager:warning("Error parsing in defaults: ~p", [Defaults]),
             {error, Error}
