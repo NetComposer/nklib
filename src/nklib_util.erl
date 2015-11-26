@@ -22,7 +22,7 @@
 -module(nklib_util).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([ensure_all_started/2, call/3, apply/3, safe_call/3]).
+-export([ensure_all_started/2, call/2, call/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
 -export([timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
@@ -94,13 +94,20 @@ ensure_all_started(Application, Type, Started) ->
     end.
 
 
-%% @doc Like gen_server:call/3 but traps exceptions
-%% For timeouts: {error, {exit, {{timeout, _}, _}}}
--spec call(atom()|pid(), term(), #{timeout=>pos_integer()|infinity}) ->
+%% @doc See call/3
+-spec call(atom()|pid(), term()) ->
     term() | {error, {exit|error|throw, {term(), list()}}}.
 
-call(Dest, Msg, Opts) ->
-    Timeout = maps:get(timeout, Opts, 5000),
+call(Dest, Msg) ->
+    call(Dest, Msg, 5000).
+
+
+%% @doc Like gen_server:call/3 but traps exceptions
+%% For timeouts: {error, {exit, {{timeout, _}, _}}}
+-spec call(atom()|pid(), term(), timeout() | infinity) ->
+    term() | {error, {exit|error|throw, {term(), list()}}}.
+
+call(Dest, Msg, Timeout) ->
     try
         gen_server:call(Dest, Msg, Timeout)
     catch
