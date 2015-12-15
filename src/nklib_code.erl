@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([expression/1, getter/2, fun_expr/4, call_expr/4, callback_expr/3]).
--export([case_expr/5, case_expr_ok/4, compile/2, write/3]).
+-export([case_expr/5, case_expr_ok/5, compile/2, write/3]).
 -export([get_funs/1]).
 
 
@@ -138,11 +138,11 @@ case_expr(Mod, Fun, Arity, Vers, NextCode) ->
 %%     Other -> Other
 %% end
 %% Vers represents the suffix to use in the variable names.
--spec case_expr_ok(atom(), atom(), integer(),  
+-spec case_expr_ok(atom(), atom(), integer(), integer(),  
                [erl_syntax:syntaxTree()]) ->
     erl_syntax:syntaxTree().
 
-case_expr_ok(Mod, Fun, Vers, NextCode) ->
+case_expr_ok(Mod, Fun, 2, Vers, NextCode) ->
     erl_syntax:case_expr(
         call_expr(Mod, Fun, 2, Vers),
         [
