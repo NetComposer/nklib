@@ -245,6 +245,7 @@ handle_any(Fun, Args, State, PosMod, PosUser) ->
 
 %% @private
 -spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
+    nklib_not_exported |
     {ok, tuple()} |
     {ok, term(), tuple()} |
     {error, term(), tuple()} |
@@ -259,7 +260,7 @@ handle_any(Fun, Args, State, PosMod, PosUser, PosTimeout) ->
         true ->
             proc_reply(apply(SubMod, Fun, Args1), PosUser, PosTimeout, State);
         false ->
-            ok
+            nklib_not_exported
     end.
 
 
