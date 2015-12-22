@@ -1,6 +1,6 @@
 {application, nklib, [
     {description, "Nekso Standard Library"},
-    {vsn, "master"},
+    {vsn, "develop"},
     {modules, []},
     {registered, []},
     {mod, {nklib_app, []}},
