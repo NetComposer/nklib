@@ -683,16 +683,24 @@ to_binlist(Bin) when is_binary(Bin) -> [Bin];
 to_binlist(Term) -> [to_binary(Term)].
 
 
-%% @doc URI Strips trailing white space
+%% @doc URI Strips leading and trailing white space
 -spec strip(list()|binary()) ->
     list().
 
 strip(Bin) when is_binary(Bin) -> strip(binary_to_list(Bin));
-strip([32|Rest]) -> strip(Rest);
-strip([13|Rest]) -> strip(Rest);
-strip([10|Rest]) -> strip(Rest);
-strip([9|Rest]) -> strip(Rest);
-strip(Rest) -> Rest.
+strip([32|Rest]) -> strip(Rest);  %% 32 = sapce
+strip([13|Rest]) -> strip(Rest);  %% 13 = CR
+strip([10|Rest]) -> strip(Rest);  %% 10 = LF
+strip([9|Rest]) -> strip(Rest);   %% 9 = TAB
+strip(Rest) -> striptail(lists:reverse(Rest)).
+
+striptail(Bin) when is_binary(Bin) -> striptail(binary_to_list(Bin));
+striptail([32|Rest]) -> striptail(Rest);  %% 32 = sapce
+striptail([13|Rest]) -> striptail(Rest);  %% 13 = CR
+striptail([10|Rest]) -> striptail(Rest);  %% 10 = LF
+striptail([9|Rest]) -> striptail(Rest);   %% 9 = TAB
+striptail(Rest) -> lists:reverse(Rest).
+
 
 
 %% @doc Removes doble quotes
