@@ -62,7 +62,8 @@
     #{
         return => map|list,         % Default is list
         path => binary(),           % Returned in errors
-        defaults => map() | list()
+        defaults => map() | list(),
+        mandatory => [atom()]
     }.
 
 
@@ -344,6 +345,9 @@ parse_config([], OK, NoOK, Syntax, #{defaults:=Defaults}=Opts) ->
         {ok, Defaults2, []} ->
             OK2 = nklib_util:defaults(OK, Defaults2),
             parse_config([], OK2, NoOK, Syntax, maps:remove(defaults, Opts));
+        {ok, _, DefNoOK} ->
+            lager:warning("Error parsing in defaults: ~p", [Defaults]),
+            {error, {no_ok, DefNoOK}};
         {error, Error} ->
             lager:warning("Error parsing in defaults: ~p", [Defaults]),
             {error, Error}
@@ -352,11 +356,17 @@ parse_config([], OK, NoOK, Syntax, #{defaults:=Defaults}=Opts) ->
 parse_config([], OK, NoOK, _Syntax, Opts) ->
     OK2 = lists:reverse(OK),
     NoOK2 = lists:reverse(NoOK),
-    case Opts of
-        #{return:=map} ->
-            {ok, maps:from_list(OK2), maps:from_list(NoOK)};
-        _ ->
-            {ok, OK2, NoOK2}
+    Mandatory = maps:get(mandatory, Opts, []),
+    case check_mandatory(Mandatory, OK) of
+        ok ->
+            case Opts of
+                #{return:=map} ->
+                    {ok, maps:from_list(OK2), maps:from_list(NoOK)};
+                _ ->
+                    {ok, OK2, NoOK2}
+            end;
+        {missing, Key} ->
+            {error, {missing_mandatory_field, Key}}
     end;
 
 parse_config([{Key, Val}|Rest], OK, NoOK, Syntax, Opts) ->
@@ -463,6 +473,18 @@ throw_syntax_error(Key, #{path:=Path}) ->
 
 throw_syntax_error(Key, _) ->
     throw({syntax_error, nklib_util:to_binary(Key)}).
+
+
+
+%% @private
+check_mandatory([], _) ->
+    ok;
+
+check_mandatory([Key|Rest], All) ->
+    case lists:keymember(Key, 1, All) of
+        true -> check_mandatory(Rest, All);
+        false -> {missing, Key}
+    end.
 
 
 %% @private
