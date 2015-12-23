@@ -25,6 +25,17 @@ shell:
 	erl -pa deps/lager/ebin -pa deps/goldrush/ebin -pa deps/jsx/ebin -pa deps/jiffy/ebin \
 	    -pa ebin -s nklib_app
 
+EDOC_OPTS = '[{source_path,["./src"]},\
+ 			{dir,"./edocs"}, \
+			{private,true}, \
+			{todo,true} \
+			]'
+
+edocs: edocsclean
+	erl -noshell -run edoc_run packages '[""]' $(EDOC_OPTS)
+
+edocsclean:
+	rm -Rf edocs
 
 docs:
 	./rebar skip_deps=true doc
