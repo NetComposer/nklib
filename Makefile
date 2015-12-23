@@ -29,6 +29,18 @@ shell:
 docs:
 	./rebar skip_deps=true doc
 
+EDOC_OPTS = '[{source_path,["./src"]},\
+ 			{dir,"./edocs"}, \
+			{private,true}, \
+			{todo,true} \
+			]'
+
+edocs: edocsclean
+	erl -noshell -run edoc_run packages '[""]' $(EDOC_OPTS)
+
+edocsclean:
+	rm -Rf edocs
+
 APPS = kernel stdlib sasl erts ssl tools os_mon runtime_tools crypto inets \
 	xmerl webtool snmp public_key mnesia eunit syntax_tools compiler
 COMBO_PLT = $(HOME)/.$(REPO)_combo_dialyzer_plt
@@ -49,4 +61,3 @@ cleanplt:
 	@echo 
 	sleep 5
 	rm $(COMBO_PLT)
-
