@@ -54,9 +54,14 @@ expression(Expr) ->
     erl_syntax:syntaxTree().
 
 getter(Fun, Value) ->
-    erl_syntax:function(
-       erl_syntax:atom(Fun),
-       [erl_syntax:clause([], none, [erl_syntax:abstract(Value)])]).
+    try
+        erl_syntax:function(
+           erl_syntax:atom(Fun),
+           [erl_syntax:clause([], none, [erl_syntax:abstract(Value)])])
+    catch
+        error:Error -> lager:warning("Could not make getter for ~p", [Value]),
+        error(Error)
+    end.
 
 
 %% @doc Generates a function expression (fun(A1,B1,..) -> Value)
