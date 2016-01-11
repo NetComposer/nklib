@@ -283,28 +283,12 @@ proc_reply(Term, PosUser, PosTimeout, State) ->
             {noreply, setelement(PosUser, State, User1), Timeout};
         {noreply, User1, Timeout1} ->
             {noreply, setelement(PosUser, State, User1), Timeout1};
-        {stop, Reason, User1} ->
-            {stop, Reason, setelement(PosUser, State, User1)};
-        {stop, Reason, Reply, User1} ->
-            {stop, Reason, Reply, setelement(PosUser, State, User1)};
 
         _ when is_tuple(Term) ->
-            User1 = element(size(Term), Term),
-            setelement(size(Term), Term, setelement(PosUser, State, User1));
-
-
-        % {ok, User1} ->
-        %     {ok, setelement(PosUser, State, User1)};
-        % {ok, Reply, User1} ->
-        %     {ok, Reply, setelement(PosUser, State, User1)};
-        % {error, Error, User1} ->
-        %     {error, Error, setelement(PosUser, State, User1)};
-        % {error, Error, Reply, User1} ->
-        %     {error, Error, Reply, setelement(PosUser, State, User1)};
-        % {Class, User1} ->
-        %     {Class, setelement(PosUser, State, User1)};
-        % {Class, Msg, User1} ->
-        %     {Class, Msg, setelement(PosUser, State, User1)};
+            % Return the same tuple, but last element is updated with the full state
+            User1 = element(size(Term), Term),              % Last term
+            State1 = setelement(PosUser, State, User1),
+            setelement(size(Term), Term, State1);
 
         Other ->
             Other
