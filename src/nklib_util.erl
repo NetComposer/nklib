@@ -36,7 +36,7 @@
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
--export([cancel_timer/1, demonitor/1, msg/2]).
+-export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 
 -export_type([optslist/0, timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -975,6 +975,17 @@ cancel_timer(Ref) when is_reference(Ref) ->
 
 cancel_timer(_) ->
     false.
+
+
+%% @doc Safe gen_server:reply/2
+-spec reply({pid(), term()}, term()) ->
+    ok.
+
+reply({Pid, _Ref}=From, Msg) when is_pid(Pid) ->
+    gen_server:reply(From, Msg);
+
+reply(_, _) ->
+    ok.
 
 
 %% @doc Cancels and existig timer.
