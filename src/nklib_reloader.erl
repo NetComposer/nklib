@@ -40,6 +40,8 @@ stop() ->
 %% @spec init([]) -> {ok, State}
 %% @doc gen_server init, opens the server in an initial state.
 init([]) ->
+    % Stop the thing after 8h
+    erlang:send_after(8*60*60*1000, self(), auto_stop_it),
     {ok, TRef} = timer:send_interval(timer:seconds(1), doit),
     {ok, #state{last = stamp(), tref = TRef}}.
  
@@ -61,6 +63,8 @@ handle_info(doit, State) ->
     Now = stamp(),
     doit(State#state.last, Now),
     {noreply, State#state{last = Now}};
+handle_info(auto_stop_it, State) ->
+    {stop, normal, State};
 handle_info(_Info, State) ->
     {noreply, State}.
  
