@@ -64,6 +64,7 @@ handle_info(doit, State) ->
     doit(State#state.last, Now),
     {noreply, State#state{last = Now}};
 handle_info(auto_stop_it, State) ->
+    io:format("\nNKRELOADER AUTO STOP\n\n"),
     {stop, normal, State};
 handle_info(_Info, State) ->
     {noreply, State}.
