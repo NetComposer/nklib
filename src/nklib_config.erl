@@ -36,7 +36,7 @@
 -compile({no_auto_import, [get/1, put/2]}).
 
 -type syntax_subopt() ::
-    ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc |
+    ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc | module |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
@@ -63,7 +63,8 @@
         return => map|list,         % Default is list
         path => binary(),           % Returned in errors
         defaults => map() | list(),
-        mandatory => [atom()]
+        mandatory => [atom()],
+        warning_unknown => boolean()
     }.
 
 
@@ -359,6 +360,12 @@ parse_config([], OK, NoOK, _Syntax, Opts) ->
     Mandatory = maps:get(mandatory, Opts, []),
     case check_mandatory(Mandatory, OK) of
         ok ->
+            case NoOK /= [] andalso maps:find(warning_unknown, Opts) of
+                {ok, true} ->
+                    lager:warning("Unknown keys in config: ~p", 
+                                  [maps:from_list(NoOK)]);
+                _ -> ok
+            end,
             case Opts of
                 #{return:=map} ->
                     {ok, maps:from_list(OK2), maps:from_list(NoOK)};
@@ -547,6 +554,12 @@ do_parse_config(pid, Val) ->
     case is_pid(Val) of
         true -> {ok, Val};
         false -> error
+    end;
+
+do_parse_config(module, Val) ->
+    case code:ensure_loaded(Val) of
+        {module, Val} -> {ok, Val};
+        _ -> error
     end;
 
 do_parse_config(integer, Val) ->
@@ -809,6 +822,7 @@ parse1() ->
         field13 => {list, atom},
         field14 => {update, map, map1, m_field14, integer},
         field15 => {update, map, map1, m_field15, atom},
+        field16 => module,
         fieldXX => invalid
     },
 
@@ -881,6 +895,10 @@ parse1() ->
         parse_config([{field01, a}, {field14, 1}, {field15, b}], Spec, #{return=>map}),
 
     {error, {syntax_error, <<"field14">>}} = parse_config(#{field01=>a, field14=>a}, Spec),
+
+    {error, {syntax_error, <<"field16">>}} = parse_config([{field16, kkk383838}], Spec),
+    {ok, [{field16, string}], []} = parse_config([{field16, string}], Spec),
+
     ok.
 
 
