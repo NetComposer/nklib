@@ -40,7 +40,7 @@
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
-    ip | host | host6 | {function, pos_integer()} |
+    ip | ip4 | ip6 | host | host6 | {function, pos_integer()} |
     unquote | path | uri | uris | tokens | words | log_level |
     map() | list() | syntax_fun().
 
@@ -645,6 +645,18 @@ do_parse_config(upper, Val) ->
 do_parse_config(ip, Val) ->
     case nklib_util:to_ip(Val) of
         {ok, Ip} -> {ok, Ip};
+        _ -> error
+    end;
+
+do_parse_config(ip4, Val) ->
+    case nklib_util:to_ip(Val) of
+        {ok, {_, _, _, _}=Ip} -> {ok, Ip};
+        _ -> error
+    end;
+
+do_parse_config(ip6, Val) ->
+    case nklib_util:to_ip(Val) of
+        {ok, {_, _, _, _, _, _, _, _}=Ip} -> {ok, Ip};
         _ -> error
     end;
 
