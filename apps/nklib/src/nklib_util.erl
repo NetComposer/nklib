@@ -872,7 +872,7 @@ words([Ch|Rest], Chs, Tokens) ->
 
 
 
-% @dod
+% @doc
 capitalize(Name) ->
     capitalize(nklib_util:to_binary(Name), true, <<>>).
 

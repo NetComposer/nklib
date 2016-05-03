@@ -1,52 +1,51 @@
-REPO ?= nklib
+REBAR = ./rebar3
 
-.PHONY: deps
+.PHONY: rel stagedevrel package version all tree shell
 
-all: deps compile
+all: compile
+
+
+clean:
+	$(REBAR) clean
+
+
+rel:
+	$(REBAR) release
+
 
 compile:
-	./rebar compile
+	$(REBAR) compile
 
-deps:
-	./rebar get-deps
 
-clean: 
-	./rebar clean
+dialyzer:
+	$(REBAR) dialyzer
 
-distclean: clean
-	./rebar delete-deps
 
-tests: compile eunit
+xref:
+	$(REBAR) xref
 
-eunit:
-	./rebar eunit skip_deps=true
 
-shell:
-	erl -pa deps/lager/ebin -pa deps/goldrush/ebin -pa deps/jsx/ebin -pa deps/jiffy/ebin \
-	    -pa ebin -s nklib_app
+upgrade:
+	$(REBAR) upgrade 
+	make tree
+
+
+update:
+	$(REBAR) update
+
+
+tree:
+	$(REBAR) tree | grep -v '=' | sed 's/ (.*//' > tree
+
+
+tree-diff: tree
+	git diff test -- tree
 
 
 docs:
-	./rebar skip_deps=true doc
+	$(REBAR) edoc
 
-APPS = kernel stdlib sasl erts ssl tools os_mon runtime_tools crypto inets \
-	xmerl webtool snmp public_key mnesia eunit syntax_tools compiler
-COMBO_PLT = $(HOME)/.$(REPO)_combo_dialyzer_plt
 
-check_plt: 
-	dialyzer --check_plt --plt $(COMBO_PLT) --apps $(APPS)
-
-build_plt: 
-	dialyzer --build_plt --output_plt $(COMBO_PLT) --apps $(APPS) 
-
-dialyzer:
-	dialyzer -Wno_return --plt $(COMBO_PLT) ebin/nklib*.beam
-
-cleanplt:
-	@echo 
-	@echo "Are you sure?  It takes about 1/2 hour to re-build."
-	@echo Deleting $(COMBO_PLT) in 5 seconds.
-	@echo 
-	sleep 5
-	rm $(COMBO_PLT)
+shell:
+	$(REBAR) shell --config config/sys.config --name nklib@127.0.0.1 --setcookie nk 
 
