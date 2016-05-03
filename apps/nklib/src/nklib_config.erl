@@ -685,10 +685,7 @@ do_parse_config(unquote, Val) when is_list(Val); is_binary(Val) ->
     end;
 
 do_parse_config(path, Val) when is_list(Val); is_binary(Val) ->
-    case nklib_parse:path(Val) of
-        error -> error;
-        Bin -> {ok, Bin}
-    end;
+    {ok, nklib_parse:path(Val)};
 
 do_parse_config(uri, Val) ->
     case nklib_parse:uris(Val) of

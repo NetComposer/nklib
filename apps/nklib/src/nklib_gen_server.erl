@@ -104,7 +104,7 @@ handle_call(Fun, Msg, From, State, PosMod, PosUser) ->
 
 %% @private
 -spec handle_call(atom(), term(), {pid(), term()}, tuple(), 
-                  pos_integer(), pos_integer(), pos_integer()) ->
+                  pos_integer(), pos_integer(), pos_integer()|undefined) ->
     reply().
 
 handle_call(Fun, Msg, From, State, PosMod, PosUser, PosTimeout) ->
@@ -135,7 +135,8 @@ handle_cast(Fun, Msg, State, PosMod, PosUser) ->
 
 
 %% @private
--spec handle_cast(atom(), term(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
+-spec handle_cast(atom(), term(), tuple(), pos_integer(), pos_integer(), 
+                  pos_integer()|undefined) ->
     noreply().
 
 handle_cast(Fun, Msg, State, PosMod, PosUser, PosTimeout) ->
@@ -166,7 +167,8 @@ handle_info(Fun, Msg, State, PosMod, PosUser) ->
 
 
 %% @private
--spec handle_info(atom(), term(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
+-spec handle_info(atom(), term(), tuple(), pos_integer(), pos_integer(), 
+                  pos_integer()|undefined) ->
     noreply().
 
 handle_info(Fun, Msg, State, PosMod, PosUser, PosTimeout) ->
@@ -244,7 +246,8 @@ handle_any(Fun, Args, State, PosMod, PosUser) ->
 
 
 %% @private
--spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
+-spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer(), 
+                 pos_integer()|undefined) ->
     nklib_not_exported |
     {ok, tuple()} |
     {ok, term(), tuple()} |

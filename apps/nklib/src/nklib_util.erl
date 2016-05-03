@@ -514,7 +514,7 @@ to_binary(N) -> msg("~p", [N]).
 
 
 %% @doc Converts anything into a `string()'.
--spec to_list(string()|binary()|atom()|integer()) -> 
+-spec to_list(string()|binary()|atom()|integer()|pid()) -> 
     string().
 
 to_list(L) when is_list(L) -> L;
@@ -528,7 +528,7 @@ to_list(P) when is_pid(P) -> pid_to_list(P).
 %% @doc Converts anything into a `atom()'.
 %% WARNING: Can create new atoms
 -spec to_atom(string()|binary()|atom()|integer()) -> 
-    string().
+    atom().
 
 to_atom(A) when is_atom(A) -> A;
 to_atom(B) when is_binary(B) -> binary_to_atom(B, utf8);
@@ -538,7 +538,7 @@ to_atom(I) when is_integer(I) -> list_to_atom(integer_to_list(I)).
 
 %% @doc Converts anything into an existing atom or throws an error
 -spec to_existing_atom(string()|binary()|atom()|integer()) -> 
-    string().
+    atom().
 
 to_existing_atom(A) when is_atom(A) -> A;
 to_existing_atom(B) when is_binary(B) -> binary_to_existing_atom(B, utf8);
