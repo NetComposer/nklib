@@ -17,6 +17,10 @@ compile:
 	$(REBAR) compile
 
 
+tests:
+	$(REBAR) eunit
+
+
 dialyzer:
 	$(REBAR) dialyzer
 
