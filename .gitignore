@@ -8,3 +8,4 @@ rebar.lock
 .DS_Store
 rel
 ebin
+log

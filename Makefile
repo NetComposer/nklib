@@ -51,5 +51,5 @@ docs:
 
 
 shell:
-	$(REBAR) shell --config config/sys.config --name nklib@127.0.0.1 --setcookie nk 
+	$(REBAR) shell --config shell/sys.config --name nklib@127.0.0.1 --setcookie nk 
 
