@@ -169,6 +169,7 @@ increment_domain(Mod, Domain, Key, Count) ->
     {error, Error}
     when Error :: 
         {syntax_error, binary()} | 
+        {missing_mandatory_field, binary()} |
         {invalid_spec, syntax_opt()} |
         term().
 
@@ -184,6 +185,7 @@ parse_config(Terms, Spec) ->
     {error, Error}
     when Error :: 
         {syntax_error, binary()} | 
+        {missing_mandatory_field, binary()} |
         {invalid_spec, syntax_opt()} |
         term().
 
@@ -373,7 +375,7 @@ parse_config([], OK, NoOK, _Syntax, Opts) ->
                     {ok, OK2, NoOK2}
             end;
         {missing, Key} ->
-            {error, {missing_mandatory_field, Key}}
+            {error, {missing_mandatory_field, nklib_util:to_binary(Key)}}
     end;
 
 parse_config([{Key, Val}|Rest], OK, NoOK, Syntax, Opts) ->
