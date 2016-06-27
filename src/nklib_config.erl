@@ -62,7 +62,7 @@
     #{
         return => map|list,         % Default is list
         path => binary(),           % Returned in errors
-        defaults => map() | list(),
+        defaults => map() | list(), % Default and mandatory not allowed for nested
         mandatory => [atom()],
         warning_unknown => boolean()
     }.
@@ -419,8 +419,9 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
                 true ->
                     BinKey = nklib_util:to_binary(Key),
                     Opts1 = maps:remove(defaults, Opts),
-                    Opts2 = Opts1#{path=>BinKey},
-                    case parse_config(Val, SubSyntax, Opts2) of
+                    Opts2 = maps:remove(mandatory, Opts1),
+                    Opts3 = Opts2#{path=>BinKey},
+                    case parse_config(Val, SubSyntax, Opts3) of
                         {ok, Val1, _SubNoOK} ->
                             parse_config(Rest, [{Key, Val1}|OK], NoOK, Syntax, Opts);
                         {error, {syntax_error, Error}} ->
