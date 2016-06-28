@@ -47,7 +47,11 @@
 -type syntax_fun() ::
     fun((atom(), term(), fun_ctx()) -> 
         ok | {ok, term()} | {ok, term(), term()} |
+        {new_ok, [{atom(), term()}]} | error | {error, term()}) |
+    fun((term()) -> 
+        ok | {ok, term()} | {ok, term(), term()} |
         {new_ok, [{atom(), term()}]} | error | {error, term()}).
+
 
 -type fun_ctx() ::
     parse_opts() | #{ok=>[{atom(), term()}], no_ok=>[{binary(), term()}]}.
@@ -395,9 +399,15 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
     case maps:get(Key, Syntax, not_found) of
         not_found ->
             parse_config(Rest, OK, [{Key, Val}|NoOK], Syntax, Opts);
-        Fun when is_function(Fun, 3) ->
-            FunOpts = Opts#{ok=>OK, no_ok=>NoOK},
-            case catch Fun(Key, Val, FunOpts) of
+        Fun when is_function(Fun) ->
+            FunRes = if
+                is_function(Fun, 3) -> 
+                    FunOpts = Opts#{ok=>OK, no_ok=>NoOK},
+                    catch Fun(Key, Val, FunOpts);
+                is_function(Fun, 1) ->
+                    catch Fun(Val)
+            end,
+            case FunRes of
                 ok ->
                     parse_config(Rest, [{Key, Val}|OK], NoOK, Syntax, Opts);
                 {ok, Val1} ->
