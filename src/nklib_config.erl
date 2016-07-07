@@ -41,7 +41,7 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | ip4 | ip6 | host | host6 | {function, pos_integer()} |
-    unquote | path | uri | uris | tokens | words | log_level |
+    unquote | path | fullpath | uri | uris | tokens | words | log_level |
     map() | list() | syntax_fun().
 
 -type syntax_fun() ::
@@ -699,6 +699,12 @@ do_parse_config(unquote, Val) when is_list(Val); is_binary(Val) ->
 
 do_parse_config(path, Val) when is_list(Val); is_binary(Val) ->
     case nklib_parse:path(Val) of
+        error -> error;
+        Bin -> {ok, Bin}
+    end;
+
+do_parse_config(fullpath, Val) when is_list(Val); is_binary(Val) ->
+    case nklib_parse:fullpath(filename:absname(Val)) of
         error -> error;
         Bin -> {ok, Bin}
     end;
