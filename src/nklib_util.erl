@@ -24,7 +24,7 @@
 
 -export([ensure_all_started/2, call/2, call/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
--export([timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
+-export([get_hwaddr/0, timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
@@ -174,8 +174,9 @@ luid() ->
 
 uuid_4122() ->
     Rand = hex(crypto:rand_bytes(4)),
-    <<A:16/bitstring, B:16/bitstring, C:16/bitstring>> = <<(nklib_util:l_timestamp()):48>>,
-    Hw = get_hwaddr(),
+    <<A:16/bitstring, B:16/bitstring, C:16/bitstring>> = 
+        <<(nklib_util:l_timestamp()):48>>,
+    {ok, Hw} = application:get_env(nklib, hw_addr),
     <<Rand/binary, $-, (hex(A))/binary, $-, (hex(B))/binary, $-, 
       (hex(C))/binary, $-, Hw/binary>>.
 
@@ -229,36 +230,36 @@ hash36(Base) ->
     end.
 
 
-
-
 %% @private Finds the MAC addr for enX or ethX, or a random one if none is found
 get_hwaddr() ->
-    {ok, Addrs} = inet:getifaddrs(),
-    get_hwaddrs(Addrs).
-
+    {ok, Addrs1} = inet:getifaddrs(),
+    Addrs2 = lists:filter(
+        fun
+            ({"en"++_, _}) -> true;
+            ({"eth"++_, _}) -> true;
+            (_) -> false
+        end,
+        Addrs1),
+    case get_hwaddrs(Addrs2) of
+        {ok, Hex} ->
+            Hex;
+        false ->
+            case get_hwaddrs(Addrs1) of
+                {ok, Hex} -> Hex;
+                false -> hex(crypto:rand_bytes(6))
+            end
+    end.
 
 %% @private
-get_hwaddrs([{Name, Data}|Rest]) ->
-    case Name of
-        "en"++_ ->
-            case nklib_util:get_value(hwaddr, Data) of
-                Hw when is_list(Hw), length(Hw)==6 -> hex(Hw);
-                _ -> get_hwaddrs(Rest)
-            end;
-        "eth"++_ ->
-            case nklib_util:get_value(hwaddr, Data) of
-                Hw when is_list(Hw), length(Hw)==6 -> hex(Hw);
-                _ -> get_hwaddrs(Rest)
-            end;
-        _ ->
-            get_hwaddrs(Rest)
+get_hwaddrs([{_Name, Data}|Rest]) ->
+    case nklib_util:get_value(hwaddr, Data) of
+        Hw when is_list(Hw), length(Hw)==6 -> {ok, hex(Hw)};
+        _ -> get_hwaddrs(Rest)
     end;
 
 get_hwaddrs([]) ->
-    hex(crypto:rand_bytes(6)).
-
-
-
+    false.
+    
 
 % calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}).
 -define(SECONDS_FROM_GREGORIAN_BASE_TO_EPOCH, (1970*365+478)*24*60*60).
