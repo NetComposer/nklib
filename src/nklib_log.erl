@@ -27,7 +27,7 @@
 -export([debug/0, info/0, notice/0, warning/0, error/0]).
 -export([notify/3]).
 
--export([start_link/3, message/2, stop/1, get_all/0]).
+-export([start_link/3, message/2, stop/1, find/1, get_all/0]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
          handle_cast/2, handle_info/2]).
 
@@ -108,6 +108,9 @@ stop(Id) ->
 
 
 %% @private
+find(Pid) when is_pid(Pid) ->
+    {ok, Pid};
+
 find(Id) ->
     case nklib_proc:values({?MODULE, Id}) of
         [{_, Pid}|_] -> {ok, Pid};
