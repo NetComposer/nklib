@@ -25,6 +25,7 @@
 
 -export([console_loglevel/1]).
 -export([debug/0, info/0, notice/0, warning/0, error/0]).
+-export([notify/3]).
 
 -export([start_link/3, message/2, stop/1, get_all/0]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
@@ -61,6 +62,11 @@ info() -> console_loglevel(info).
 notice() -> console_loglevel(notice).
 warning() -> console_loglevel(warning).
 error() -> console_loglevel(error).
+
+notify(Level, Format, Args) ->
+    Meta = [{pid,self()}, {line,?LINE}, {file,?FILE}, {module,?MODULE}],
+    Log = lager_msg:new(io_lib:format(Format, Args), Level, Meta, []),
+    gen_event:notify(lager_event, {log, Log}).
 
 
 %% @doc Changes log level for console

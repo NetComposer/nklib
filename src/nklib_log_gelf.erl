@@ -37,7 +37,7 @@
         message => binary() | integer(),
         level => 1..7,
         full_message => binary() | integer(),
-        meta => #{ binary() => binary() | integer}
+        meta => #{ binary() => binary() | integer} | [{binary(), binary() | integer}]
     }.
 
 
@@ -45,7 +45,8 @@
     nklib_log:opts() |
     #{
         server => binary(),     % Mandatory
-        port => integer()
+        port => integer(),
+        inet_family => inet | inet6
     }.
 
 
@@ -78,6 +79,11 @@ message(_Id, Msg, #state{ip=Ip, port=Port, socket=Socket}=State) ->
     case Msg of
         #{host:=Host, message:=Short} ->
             Level = maps:get(level, Msg, 1),
+            Fields = case maps:get(meta, Msg, #{}) of
+                Map when is_map(Map) -> maps:to_list(Map);
+                List when is_list(List) -> List;
+                _ -> []
+            end,
             Gelf1 = [
                 {version, <<"1.1">>},
                 {host, Host},
@@ -88,26 +94,22 @@ message(_Id, Msg, #state{ip=Ip, port=Port, socket=Socket}=State) ->
                     Full -> [{full_message, Full}]
                 end
                 |
-                case maps:get(meta, Msg, #{}) of
-                    Meta when is_map(Meta) ->
-                        lists:map(
-                            fun({Key, Val}) ->
-                                {
-                                    <<$_, (nklib_util:to_binary(Key))/binary>>,
-                                    case is_integer(Val) of
-                                        true -> Val;
-                                        false -> nklib_util:to_binary(Val)
-                                    end
-                                }
-                            end,
-                            maps:to_list(Meta));
-                    _ ->
-                        []
-                end
+                lists:map(
+                    fun({Key, Val}) ->
+                        {
+                            <<$_, (nklib_util:to_binary(Key))/binary>>,
+                            case is_integer(Val) of
+                                true -> Val;
+                                false -> nklib_util:to_binary(Val)
+                            end
+                        }
+                    end,
+                    Fields)
             ],
             Gelf2 = nklib_json:encode(maps:from_list(lists:flatten(Gelf1))),
+            % io:format("SENDING ~p ~p ~s\n", [Ip, Port, Gelf2]),
             Gelf3 = zlib:gzip(Gelf2),
-            gen_udp:send(Socket, Ip, Port, Gelf3),
+            ok = gen_udp:send(Socket, Ip, Port, Gelf3),
             {ok, State};
         _ ->
             {error, invalid_message}
@@ -133,16 +135,16 @@ terminate(_Reason, #state{socket=Socket}) ->
 %% @private
 get_config(#{server:=Server}=Opts) ->
     Inet = maps:get(inet_family, Opts, inet),
-    case inet:getaddr(Server, Inet) of
+    case inet:getaddr(nklib_util:to_list(Server), Inet) of
         {ok, Ip} ->
             Port = maps:get(port, Opts, 12201),
             {ok, Socket} = gen_udp:open(0, [binary,{active,false}]),
             {ok, #state{ip=Ip, port=Port, socket=Socket}};
         _ ->
-            {error, invalid_server}
+            {error, invalid_gelf_server}
     end;
 
 get_config(_Opts) ->
-    {error, missing_server}.
+    {error, missing_gelf_server}.
 
 
