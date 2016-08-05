@@ -22,33 +22,34 @@
 -module(nklib_links).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([get_pid/1]).
--export([new/0, add/4, get/2, update/3, remove/2, down/2, iter/2, fold/3]).
--export_type([links/0, links/1, id/0, data/0]).
+-export([new/0, add/2, add/3, add/4, get_value/2, update_value/3]).
+-export([remove/2, down/2, iter/2, iter_values/2, fold/3, fold_values/3]).
+-export_type([links/0, data/0]).
 
-
-
-
+-include("nklib.hrl").
 
 %% ===================================================================
 %% Types
 %% ===================================================================
 
--type id() :: term().
+-type link() :: nklib:link().
 -type data() :: term().
--type links() :: [{id(), data(), pid(), reference()}].
--type links(Type) :: [{Type, data(), pid(), reference()}].
+-type links() :: [{link(), data()|'$none', reference()|undefined}].
+
 
 %% ===================================================================
 %% Public
 %% ===================================================================
 
-%% @doc Extracts Id, Data and Pid from different tuple combinations
--spec get_pid(nklib:proc_id()) ->
-    pid()|undefined.
 
+
+%% @private
+-spec get_pid(nklib:link()) ->
+    pid() | undefined.
+
+get_pid(Tuple) when is_tuple(Tuple) -> get_pid(element(size(Tuple), Tuple));
 get_pid(Pid) when is_pid(Pid) -> Pid;
-get_pid(Tuple) when is_tuple(Tuple) -> element(size(Tuple), Tuple);
-get_pid(_Other) -> undefined.
+get_pid(_Term) -> undefined.
 
 
 %% @doc Add a link
@@ -59,130 +60,126 @@ new() ->
     [].
 
 
-
 %% @doc Add a link
--spec add(id(), data(), pid(), links()) ->
+-spec add(link(), links()) ->
     links().
 
-add(Id, Data, Pid, Links) ->
-    case lists:keymember(Id, 1, Links) of
+add(Link, Links) ->
+    add(Link, '$none', get_pid(Link), Links).
+
+
+%% @doc Add a link
+-spec add(link(), data(), links()) ->
+    links().
+
+add(Link, Data, Links) ->
+    add(Link, Data, get_pid(Link), Links).
+
+
+%% @doc Add a link
+-spec add(link(), data(), pid(), links()) ->
+    links().
+
+add(Link, Data, Pid, Links) ->
+    case lists:keymember(Link, 1, Links) of
         true -> 
-            add(Id, Data, Pid, remove(Id, Links));
+            add(Link, Data, Pid, remove(Link, Links));
         false ->
             Mon = case is_pid(Pid) of
                 true -> monitor(process, Pid);
                 false -> undefined
             end,
-            [{Id, Data, Pid, Mon}|Links]
+            [{Link, Data, Mon}|Links]
     end.
 
 
 %% @doc Gets a link
--spec get(id(), links()) ->
+-spec get_value(link(), links()) ->
     {ok, data()} | not_found.
 
-get(Id, Links) ->
-    case lists:keyfind(Id, 1, Links) of
-        {Id, Data, _Pid, _Mon} -> {ok, Data};
+get_value(Link, Links) ->
+    case lists:keyfind(Link, 1, Links) of
+        {Link, Data, _Mon} -> {ok, Data};
         false -> not_found
     end.
 
 
 %% @doc Add a link
--spec update(id(), data(), links()) ->
+-spec update_value(link(), data(), links()) ->
     {ok, links()} | not_found.
 
-update(Id, Data, Links) ->
-    case lists:keytake(Id, 1, Links) of
-        {value, {Id, _OldData, Pid, Mon}, Links2} -> 
-            {ok, [{Id, Data, Pid, Mon}|Links2]};
+update_value(Link, Data, Links) ->
+    case lists:keytake(Link, 1, Links) of
+        {value, {Link, _OldData, Mon}, Links2} -> 
+            {ok, [{Link, Data, Mon}|Links2]};
         false ->
             not_found
     end.
 
 
 %% @doc Removes a link
--spec remove(id(), links()) ->
+-spec remove(link(), links()) ->
     links().
 
-remove(Id, Links) ->
-    case lists:keyfind(Id, 1, Links) of
-        {Id, _Data, _Pid, Mon} ->
+remove(Link, Links) ->
+    case lists:keytake(Link, 1, Links) of
+        {value, {Link, _Data, Mon}, Links2} ->
             nklib_util:demonitor(Mon),
-            lists:keydelete(Id, 1, Links);
+            Links2;
         false ->
             Links
     end.
 
 
 %% @doc Extracts a link with this pid
--spec down(pid(), links()) ->
-    {ok, id(), data(), links()} | not_found.
+-spec down(reference(), links()) ->
+    {ok, link(), data(), links()} | not_found.
 
-down(Pid, Links) ->
-    case lists:keytake(Pid, 3, Links) of
-        {value, {Id, Data, Pid, Mon}, Links2} ->
-            nklib_util:demonitor(Mon),
-            {ok, Id, Data, Links2};
+down(Mon, Links) ->
+    case lists:keytake(Mon, 3, Links) of
+        {value, {Link, Data, Mon}, Links2} ->
+            {ok, Link, Data, Links2};
         false ->
             not_found
     end.
 
 
 %% @doc Iterates over links
--spec iter(fun((id(), data()) -> ok), links()) ->
+-spec iter(fun((link()) -> ok), links()) ->
     ok.
 
 iter(Fun, Links) ->
     lists:foreach(
-        fun({Id, Data, _Pid, _Mon}) -> Fun(Id, Data) end, Links).
+        fun({Link, _Data, _Mon}) -> Fun(Link) end, Links).
+
+
+%% @doc Iterates over links
+-spec iter_values(fun((link(), data()) -> ok), links()) ->
+    ok.
+
+iter_values(Fun, Links) ->
+    lists:foreach(
+        fun({Link, Data, _Mon}) -> Fun(Link, Data) end, Links).
+
 
 
 %% @doc Folds over links
--spec fold(fun((id(), data(), term()) -> term()), term(), links()) ->
+-spec fold(fun((link(), term()) -> term()), term(), links()) ->
     term().
 
 fold(Fun, Acc0, Links) ->
     lists:foldl(
-        fun({Id, Data, _Pid, _Mon}, Acc) -> Fun(Id, Data, Acc) end, 
+        fun({Link, _Data, _Mon}, Acc) -> Fun(Link, Acc) end, 
         Acc0,
         Links).
 
 
+%% @doc Folds over links
+-spec fold_values(fun((link(), data(), term()) -> term()), term(), links()) ->
+    term().
 
-%% ===================================================================
-%% Useful templates
-%% ===================================================================
-
-
-% %% @private
-% links_add(Id, Data, Pid, #state{links=Links}=State) ->
-%     State#state{links=nklib_links:add(Id, Data, Pid, Links)}.
-
-
-% %% @private
-% links_get(Id, #state{links=Links}) ->
-%     nklib_links:get(Id, Links).
-
-
-% %% @private
-% links_remove(Id, #state{links=Links}=State) ->
-%     State#state{links=nklib_links:remove(Id, Links)}.
-
-
-% %% @private
-% links_down(Pid, #state{links=Links}=State) ->
-%     case nklib_links:down(Pid, Links) of
-%         {ok, Id, Data, Links2} -> {ok, Id, Data, State#state{links=Links2}};
-%         not_found -> not_found
-%     end.
-
-
-% %% @private
-% links_iter(Fun, #state{links=Links}) ->
-%     nklib_links:iter(Fun, Links).
-
-
-% %% @private
-% links_fold(Fun, Acc, #state{links=Links}) ->
-%     nklib_links:fold(Fun, Acc, Links).
+fold_values(Fun, Acc0, Links) ->
+    lists:foldl(
+        fun({Link, Data, _Mon}, Acc) -> Fun(Link, Data, Acc) end, 
+        Acc0,
+        Links).

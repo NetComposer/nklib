@@ -26,7 +26,7 @@
 -export_type([optslist/0, uri/0, user_uri/0, token/0, user_token/0]).
 -export_type([header/0, header_name/0, header_value/0]).
 -export_type([scheme/0, code/0]).
--export_type([proc_id/0]).
+-export_type([link/0]).
 
 -export([get_env/2, get_env/3, get_env/4]).
 
@@ -81,8 +81,8 @@
 %% HTTP/SIP Response's Code
 -type code() :: 100..699.
 
-%% The element will be monitorized if is pid() or last element in tuple is pid()
--type proc_id() :: term() | pid() | tuple().
+%% See nklib_links. Last element of tuple may be a pid()
+-type link() :: term() | pid() | tuple().
 
 
 
