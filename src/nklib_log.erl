@@ -177,6 +177,9 @@ handle_cast({message, Msg}, #state{id=Id, backend=Backend, substate=Sub}=State) 
             {noreply, State}
     end;
 
+handle_cast(stop, State) -> 
+    {stop, normal, State};
+    
 handle_cast(Msg, State) -> 
     lager:error("Module ~p received unexpected cast ~p", [?MODULE, Msg]),
     {noreply, State}.
