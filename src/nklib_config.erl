@@ -41,7 +41,7 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | ip4 | ip6 | host | host6 | {function, pos_integer()} |
-    unquote | path | fullpath | uri | uris | tokens | words | log_level |
+    unquote | path | fullpath | uri | uris | tokens | words | map | log_level |
     map() | list() | syntax_fun().
 
 -type syntax_fun() ::
@@ -750,6 +750,12 @@ do_parse_config(log_level, Val) ->
         _ -> error
     end;
 
+do_parse_config(map, Map) ->
+    case is_map(Map) andalso do_parse_config_map(maps:to_list(Map)) of
+        ok -> {ok, Map};
+        _ -> error
+    end;
+
 do_parse_config([Opt|Rest], Val) ->
     case catch do_parse_config(Opt, Val) of
         {ok, Val1} -> {ok, Val1};
@@ -784,8 +790,27 @@ do_parse_config_list(ListType, [Term|Rest], Type, Acc) ->
 do_parse_config_list(_, _, _, _) ->
     error.
 
+%% @private
+do_parse_config_map([]) -> 
+    ok;
 
-       
+do_parse_config_map([{Key, Val}|Rest]) ->
+    case is_binary(Key) orelse is_atom(Key) of
+        true when is_map(Val) ->
+            case do_parse_config_map(maps:to_list(Val)) of
+                ok ->
+                    do_parse_config_map(Rest);
+                error ->
+                    error
+            end;
+        true ->
+            do_parse_config_map(Rest);
+        false ->
+            error
+    end.
+
+
+     
 
 %% ===================================================================
 %% EUnit tests
