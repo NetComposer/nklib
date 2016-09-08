@@ -284,6 +284,12 @@ proc_reply(Term, PosUser, PosTimeout, State) ->
         {noreply, User1, Timeout1} ->
             {noreply, setelement(PosUser, State, User1), Timeout1};
 
+        continue ->
+            continue;
+
+        {continue, List} ->
+            {continue, List};
+
         _ when is_tuple(Term) ->
             % Return the same tuple, but last element is updated with the full state
             User1 = element(size(Term), Term),              % Last term
