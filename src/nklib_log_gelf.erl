@@ -26,6 +26,8 @@
 -export([init/2, message/3, terminate/2]).
 -export_type([gelf/0, opts/0]).
 
+-define(MAX_UDP, 1024).
+
 
 %% ===================================================================
 %% Types
@@ -107,9 +109,17 @@ message(_Id, Msg, #state{ip=Ip, port=Port, socket=Socket}=State) ->
                     Fields)
             ],
             Gelf2 = nklib_json:encode(maps:from_list(lists:flatten(Gelf1))),
-            % io:format("SENDING ~p ~p ~s\n", [Ip, Port, Gelf2]),
-            Gelf3 = zlib:gzip(Gelf2),
-            ok = gen_udp:send(Socket, Ip, Port, Gelf3),
+            case byte_size(Gelf2) of
+                Size when Size =< ?MAX_UDP ->
+                    % io:format("SENDING ~p ~p (~p) ~s\n", 
+                    %           [Ip, Port, byte_size(Gelf2), Gelf2]),
+                    ok = gen_udp:send(Socket, Ip, Port, Gelf2);
+                Size ->
+                    Chunks = get_num_chunks(Size),
+                    Id = crypto:rand_bytes(8),
+                    Head = <<30, 15, Id/binary>>,
+                    send_chunks(Gelf2, Head, 0, Chunks, Socket, Ip, Port)
+            end,
             {ok, State};
         _ ->
             {error, invalid_message}
@@ -147,4 +157,32 @@ get_config(#{server:=Server}=Opts) ->
 get_config(_Opts) ->
     {error, missing_gelf_server}.
 
+
+%% @private
+get_num_chunks(Size) ->
+    Size div ?MAX_UDP +
+    case Size rem ?MAX_UDP of 0 -> 0; _ -> 1 end.
+
+
+%% @private
+send_chunks(Bin, Head, Pos, Chunks, Socket, Ip, Port) ->
+    case byte_size(Bin) > ?MAX_UDP of
+        true ->
+            {Bin2, Rest} = split_binary(Bin, ?MAX_UDP),
+            _Msg = send_chunk2(Bin2, Head, Pos, Chunks, Socket, Ip, Port),
+            % io:format("Sending chunk ~p: ~p\n", [Pos, Msg]),
+            send_chunks(Rest, Head, Pos+1, Chunks, Socket, Ip, Port);
+        false ->
+            _Msg = send_chunk2(Bin, Head, Pos, Chunks, Socket, Ip, Port),
+            % io:format("Sending final chunk ~p: ~p\n", [Pos, Msg]),
+            ok
+    end.
+
+
+%% @private
+send_chunk2(Bin, Head, Pos, Chunks, Socket, Ip, Port) ->
+    Bin2 = zlib:gzip(Bin),
+    Msg = <<Head/binary, Pos, Chunks, Bin2/binary>>,
+    ok  = gen_udp:send(Socket, Ip, Port, Msg),
+    Msg.
 
