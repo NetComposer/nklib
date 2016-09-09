@@ -285,10 +285,11 @@ proc_reply(Term, PosUser, PosTimeout, State) ->
             {noreply, setelement(PosUser, State, User1), Timeout1};
 
         continue ->
-            continue;
+            {continue, State};
 
-        {continue, List} ->
-            {continue, List};
+        {continue, List} when is_list(List) ->
+            User1 = lists:last(List),
+            {continue, setelement(PosUser, State, User1)};
 
         _ when is_tuple(Term) ->
             % Return the same tuple, but last element is updated with the full state
