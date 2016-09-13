@@ -104,7 +104,7 @@ handle_call(Fun, Msg, From, State, PosMod, PosUser) ->
 
 %% @private
 -spec handle_call(atom(), term(), {pid(), term()}, tuple(), 
-                  pos_integer(), pos_integer(), pos_integer()|undefined) ->
+                  pos_integer(), pos_integer(), pos_integer()) ->
     reply().
 
 handle_call(Fun, Msg, From, State, PosMod, PosUser, PosTimeout) ->
@@ -135,8 +135,7 @@ handle_cast(Fun, Msg, State, PosMod, PosUser) ->
 
 
 %% @private
--spec handle_cast(atom(), term(), tuple(), pos_integer(), pos_integer(), 
-                  pos_integer()|undefined) ->
+-spec handle_cast(atom(), term(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
     noreply().
 
 handle_cast(Fun, Msg, State, PosMod, PosUser, PosTimeout) ->
@@ -167,8 +166,7 @@ handle_info(Fun, Msg, State, PosMod, PosUser) ->
 
 
 %% @private
--spec handle_info(atom(), term(), tuple(), pos_integer(), pos_integer(), 
-                  pos_integer()|undefined) ->
+-spec handle_info(atom(), term(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
     noreply().
 
 handle_info(Fun, Msg, State, PosMod, PosUser, PosTimeout) ->
@@ -246,8 +244,7 @@ handle_any(Fun, Args, State, PosMod, PosUser) ->
 
 
 %% @private
--spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer(), 
-                 pos_integer()|undefined) ->
+-spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
     nklib_not_exported |
     {ok, tuple()} |
     {ok, term(), tuple()} |
@@ -286,6 +283,13 @@ proc_reply(Term, PosUser, PosTimeout, State) ->
             {noreply, setelement(PosUser, State, User1), Timeout};
         {noreply, User1, Timeout1} ->
             {noreply, setelement(PosUser, State, User1), Timeout1};
+
+        continue ->
+            {continue, State};
+
+        {continue, List} when is_list(List) ->
+            User1 = lists:last(List),
+            {continue, setelement(PosUser, State, User1)};
 
         _ when is_tuple(Term) ->
             % Return the same tuple, but last element is updated with the full state

@@ -4,6 +4,6 @@
     {modules, []},
     {registered, []},
     {mod, {nklib_app, []}},
-    {applications, [kernel, stdlib, lager, jsx, jiffy]},
+    {applications, [kernel, stdlib]},
     {env, []}
 ]}.

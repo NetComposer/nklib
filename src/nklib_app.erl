@@ -47,6 +47,8 @@ start() ->
 start(_Type, _Args) ->
 	code:ensure_loaded(jsx),
 	code:ensure_loaded(jiffy),     % We can work without it
+    HwAddr = nklib_util:get_hwaddr(),
+    application:set_env(?APP, hw_addr, HwAddr),
     nklib_sup:start_link().
 
 

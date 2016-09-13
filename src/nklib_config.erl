@@ -41,13 +41,17 @@
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
     ip | ip4 | ip6 | host | host6 | {function, pos_integer()} |
-    unquote | path | uri | uris | tokens | words | log_level |
+    unquote | path | fullpath | uri | uris | tokens | words | map | log_level |
     map() | list() | syntax_fun().
 
 -type syntax_fun() ::
     fun((atom(), term(), fun_ctx()) -> 
         ok | {ok, term()} | {ok, term(), term()} |
+        {new_ok, [{atom(), term()}]} | error | {error, term()}) |
+    fun((term()) -> 
+        ok | {ok, term()} | {ok, term(), term()} |
         {new_ok, [{atom(), term()}]} | error | {error, term()}).
+
 
 -type fun_ctx() ::
     parse_opts() | #{ok=>[{atom(), term()}], no_ok=>[{binary(), term()}]}.
@@ -62,7 +66,7 @@
     #{
         return => map|list,         % Default is list
         path => binary(),           % Returned in errors
-        defaults => map() | list(),
+        defaults => map() | list(), % Default and mandatory not allowed for nested
         mandatory => [atom()],
         warning_unknown => boolean()
     }.
@@ -395,9 +399,15 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
     case maps:get(Key, Syntax, not_found) of
         not_found ->
             parse_config(Rest, OK, [{Key, Val}|NoOK], Syntax, Opts);
-        Fun when is_function(Fun, 3) ->
-            FunOpts = Opts#{ok=>OK, no_ok=>NoOK},
-            case catch Fun(Key, Val, FunOpts) of
+        Fun when is_function(Fun) ->
+            FunRes = if
+                is_function(Fun, 3) -> 
+                    FunOpts = Opts#{ok=>OK, no_ok=>NoOK},
+                    catch Fun(Key, Val, FunOpts);
+                is_function(Fun, 1) ->
+                    catch Fun(Val)
+            end,
+            case FunRes of
                 ok ->
                     parse_config(Rest, [{Key, Val}|OK], NoOK, Syntax, Opts);
                 {ok, Val1} ->
@@ -419,8 +429,9 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
                 true ->
                     BinKey = nklib_util:to_binary(Key),
                     Opts1 = maps:remove(defaults, Opts),
-                    Opts2 = Opts1#{path=>BinKey},
-                    case parse_config(Val, SubSyntax, Opts2) of
+                    Opts2 = maps:remove(mandatory, Opts1),
+                    Opts3 = Opts2#{path=>BinKey},
+                    case parse_config(Val, SubSyntax, Opts3) of
                         {ok, Val1, _SubNoOK} ->
                             parse_config(Rest, [{Key, Val1}|OK], NoOK, Syntax, Opts);
                         {error, {syntax_error, Error}} ->
@@ -687,7 +698,16 @@ do_parse_config(unquote, Val) when is_list(Val); is_binary(Val) ->
     end;
 
 do_parse_config(path, Val) when is_list(Val); is_binary(Val) ->
-    {ok, nklib_parse:path(Val)};
+    case nklib_parse:path(Val) of
+        error -> error;
+        Bin -> {ok, Bin}
+    end;
+
+do_parse_config(fullpath, Val) when is_list(Val); is_binary(Val) ->
+    case nklib_parse:fullpath(filename:absname(Val)) of
+        error -> error;
+        Bin -> {ok, Bin}
+    end;
 
 do_parse_config(uri, Val) ->
     case nklib_parse:uris(Val) of
@@ -730,6 +750,12 @@ do_parse_config(log_level, Val) ->
         _ -> error
     end;
 
+do_parse_config(map, Map) ->
+    case is_map(Map) andalso do_parse_config_map(maps:to_list(Map)) of
+        ok -> {ok, Map};
+        _ -> error
+    end;
+
 do_parse_config([Opt|Rest], Val) ->
     case catch do_parse_config(Opt, Val) of
         {ok, Val1} -> {ok, Val1};
@@ -764,8 +790,27 @@ do_parse_config_list(ListType, [Term|Rest], Type, Acc) ->
 do_parse_config_list(_, _, _, _) ->
     error.
 
+%% @private
+do_parse_config_map([]) -> 
+    ok;
 
-       
+do_parse_config_map([{Key, Val}|Rest]) ->
+    case is_binary(Key) orelse is_atom(Key) of
+        true when is_map(Val) ->
+            case do_parse_config_map(maps:to_list(Val)) of
+                ok ->
+                    do_parse_config_map(Rest);
+                error ->
+                    error
+            end;
+        true ->
+            do_parse_config_map(Rest);
+        false ->
+            error
+    end.
+
+
+     
 
 %% ===================================================================
 %% EUnit tests

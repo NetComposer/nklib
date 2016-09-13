@@ -21,9 +21,39 @@
 %% @doc Common library utility funcions
 -module(nklib_log).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
+-behaviour(gen_server).
 
 -export([console_loglevel/1]).
 -export([debug/0, info/0, notice/0, warning/0, error/0]).
+-export([notify/3]).
+
+-export([start_link/3, message/2, stop/1, find/1, get_all/0]).
+-export([init/1, terminate/2, code_change/3, handle_call/3,
+         handle_cast/2, handle_info/2]).
+
+-export_type([id/0, backend/0, opts/0, message/0]).
+
+-callback init(id(), opts()) -> {ok, state()} | {error, term()}.
+-callback message(id(), message(), state()) -> {ok, state()} | {error, term()}.
+-callback terminate(Reason::term(), state()) -> ok.
+
+
+%% ===================================================================
+%% Types
+%% ===================================================================
+
+-type id() :: term().
+-type backend() :: module().
+-type opts() :: map().
+-type state() :: term().
+-type message() :: term().
+
+
+
+
+%% ===================================================================
+%% Public
+%% ===================================================================
 
 
 %% @doc Changes log level for console
@@ -33,6 +63,11 @@ notice() -> console_loglevel(notice).
 warning() -> console_loglevel(warning).
 error() -> console_loglevel(error).
 
+notify(Level, Format, Args) ->
+    Meta = [{pid,self()}, {line,?LINE}, {file,?FILE}, {module,?MODULE}],
+    Log = lager_msg:new(io_lib:format(Format, Args), Level, Meta, []),
+    gen_event:notify(lager_event, {log, Log}).
+
 
 %% @doc Changes log level for console
 -spec console_loglevel(debug|info|notice|warning|error) ->
@@ -41,4 +76,143 @@ error() -> console_loglevel(error).
 console_loglevel(Level) -> 
     lager:set_loglevel(lager_console_backend, Level).
 
+
+%% @doc Starts a log processor
+-spec start_link(id(), backend(), opts()) ->
+    {ok, pid()} | {error, term()}.
+
+start_link(Id, Backend, Opts) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Id, Backend, Opts], []).
+
+
+%% @doc Sends a message
+-spec message(id(), message()) ->
+    ok | {error, not_found}.
+
+message(Id, Msg) ->
+    case find(Id) of
+        {ok, Pid} -> gen_server:cast(Pid, {message, Msg});
+        not_found -> {error, not_found}
+    end.
+
+
+%% @doc Stops the processor
+-spec stop(id()) ->
+    ok.
+
+stop(Id) ->
+    case find(Id) of
+        {ok, Pid} -> gen_server:cast(Pid, stop);
+        not_found -> ok
+    end.
+
+
+%% @private
+find(Pid) when is_pid(Pid) ->
+    {ok, Pid};
+
+find(Id) ->
+    case nklib_proc:values({?MODULE, Id}) of
+        [{_, Pid}|_] -> {ok, Pid};
+        [] -> not_found
+    end.
+
+
+%% @private
+get_all() ->
+    nklib_proc:values(?MODULE).
+
+
+% ===================================================================
+%% gen_server behaviour
+%% ===================================================================
+
+-record(state, {
+    id :: id(),
+	backend :: backend(),
+	substate :: state()
+}).
+
+
+%% @private
+-spec init(term()) ->
+    {ok, tuple()} | {ok, tuple(), timeout()|hibernate} |
+    {stop, term()} | ignore.
+
+init([Id, Backend, Opts]) ->
+    nklib_proc:put({?MODULE, Id}),
+    nklib_proc:put(?MODULE, Id),
+	case Backend:init(Id, Opts) of
+        {ok, Sub} ->
+            {ok, #state{id=Id, backend=Backend, substate=Sub}};
+        {error, Error} ->
+            {stop, Error}
+    end.
+
+
+%% @private
+-spec handle_call(term(), {pid(), term()}, #state{}) ->
+    {noreply, #state{}} | {reply, term(), #state{}} |
+    {stop, Reason::term(), #state{}} | {stop, Reason::term(), Reply::term(), #state{}}.
+
+handle_call(get_state, _From, State) ->
+    {reply, State, State};
+
+handle_call(Msg, _From, State) ->
+    lager:error("Module ~p received unexpected call ~p", [?MODULE, Msg]),
+    {noreply, State}.
+
+
+%% @private
+-spec handle_cast(term(), #state{}) ->
+    {noreply, #state{}} | {stop, term(), #state{}}.
+
+handle_cast({message, Msg}, #state{id=Id, backend=Backend, substate=Sub}=State) -> 
+    case Backend:message(Id, Msg, Sub) of
+        {ok, Sub2} ->
+            {noreply, State#state{substate=Sub2}};
+        {error, Error} ->
+            % Lager could block if we are processing a lager message...
+            io:format("nklib_log (~p): could not send msg: ~p\n", [Id, Error]),
+            {noreply, State}
+    end;
+
+handle_cast(stop, State) -> 
+    {stop, normal, State};
+    
+handle_cast(Msg, State) -> 
+    lager:error("Module ~p received unexpected cast ~p", [?MODULE, Msg]),
+    {noreply, State}.
+
+
+%% @private
+-spec handle_info(term(), #state{}) ->
+    {noreply, #state{}} | {stop, term(), #state{}}.
+
+handle_info(Info, State) -> 
+    lager:warning("Module ~p received unexpected info: ~p (~p)", [?MODULE, Info, State]),
+    {noreply, State}.
+
+
+%% @private
+-spec code_change(term(), #state{}, term()) ->
+    {ok, #state{}}.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+
+%% @private
+-spec terminate(term(), #state{}) ->
+    ok.
+
+terminate(Reason, #state{backend=Backend, substate=Sub}) ->
+    Backend:terminate(Reason, Sub).
+
+    
+
+
+% ===================================================================
+%% Internal
+%% ===================================================================
 
