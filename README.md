@@ -1,4 +1,4 @@
-# NkLIB: Nekso's common Erlang library functions
+# NkLIB: NetComposer's common Erlang library functions
 
 NkLIB includes a serie of common utilities and services for NkCORE, but probably useful for other applications:
 

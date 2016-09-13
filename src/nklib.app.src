@@ -1,5 +1,5 @@
 {application, nklib, [
-    {description, "Nekso Standard Library"},
+    {description, "NetComposer Standard Library"},
     {vsn, "develop"},
     {modules, []},
     {registered, []},
