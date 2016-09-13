@@ -23,11 +23,11 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([init/4, init/5]).
--export([handle_call/5, handle_call/6, handle_call/7]).
--export([handle_cast/4, handle_cast/5, handle_cast/6]).
--export([handle_info/4, handle_info/5, handle_info/6]).
+-export([handle_call/5, handle_call/6]).
+-export([handle_cast/4, handle_cast/5]).
+-export([handle_info/4, handle_info/5]).
 -export([terminate/4, terminate/5, code_change/5, code_change/6]).
--export([handle_any/5, handle_any/6]).
+-export([handle_any/5]).
 -include("nklib.hrl").
 
 
@@ -36,20 +36,28 @@
 %% ===================================================================
 
 -type reply() ::
-    {reply, term(), tuple()} |
-    {reply, term(), tuple(), timeout() | hibernate} |
-    {noreply, tuple()} |
-    {noreply, tuple(), timeout() | hibernate} |
-    {stop, term(), term(), tuple()} |
-    {stop, term(), tuple()}.
+    {reply, term(), state()} |
+    {reply, term(), state(), timeout() | hibernate} |
+    {noreply, state()} |
+    {noreply, state(), timeout() | hibernate} |
+    {stop, Reason::term(), Reply::term(), state()} |
+    {stop, Reason::term(), state()}.
 
 
 -type noreply() ::
     {noreply, tuple()} |
     {noreply, tuple(), timeout() | hibernate} |
-    {stop, term(), tuple()}.
+    {stop, Reason::term(), tuple()}.
 
 
+-type continue() ::
+    {continue, state()}.
+
+
+-type state() :: 
+    tuple().
+
+-type from() :: {pid(), reference()}.
 
 
 %% ===================================================================
@@ -58,8 +66,8 @@
 
 
 %% @private
--spec init(term(), tuple(), pos_integer(), pos_integer()) ->
-    {ok, tuple()} | {ok, tuple(), timeout()|hibernate} |
+-spec init(term(), state(), pos_integer(), pos_integer()) ->
+    {ok, state()} | {ok, state(), timeout()|hibernate} |
     {stop, term()} | ignore.
 
 init(Arg, State, PosMod, PosUser) ->
@@ -67,17 +75,17 @@ init(Arg, State, PosMod, PosUser) ->
 
 
 %% @private
--spec init(atom(), term(), tuple(), pos_integer(), pos_integer()) ->
-    {ok, tuple()} | {ok, tuple(), timeout()|hibernate} |
+-spec init(atom(), term(), state(), pos_integer(), pos_integer()) ->
+    {ok, state()} | {ok, state(), timeout()|hibernate} |
     {stop, term()} | ignore.
 
 init(Fun, Arg, State, PosMod, PosUser) ->
-    SubMod = element(PosMod, State),
-    case SubMod:Fun(Arg) of
-        {ok, User1} ->
-            {ok, setelement(PosUser, State, User1)};
-        {ok, User1, Timeout} ->
-            {ok, setelement(PosUser, State, User1), Timeout};
+    Mod = element(PosMod, State),
+    case Mod:Fun(Arg) of
+        {ok, User} ->
+            {ok, setelement(PosUser, State, User)};
+        {ok, User, Timeout} ->
+            {ok, setelement(PosUser, State, User), Timeout};
         {stop, Reason} ->
             {stop, Reason};
         ignore ->
@@ -86,101 +94,75 @@ init(Fun, Arg, State, PosMod, PosUser) ->
 
 
 %% @private Default Fun and Timeout
--spec handle_call(term(), {pid(), term()}, tuple(), pos_integer(), pos_integer()) ->
+-spec handle_call(term(), from(), state(), pos_integer(), pos_integer()) ->
     reply().
 
 handle_call(Msg, From, State, PosMod, PosUser) ->
-    handle_call(handle_call, Msg, From, State, PosMod, PosUser, undefined).
+    handle_call(handle_call, Msg, From, State, PosMod, PosUser).
 
 
 %% @private Default Timeout
--spec handle_call(atom(), term(), {pid(), term()}, tuple(), 
-                  pos_integer(), pos_integer()) ->
+-spec handle_call(atom(), term(), from(), state(), pos_integer(), pos_integer()) ->
     reply().
 
 handle_call(Fun, Msg, From, State, PosMod, PosUser) ->
-    handle_call(Fun, Msg, From, State, PosMod, PosUser, undefined).
-
-
-%% @private
--spec handle_call(atom(), term(), {pid(), term()}, tuple(), 
-                  pos_integer(), pos_integer(), pos_integer()) ->
-    reply().
-
-handle_call(Fun, Msg, From, State, PosMod, PosUser, PosTimeout) ->
-    SubMod = element(PosMod, State),
+    Mod = element(PosMod, State),
     User = element(PosUser, State),
-    case erlang:function_exported(SubMod, Fun, 3) of
+    case erlang:function_exported(Mod, Fun, 3) of
         true ->
-            proc_reply(SubMod:Fun(Msg, From, User), PosUser, PosTimeout, State);
+            proc_reply(Mod:Fun(Msg, From, User), PosUser, State);
         false ->
             {noreply, State}
     end.
 
 
 %% @private
--spec handle_cast(term(), tuple(), pos_integer(), pos_integer()) ->
+-spec handle_cast(term(), state(), pos_integer(), pos_integer()) ->
     noreply().
 
 handle_cast(Msg, State, PosMod, PosUser) ->
-    handle_cast(handle_cast, Msg, State, PosMod, PosUser, undefined).
+    handle_cast(handle_cast, Msg, State, PosMod, PosUser).
 
 
 %% @private
--spec handle_cast(atom(), term(), tuple(), pos_integer(), pos_integer()) ->
+-spec handle_cast(atom(), term(), state(), pos_integer(), pos_integer()) ->
     noreply().
 
 handle_cast(Fun, Msg, State, PosMod, PosUser) ->
-    handle_cast(Fun, Msg, State, PosMod, PosUser, undefined).
-
-
-%% @private
--spec handle_cast(atom(), term(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
-    noreply().
-
-handle_cast(Fun, Msg, State, PosMod, PosUser, PosTimeout) ->
-    SubMod = element(PosMod, State),
+    Mod = element(PosMod, State),
     User = element(PosUser, State),
-    case erlang:function_exported(SubMod, Fun, 2) of
+    case erlang:function_exported(Mod, Fun, 2) of
         true ->
-            proc_reply(SubMod:Fun(Msg, User), PosUser, PosTimeout, State);
+            proc_noreply(Mod:Fun(Msg, User), PosUser, State);
         false ->
             {noreply, State}
     end.
 
 
 %% @private
--spec handle_info(term(), tuple(), pos_integer(), pos_integer()) ->
-    noreply().
+-spec handle_info(term(), state(), pos_integer(), pos_integer()) ->
+    noreply() | continue() | term().
 
 handle_info(Msg, State, PosMod, PosUser) ->
-    handle_info(handle_info, Msg, State, PosMod, PosUser, undefined).
+    handle_info(handle_info, Msg, State, PosMod, PosUser).
 
 
 %% @private
--spec handle_info(atom(), term(), tuple(), pos_integer(), pos_integer()) ->
+-spec handle_info(atom(), term(), state(), pos_integer(), pos_integer()) ->
     noreply().
 
 handle_info(Fun, Msg, State, PosMod, PosUser) ->
-    handle_info(Fun, Msg, State, PosMod, PosUser, undefined).
-
-
-%% @private
--spec handle_info(atom(), term(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
-    noreply().
-
-handle_info(Fun, Msg, State, PosMod, PosUser, PosTimeout) ->
-    SubMod = element(PosMod, State),
+    Mod = element(PosMod, State),
     User = element(PosUser, State),
-    case erlang:function_exported(SubMod, Fun, 2) of
+    case erlang:function_exported(Mod, Fun, 2) of
         true ->
-            proc_reply(SubMod:Fun(Msg, User), PosUser, PosTimeout, State);
+            proc_noreply(Mod:Fun(Msg, User), PosUser, State);
         false ->
             {noreply, State}
     end.
 
 
--spec code_change(term()|{down, term()}, tuple(), term(), 
+-spec code_change(term()|{down, term()}, state(), term(), 
                   pos_integer(), pos_integer()) ->
     {ok, NewState :: term()} | {error, Reason :: term()}.
 
@@ -188,18 +170,20 @@ code_change(OldVsn, State, Extra, PosMod, PosUser) ->
     code_change(code_change, OldVsn, State, Extra, PosMod, PosUser).
 
 
--spec code_change(atom(), term()|{down, term()}, tuple(), term(), 
+-spec code_change(atom(), term()|{down, term()}, state(), term(), 
                   pos_integer(), pos_integer()) ->
     {ok, NewState :: term()} | {error, Reason :: term()}.
 
 code_change(Fun, OldVsn, State, Extra, PosMod, PosUser) ->
-    SubMod = element(PosMod, State),
+    Mod = element(PosMod, State),
     User = element(PosUser, State),
-    case erlang:function_exported(SubMod, Fun, 3) of
+    case erlang:function_exported(Mod, Fun, 3) of
         true ->
-            case SubMod:Fun(OldVsn, User, Extra) of
-                {ok, User1} ->
-                    {ok, setelement(PosUser, State, User1)};
+            case Mod:Fun(OldVsn, User, Extra) of
+                {ok, User} ->
+                    {ok, setelement(PosUser, State, User)};
+                {continue, State2} ->
+                    {ok, State2};
                 {error, Reason} ->
                     {error, Reason}
             end;
@@ -209,7 +193,7 @@ code_change(Fun, OldVsn, State, Extra, PosMod, PosUser) ->
 
 
 %% @private
--spec terminate(term(), tuple(), pos_integer(), pos_integer()) ->
+-spec terminate(term(), state(), pos_integer(), pos_integer()) ->
     any().
 
 terminate(Reason, State, PosMod, PosUser) ->
@@ -217,91 +201,92 @@ terminate(Reason, State, PosMod, PosUser) ->
 
 
 %% @private
--spec terminate(atom(), term(), tuple(), pos_integer(), pos_integer()) ->
+-spec terminate(atom(), term(), state(), pos_integer(), pos_integer()) ->
     any().
 
 terminate(Fun, Reason, State, PosMod, PosUser) ->
-    SubMod = element(PosMod, State),
+    Mod = element(PosMod, State),
     User = element(PosUser, State),
-    case erlang:function_exported(SubMod, Fun, 2) of
+    case erlang:function_exported(Mod, Fun, 2) of
         true -> 
-            SubMod:Fun(Reason, User);
+            Mod:Fun(Reason, User);
         false ->
             ok
     end.
 
 
 %% @private
--spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer()) ->
-    {ok, tuple()} |
-    {ok, term(), tuple()} |
-    {error, term(), tuple()} |
-    {error, term(), term(), tuple()} |
-    term().
+-spec handle_any(atom(), list(), state(), pos_integer(), pos_integer()) ->
+    nklib_not_exported | continue() | tuple() | term().
 
 handle_any(Fun, Args, State, PosMod, PosUser) ->
-    handle_any(Fun, Args, State, PosMod, PosUser, undefined).
-
-
-%% @private
--spec handle_any(atom(), list(), tuple(), pos_integer(), pos_integer(), pos_integer()) ->
-    nklib_not_exported |
-    {ok, tuple()} |
-    {ok, term(), tuple()} |
-    {error, term(), tuple()} |
-    {error, term(), term(), tuple()} |
-    term().
-
-handle_any(Fun, Args, State, PosMod, PosUser, PosTimeout) ->
-    SubMod = element(PosMod, State),
+    Mod = element(PosMod, State),
     User = element(PosUser, State),
-    Args1 = Args++[User],
-    case erlang:function_exported(SubMod, Fun, length(Args1)) of
+    Args2 = Args ++ [User],
+    case erlang:function_exported(Mod, Fun, length(Args2)) of
         true ->
-            proc_reply(apply(SubMod, Fun, Args1), PosUser, PosTimeout, State);
+            proc_any(apply(Mod, Fun, Args2), PosUser, State);
         false ->
             nklib_not_exported
     end.
 
 
 %% @private
-proc_reply(Term, PosUser, PosTimeout, State) ->
-    case Term of
-        {reply, Reply, User1} ->
-            Timeout = case PosTimeout of
-                undefined -> infinity;
-                _ -> element(PosTimeout, State)
-            end,
-            {reply, Reply, setelement(PosUser, State, User1), Timeout};
-        {reply, Reply, User1, Timeout1} ->
-            {reply, Reply, setelement(PosUser, State, User1), Timeout1};
-        {noreply, User1} ->
-            Timeout = case PosTimeout of
-                undefined -> infinity;
-                _ -> element(PosTimeout, State)
-            end,
-            {noreply, setelement(PosUser, State, User1), Timeout};
-        {noreply, User1, Timeout1} ->
-            {noreply, setelement(PosUser, State, User1), Timeout1};
+-spec proc_reply(term(), pos_integer(), state()) ->
+    reply().
 
-        continue ->
-            {continue, State};
+proc_reply({reply, Reply, User}, Pos, State) ->
+    {reply, Reply, setelement(Pos, State, User), infinity};
 
-        {continue, List} when is_list(List) ->
-            User1 = lists:last(List),
-            {continue, setelement(PosUser, State, User1)};
+proc_reply({reply, Reply, User, Timeout}, Pos, State) ->
+    {reply, Reply, setelement(Pos, State, User), Timeout};
 
-        _ when is_tuple(Term) ->
-            % Return the same tuple, but last element is updated with the full state
-            User1 = element(size(Term), Term),              % Last term
-            State1 = setelement(PosUser, State, User1),
-            setelement(size(Term), Term, State1);
+proc_reply({stop, Reason, Reply, User}, Pos, State) ->
+    {stop, Reason, Reply, setelement(Pos, State, User)};
 
-        Other ->
-            Other
-    end.
+proc_reply(Term, Pos, State) ->
+    proc_noreply(Term, Pos, State).
 
 
+%% @private
+-spec proc_noreply(term(), pos_integer(), state()) ->
+    noreply().
 
+proc_noreply({noreply, User}, Pos, State) ->
+    {reply, setelement(Pos, State, User), infinity};
+
+proc_noreply({noreply, User, Timeout}, Pos, State) ->
+    {reply, setelement(Pos, State, User), Timeout};
+
+proc_noreply({stop, Reason, User}, Pos, State) ->
+    {stop, Reason, setelement(Pos, State, User)};
+
+proc_noreply(continue, _Pos, State) ->
+    {noreply, State};
+
+proc_noreply({continue, List}, Pos, State) when is_list(List) ->
+    User = lists:last(List),
+    {noreply, setelement(Pos, State, User)}.
+
+
+%% @private
+-spec proc_any(term(), integer(), state()) ->
+    continue() | tuple() | term().
+
+proc_any(continue, _Pos, State) ->
+    {continue, State};
+
+proc_any({continue, List}, Pos, State) when is_list(List) ->
+    User = lists:last(List),
+    {continue, setelement(Pos, State, User)};
+
+proc_any(Term, Pos, State) when is_tuple(Term) ->
+    % Return the same tuple, but last element is updated with the full state
+    User = element(size(Term), Term),              
+    State2 = setelement(Pos, State, User),
+    setelement(size(Term), Term, State2);
+
+proc_any(Term, _Pos, _State) ->
+    Term.
 
 
