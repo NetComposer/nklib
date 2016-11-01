@@ -109,10 +109,10 @@ ok_test() ->
     {ok, 
         [std,synopsys,ieee,dware,dw02,dw05,gtech,dw01,dw03,dw04,ramlib,
          std_cell_lib,des_system_lib,dw06,dw07]} = 
-        sort(lib1()).
+        top_sort(lib1()).
 
 fail_test() ->
-    {error, {circular_dependencies,[dw01,dw04]}} = sort(lib2()).
+    {error, {circular_dependencies,[dw01,dw04]}} = top_sort(lib2()).
 
 
 lib1() -> 
