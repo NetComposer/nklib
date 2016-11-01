@@ -9,3 +9,6 @@ rebar.lock
 rel
 ebin
 log
+.rebar
+.eunit
+deps
