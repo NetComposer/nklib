@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2014 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -47,6 +47,8 @@ start() ->
 start(_Type, _Args) ->
 	code:ensure_loaded(jsx),
 	code:ensure_loaded(jiffy),     % We can work without it
+    HwAddr = nklib_util:get_hwaddr(),
+    application:set_env(?APP, hw_addr, HwAddr),
     nklib_sup:start_link().
 
 

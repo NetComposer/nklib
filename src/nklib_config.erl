@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2015 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -36,18 +36,22 @@
 -compile({no_auto_import, [get/1, put/2]}).
 
 -type syntax_subopt() ::
-    ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc |
+    ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc | module |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | {record, atom()} |
     string | binary | lower | upper |
-    ip | host | host6 | {function, pos_integer()} |
-    unquote | path | uri | uris | tokens | words | log_level |
+    ip | ip4 | ip6 | host | host6 | {function, pos_integer()} |
+    unquote | path | fullpath | uri | uris | tokens | words | map | log_level |
     map() | list() | syntax_fun().
 
 -type syntax_fun() ::
     fun((atom(), term(), fun_ctx()) -> 
         ok | {ok, term()} | {ok, term(), term()} |
+        {new_ok, [{atom(), term()}]} | error | {error, term()}) |
+    fun((term()) -> 
+        ok | {ok, term()} | {ok, term(), term()} |
         {new_ok, [{atom(), term()}]} | error | {error, term()}).
+
 
 -type fun_ctx() ::
     parse_opts() | #{ok=>[{atom(), term()}], no_ok=>[{binary(), term()}]}.
@@ -62,7 +66,9 @@
     #{
         return => map|list,         % Default is list
         path => binary(),           % Returned in errors
-        defaults => map() | list()
+        defaults => map() | list(), % Default and mandatory not allowed for nested
+        mandatory => [atom()],
+        warning_unknown => boolean()
     }.
 
 
@@ -167,6 +173,7 @@ increment_domain(Mod, Domain, Key, Count) ->
     {error, Error}
     when Error :: 
         {syntax_error, binary()} | 
+        {missing_mandatory_field, binary()} |
         {invalid_spec, syntax_opt()} |
         term().
 
@@ -182,6 +189,7 @@ parse_config(Terms, Spec) ->
     {error, Error}
     when Error :: 
         {syntax_error, binary()} | 
+        {missing_mandatory_field, binary()} |
         {invalid_spec, syntax_opt()} |
         term().
 
@@ -344,6 +352,9 @@ parse_config([], OK, NoOK, Syntax, #{defaults:=Defaults}=Opts) ->
         {ok, Defaults2, []} ->
             OK2 = nklib_util:defaults(OK, Defaults2),
             parse_config([], OK2, NoOK, Syntax, maps:remove(defaults, Opts));
+        {ok, _, DefNoOK} ->
+            lager:warning("Error parsing in defaults: ~p", [Defaults]),
+            {error, {no_ok, DefNoOK}};
         {error, Error} ->
             lager:warning("Error parsing in defaults: ~p", [Defaults]),
             {error, Error}
@@ -352,11 +363,23 @@ parse_config([], OK, NoOK, Syntax, #{defaults:=Defaults}=Opts) ->
 parse_config([], OK, NoOK, _Syntax, Opts) ->
     OK2 = lists:reverse(OK),
     NoOK2 = lists:reverse(NoOK),
-    case Opts of
-        #{return:=map} ->
-            {ok, maps:from_list(OK2), maps:from_list(NoOK)};
-        _ ->
-            {ok, OK2, NoOK2}
+    Mandatory = maps:get(mandatory, Opts, []),
+    case check_mandatory(Mandatory, OK) of
+        ok ->
+            case NoOK /= [] andalso maps:find(warning_unknown, Opts) of
+                {ok, true} ->
+                    lager:warning("Unknown keys in config: ~p", 
+                                  [maps:from_list(NoOK)]);
+                _ -> ok
+            end,
+            case Opts of
+                #{return:=map} ->
+                    {ok, maps:from_list(OK2), maps:from_list(NoOK)};
+                _ ->
+                    {ok, OK2, NoOK2}
+            end;
+        {missing, Key} ->
+            {error, {missing_mandatory_field, nklib_util:to_binary(Key)}}
     end;
 
 parse_config([{Key, Val}|Rest], OK, NoOK, Syntax, Opts) ->
@@ -376,9 +399,15 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
     case maps:get(Key, Syntax, not_found) of
         not_found ->
             parse_config(Rest, OK, [{Key, Val}|NoOK], Syntax, Opts);
-        Fun when is_function(Fun, 3) ->
-            FunOpts = Opts#{ok=>OK, no_ok=>NoOK},
-            case catch Fun(Key, Val, FunOpts) of
+        Fun when is_function(Fun) ->
+            FunRes = if
+                is_function(Fun, 3) -> 
+                    FunOpts = Opts#{ok=>OK, no_ok=>NoOK},
+                    catch Fun(Key, Val, FunOpts);
+                is_function(Fun, 1) ->
+                    catch Fun(Val)
+            end,
+            case FunRes of
                 ok ->
                     parse_config(Rest, [{Key, Val}|OK], NoOK, Syntax, Opts);
                 {ok, Val1} ->
@@ -400,8 +429,9 @@ find_config(Key, Val, Rest, OK, NoOK, Syntax, Opts) ->
                 true ->
                     BinKey = nklib_util:to_binary(Key),
                     Opts1 = maps:remove(defaults, Opts),
-                    Opts2 = Opts1#{path=>BinKey},
-                    case parse_config(Val, SubSyntax, Opts2) of
+                    Opts2 = maps:remove(mandatory, Opts1),
+                    Opts3 = Opts2#{path=>BinKey},
+                    case parse_config(Val, SubSyntax, Opts3) of
                         {ok, Val1, _SubNoOK} ->
                             parse_config(Rest, [{Key, Val1}|OK], NoOK, Syntax, Opts);
                         {error, {syntax_error, Error}} ->
@@ -465,6 +495,18 @@ throw_syntax_error(Key, _) ->
     throw({syntax_error, nklib_util:to_binary(Key)}).
 
 
+
+%% @private
+check_mandatory([], _) ->
+    ok;
+
+check_mandatory([Key|Rest], All) ->
+    case lists:keymember(Key, 1, All) of
+        true -> check_mandatory(Rest, All);
+        false -> {missing, Key}
+    end.
+
+
 %% @private
 -spec do_parse_config(syntax_opt(), term()) ->
     {ok, term()} | error | unknown.
@@ -525,6 +567,12 @@ do_parse_config(pid, Val) ->
     case is_pid(Val) of
         true -> {ok, Val};
         false -> error
+    end;
+
+do_parse_config(module, Val) ->
+    case code:ensure_loaded(Val) of
+        {module, Val} -> {ok, Val};
+        _ -> error
     end;
 
 do_parse_config(integer, Val) ->
@@ -613,6 +661,18 @@ do_parse_config(ip, Val) ->
         _ -> error
     end;
 
+do_parse_config(ip4, Val) ->
+    case nklib_util:to_ip(Val) of
+        {ok, {_, _, _, _}=Ip} -> {ok, Ip};
+        _ -> error
+    end;
+
+do_parse_config(ip6, Val) ->
+    case nklib_util:to_ip(Val) of
+        {ok, {_, _, _, _, _, _, _, _}=Ip} -> {ok, Ip};
+        _ -> error
+    end;
+
 do_parse_config(host, Val) ->
     {ok, nklib_util:to_host(Val)};
 
@@ -638,10 +698,10 @@ do_parse_config(unquote, Val) when is_list(Val); is_binary(Val) ->
     end;
 
 do_parse_config(path, Val) when is_list(Val); is_binary(Val) ->
-    case nklib_parse:path(Val) of
-        error -> error;
-        Bin -> {ok, Bin}
-    end;
+    {ok, nklib_parse:path(Val)};
+
+do_parse_config(fullpath, Val) when is_list(Val); is_binary(Val) ->
+    {ok, nklib_parse:fullpath(filename:absname(Val))};
 
 do_parse_config(uri, Val) ->
     case nklib_parse:uris(Val) of
@@ -684,6 +744,12 @@ do_parse_config(log_level, Val) ->
         _ -> error
     end;
 
+do_parse_config(map, Map) ->
+    case is_map(Map) andalso do_parse_config_map(maps:to_list(Map)) of
+        ok -> {ok, Map};
+        _ -> error
+    end;
+
 do_parse_config([Opt|Rest], Val) ->
     case catch do_parse_config(Opt, Val) of
         {ok, Val1} -> {ok, Val1};
@@ -718,8 +784,27 @@ do_parse_config_list(ListType, [Term|Rest], Type, Acc) ->
 do_parse_config_list(_, _, _, _) ->
     error.
 
+%% @private
+do_parse_config_map([]) -> 
+    ok;
 
-       
+do_parse_config_map([{Key, Val}|Rest]) ->
+    case is_binary(Key) orelse is_atom(Key) of
+        true when is_map(Val) ->
+            case do_parse_config_map(maps:to_list(Val)) of
+                ok ->
+                    do_parse_config_map(Rest);
+                error ->
+                    error
+            end;
+        true ->
+            do_parse_config_map(Rest);
+        false ->
+            error
+    end.
+
+
+     
 
 %% ===================================================================
 %% EUnit tests
@@ -787,6 +872,7 @@ parse1() ->
         field13 => {list, atom},
         field14 => {update, map, map1, m_field14, integer},
         field15 => {update, map, map1, m_field15, atom},
+        field16 => module,
         fieldXX => invalid
     },
 
@@ -859,6 +945,10 @@ parse1() ->
         parse_config([{field01, a}, {field14, 1}, {field15, b}], Spec, #{return=>map}),
 
     {error, {syntax_error, <<"field14">>}} = parse_config(#{field01=>a, field14=>a}, Spec),
+
+    {error, {syntax_error, <<"field16">>}} = parse_config([{field16, kkk383838}], Spec),
+    {ok, [{field16, string}], []} = parse_config([{field16, string}], Spec),
+
     ok.
 
 
