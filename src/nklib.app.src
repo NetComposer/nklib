@@ -1,6 +1,6 @@
 {application, nklib, [
     {description, "NetComposer Standard Library"},
-    {vsn, "develop"},
+    {vsn, "0.4.1"},
     {modules, []},
     {registered, []},
     {mod, {nklib_app, []}},
