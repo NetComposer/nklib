@@ -505,7 +505,12 @@ filtermap(F, []) when is_function(F, 1) ->
     binary().
 
 to_binary(B) when is_binary(B) -> B;
-to_binary(L) when is_list(L) -> list_to_binary(L);
+to_binary([]) -> <<>>;
+to_binary([Int|_]=L) when is_integer(Int) ->
+    case catch list_to_binary(L) of
+        {'EXIT', _} -> msg("~p", [L]);
+        Bin -> Bin
+    end;
 to_binary(undefined) -> <<>>;
 to_binary(A) when is_atom(A) -> atom_to_binary(A, latin1);
 to_binary(I) when is_integer(I) -> list_to_binary(erlang:integer_to_list(I));
