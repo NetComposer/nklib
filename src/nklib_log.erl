@@ -24,8 +24,9 @@
 -behaviour(gen_server).
 
 -export([console_loglevel/1]).
--export([debug/0, info/0, notice/0, warning/0, error/0]).
--export([notify/3]).
+-export([console_debug/0, console_info/0, console_notice/0, 
+         console_warning/0, console_error/0]).
+-export([log/3, log/4]).
 
 -export([start_link/3, message/2, stop/1, find/1, get_all/0]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
@@ -57,16 +58,24 @@
 
 
 %% @doc Changes log level for console
-debug() -> console_loglevel(debug).
-info() -> console_loglevel(info).
-notice() -> console_loglevel(notice).
-warning() -> console_loglevel(warning).
-error() -> console_loglevel(error).
+console_debug() -> console_loglevel(debug).
+console_info() -> console_loglevel(info).
+console_notice() -> console_loglevel(notice).
+console_warning() -> console_loglevel(warning).
+console_error() -> console_loglevel(error).
 
-notify(Level, Format, Args) ->
-    Meta = [{pid,self()}, {line,?LINE}, {file,?FILE}, {module,?MODULE}],
-    Log = lager_msg:new(io_lib:format(Format, Args), Level, Meta, []),
+
+%% @doc
+log(Level, Format, Args) ->
+    log(Level, Format, Args, #{}).
+
+
+%% @doc
+log(Level, Format, Args, Meta) ->
+    Meta2 = [{pid, self()} | maps:to_list(Meta)],
+    Log = lager_msg:new(io_lib:format(Format, Args), Level, Meta2, []),
     gen_event:notify(lager_event, {log, Log}).
+
 
 
 %% @doc Changes log level for console
