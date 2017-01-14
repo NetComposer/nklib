@@ -24,7 +24,8 @@
 
 -export([ensure_all_started/2, call/2, call/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
--export([get_hwaddr/0, timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
+-export([get_hwaddr/0, timestamp/0, m_timestamp/0,
+         l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
@@ -37,8 +38,10 @@
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
+-export([add_id/2, add_id/3]).
+-export([base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
 
--export_type([optslist/0, timestamp/0, l_timestamp/0]).
+-export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
 
 
@@ -53,6 +56,8 @@
 -type timestamp() :: non_neg_integer().
 
 -type l_timestamp() :: non_neg_integer().
+
+-type m_timestamp() :: non_neg_integer().
 
 
 %% ===================================================================
@@ -279,6 +284,13 @@ timestamp() ->
 l_timestamp() ->
     {N1, N2, N3} = os:timestamp(),
     (N1 * 1000000 + N2) * 1000000 + N3.
+
+
+%% @doc Gets an milisecond-resolution timestamp
+-spec m_timestamp() -> m_timestamp().
+
+m_timestamp() ->
+    l_timestamp() div 1000.
 
 
 %% @doc Converts a `timestamp()' to a local `datetime()'.
@@ -1017,6 +1029,87 @@ msg(Msg, Vars) ->
         Result -> 
             Result
     end.
+
+%% Adds and ID to a map if not already present
+-spec add_id(atom(), map()) ->
+    {binary(), map()}.
+
+add_id(Key, Config) ->
+    add_id(Key, Config, <<>>).
+
+
+%% Adds and ID to a map if not already present, with a prefix
+-spec add_id(atom(), map(), binary()) ->
+    {binary(), map()}.
+
+add_id(Key, Config, Prefix) ->
+    case maps:find(Key, Config) of
+        {ok, Id} when is_binary(Id) ->
+            {Id, Config};
+        {ok, Id} ->
+            Id2 = nklib_util:to_binary(Id),
+            {Id2, maps:put(Key, Id2, Config)};
+        _ when Prefix == <<>> ->
+            Id = nklib_util:luid(),
+            {Id, maps:put(Key, Id, Config)};
+        _ ->
+            Id1 = nklib_util:luid(),
+            Id2 = <<(nklib_util:to_binary(Prefix))/binary, $-, Id1/binary>>,
+            {Id2, maps:put(Key, Id2, Config)}
+    end.
+
+
+
+%% @doc URL safe base64-compatible codec (removing final = or ==)
+%%
+%% Based on https://github.com/dvv/base64url/blob/master/src/base64url.erl
+-spec base64url_encode(binary() | iolist()) ->
+    binary().
+
+base64url_encode(Bin) when is_binary(Bin) ->
+    << << (urlencode_digit(D)) >> || <<D>> <= base64:encode(Bin), D =/= $= >>;
+base64url_encode(L) when is_list(L) ->
+    base64url_encode(iolist_to_binary(L)).
+
+%% @doc Encodes with the final '=' or '=='
+-spec base64url_encode_mime(  binary() | iolist()) ->
+    binary().
+
+base64url_encode_mime(Bin) when is_binary(Bin) ->
+    << << (urlencode_digit(D)) >> || <<D>> <= base64:encode(Bin) >>;
+base64url_encode_mime(L) when is_list(L) ->
+    base64url_encode_mime(iolist_to_binary(L)).
+
+
+%% @doc
+-spec base64url_decode(binary() | iolist()) ->
+    binary().
+
+base64url_decode(Bin) when is_binary(Bin) ->
+  Bin2 = case byte_size(Bin) rem 4 of
+    2 -> << Bin/binary, "==" >>;
+    3 -> << Bin/binary, "=" >>;
+    _ -> Bin
+  end,
+  base64:decode(<< << (urldecode_digit(D)) >> || <<D>> <= Bin2 >>);
+
+base64url_decode(L) when is_list(L) ->
+  base64url_decode(iolist_to_binary(L)).
+
+
+%% @private
+urlencode_digit($/) -> $_;
+urlencode_digit($+) -> $-;
+urlencode_digit(D)  -> D.
+
+%% @private
+urldecode_digit($_) -> $/;
+urldecode_digit($-) -> $+;
+urldecode_digit(D)  -> D.
+
+
+
+
 
 
 %% ===================================================================
