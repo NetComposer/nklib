@@ -225,7 +225,9 @@ handle_any(Fun, Args, State, PosMod, PosUser) ->
     Args2 = Args ++ [User],
     case erlang:function_exported(Mod, Fun, length(Args2)) of
         true ->
-            proc_any(apply(Mod, Fun, Args2), PosUser, State);
+            Reply = apply(Mod, Fun, Args2),
+            % lager:error("Handle: ~p, ~p, ~p: ~p", [Mod, Fun, Args2, Reply]),
+            proc_any(Reply, PosUser, State);
         false ->
             nklib_not_exported
     end.

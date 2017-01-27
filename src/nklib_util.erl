@@ -892,7 +892,7 @@ words([Ch|Rest], Chs, Tokens) ->
 
 % @dod
 capitalize(Name) ->
-    capitalize(nklib_util:to_binary(Name), true, <<>>).
+    capitalize(to_binary(Name), true, <<>>).
 
 
 % @private 
@@ -1047,14 +1047,14 @@ add_id(Key, Config, Prefix) ->
         {ok, Id} when is_binary(Id) ->
             {Id, Config};
         {ok, Id} ->
-            Id2 = nklib_util:to_binary(Id),
+            Id2 = to_binary(Id),
             {Id2, maps:put(Key, Id2, Config)};
         _ when Prefix == <<>> ->
             Id = nklib_util:luid(),
             {Id, maps:put(Key, Id, Config)};
         _ ->
             Id1 = nklib_util:luid(),
-            Id2 = <<(nklib_util:to_binary(Prefix))/binary, $-, Id1/binary>>,
+            Id2 = <<(to_binary(Prefix))/binary, $-, Id1/binary>>,
             {Id2, maps:put(Key, Id2, Config)}
     end.
 
