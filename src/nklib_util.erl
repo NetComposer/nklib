@@ -32,7 +32,8 @@
 -export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
 -export([filtermap/2]).
--export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
+-export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1,
+         to_float/1]).
 -export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
@@ -595,6 +596,30 @@ to_integer(L) when is_list(L) ->
         _ -> error
     end;
 to_integer(_) ->
+    error.
+
+
+%% @doc Converts anything into a `integer()' or `error'.
+-spec to_float(integer()|binary()|string()|float()) ->
+    integer() | error.
+
+to_float(F) when is_float(F) -> 
+    F;
+to_float(I) when is_integer(I) -> 
+    I * 1.0;
+to_float(L) when is_list(L) -> 
+    case catch list_to_float(L) of
+        F when is_float(F) -> 
+            F;
+        _ -> 
+            case to_integer(L) of
+                I when is_integer(I) -> I * 1.0;
+                error -> error
+            end
+    end;
+to_float(B) when is_binary(B) -> 
+    to_float(binary_to_list(B));
+to_float(_) ->
     error.
 
 
