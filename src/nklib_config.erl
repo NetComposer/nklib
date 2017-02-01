@@ -39,7 +39,7 @@
     ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc | module |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} | float | {record, atom()} |
-    string | binary | lower | upper |
+    string | binary | base64 | lower | upper |
     ip | ip4 | ip6 | host | host6 | {function, pos_integer()} |
     unquote | path | fullpath | uri | uris | tokens | words | map | log_level |
     map() | list() | syntax_fun().
@@ -651,6 +651,14 @@ do_parse_config(binary, Val) ->
             error
     end;
  
+do_parse_config(base64, Val) ->
+    case catch base64:decode(Val) of
+        {'EXIT', _} ->
+            error;
+        Bin ->
+            {ok, Bin}
+    end;
+
 do_parse_config(lower, Val) ->
     case do_parse_config(string, Val) of
         {ok, List} -> {ok, nklib_util:to_lower(List)};
