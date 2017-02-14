@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2017 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -116,7 +116,7 @@ message(_Id, Msg, #state{ip=Ip, port=Port, socket=Socket}=State) ->
                     ok = gen_udp:send(Socket, Ip, Port, Gelf2);
                 Size ->
                     Chunks = get_num_chunks(Size),
-                    Id = crypto:rand_bytes(8),
+                    Id = crypto:strong_rand_bytes(8),
                     Head = <<30, 15, Id/binary>>,
                     send_chunks(Gelf2, Head, 0, Chunks, Socket, Ip, Port)
             end,

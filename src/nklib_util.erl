@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2017 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -179,7 +179,7 @@ luid() ->
     binary().
 
 uuid_4122() ->
-    Rand = hex(crypto:rand_bytes(4)),
+    Rand = hex(crypto:strong_rand_bytes(4)),
     <<A:16/bitstring, B:16/bitstring, C:16/bitstring>> = 
         <<(nklib_util:l_timestamp()):48>>,
     {ok, Hw} = application:get_env(nklib, hw_addr),
@@ -252,7 +252,7 @@ get_hwaddr() ->
         false ->
             case get_hwaddrs(Addrs1) of
                 {ok, Hex} -> Hex;
-                false -> hex(crypto:rand_bytes(6))
+                false -> hex(crypto:strong_rand_bytes(6))
             end
     end.
 
