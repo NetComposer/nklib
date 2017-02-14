@@ -12,3 +12,4 @@ log
 .rebar
 .eunit
 deps
+nklib.version
