@@ -38,8 +38,8 @@
 -type syntax_subopt() ::
     ignore | any | atom | boolean | {enum, [atom()]} | list | pid | proc | module |
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
-    {integer, [integer()]} | {record, atom()} |
-    string | binary | lower | upper |
+    {integer, [integer()]} | float | {record, atom()} |
+    string | binary | base64 | lower | upper |
     ip | ip4 | ip6 | host | host6 | {function, pos_integer()} |
     unquote | path | fullpath | uri | uris | tokens | words | map | log_level |
     map() | list() | syntax_fun().
@@ -607,6 +607,14 @@ do_parse_config({integer, List}, Val) when is_list(List) ->
         end
     end;
     
+do_parse_config(float, Val) ->
+    case nklib_util:to_float(Val) of
+        error -> 
+            error;
+        Float ->
+            {ok, Float}
+    end;
+
 do_parse_config({record, Type}, Val) ->
     case is_record(Val, Type) of
         true -> {ok, Val};
@@ -643,6 +651,14 @@ do_parse_config(binary, Val) ->
             error
     end;
  
+do_parse_config(base64, Val) ->
+    case catch base64:decode(Val) of
+        {'EXIT', _} ->
+            error;
+        Bin ->
+            {ok, Bin}
+    end;
+
 do_parse_config(lower, Val) ->
     case do_parse_config(string, Val) of
         {ok, List} -> {ok, nklib_util:to_lower(List)};

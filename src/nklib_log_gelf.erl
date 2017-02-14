@@ -88,21 +88,21 @@ message(_Id, Msg, #state{ip=Ip, port=Port, socket=Socket}=State) ->
             end,
             Gelf1 = [
                 {version, <<"1.1">>},
-                {host, Host},
-                {short_message, Short},
-                {level, Level},
+                {host, to_bin(Host)},
+                {short_message, to_bin(Short)},
+                {level, to_level(Level)},
                 case maps:get(full_message, Msg, <<>>) of
                     <<>> -> [];
-                    Full -> [{full_message, Full}]
+                    Full -> [{full_message, to_bin(Full)}]
                 end
                 |
                 lists:map(
                     fun({Key, Val}) ->
                         {
-                            <<$_, (nklib_util:to_binary(Key))/binary>>,
+                            <<$_, (to_bin(Key))/binary>>,
                             case is_integer(Val) of
                                 true -> Val;
-                                false -> nklib_util:to_binary(Val)
+                                false -> to_bin(Val)
                             end
                         }
                     end,
@@ -186,3 +186,9 @@ send_chunk2(Bin, Head, Pos, Chunks, Socket, Ip, Port) ->
     ok  = gen_udp:send(Socket, Ip, Port, Msg),
     Msg.
 
+
+
+to_bin(Term) -> nklib_util:to_binary(Term).
+
+to_level(Level) when is_integer(Level), Level > 0, Level < 8 -> Level;
+to_level(_Level) -> 1.

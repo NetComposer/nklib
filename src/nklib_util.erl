@@ -24,21 +24,25 @@
 
 -export([ensure_all_started/2, call/2, call/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
--export([get_hwaddr/0, timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
+-export([get_hwaddr/0, timestamp/0, m_timestamp/0,
+         l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
 -export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
 -export([filtermap/2]).
--export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
+-export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1,
+         to_float/1]).
 -export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
+-export([add_id/2, add_id/3]).
+-export([base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
 
--export_type([optslist/0, timestamp/0, l_timestamp/0]).
+-export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
 
 
@@ -53,6 +57,8 @@
 -type timestamp() :: non_neg_integer().
 
 -type l_timestamp() :: non_neg_integer().
+
+-type m_timestamp() :: non_neg_integer().
 
 
 %% ===================================================================
@@ -281,6 +287,13 @@ l_timestamp() ->
     (N1 * 1000000 + N2) * 1000000 + N3.
 
 
+%% @doc Gets an milisecond-resolution timestamp
+-spec m_timestamp() -> m_timestamp().
+
+m_timestamp() ->
+    l_timestamp() div 1000.
+
+
 %% @doc Converts a `timestamp()' to a local `datetime()'.
 -spec timestamp_to_local(timestamp()) -> 
     calendar:datetime().
@@ -505,7 +518,12 @@ filtermap(F, []) when is_function(F, 1) ->
     binary().
 
 to_binary(B) when is_binary(B) -> B;
-to_binary(L) when is_list(L) -> list_to_binary(L);
+to_binary([]) -> <<>>;
+to_binary([Int|_]=L) when is_integer(Int) ->
+    case catch list_to_binary(L) of
+        {'EXIT', _} -> msg("~p", [L]);
+        Bin -> Bin
+    end;
 to_binary(undefined) -> <<>>;
 to_binary(A) when is_atom(A) -> atom_to_binary(A, latin1);
 to_binary(I) when is_integer(I) -> list_to_binary(erlang:integer_to_list(I));
@@ -578,6 +596,30 @@ to_integer(L) when is_list(L) ->
         _ -> error
     end;
 to_integer(_) ->
+    error.
+
+
+%% @doc Converts anything into a `integer()' or `error'.
+-spec to_float(integer()|binary()|string()|float()) ->
+    integer() | error.
+
+to_float(F) when is_float(F) -> 
+    F;
+to_float(I) when is_integer(I) -> 
+    I * 1.0;
+to_float(L) when is_list(L) -> 
+    case catch list_to_float(L) of
+        F when is_float(F) -> 
+            F;
+        _ -> 
+            case to_integer(L) of
+                I when is_integer(I) -> I * 1.0;
+                error -> error
+            end
+    end;
+to_float(B) when is_binary(B) -> 
+    to_float(binary_to_list(B));
+to_float(_) ->
     error.
 
 
@@ -875,7 +917,7 @@ words([Ch|Rest], Chs, Tokens) ->
 
 % @dod
 capitalize(Name) ->
-    capitalize(nklib_util:to_binary(Name), true, <<>>).
+    capitalize(to_binary(Name), true, <<>>).
 
 
 % @private 
@@ -1012,6 +1054,87 @@ msg(Msg, Vars) ->
         Result -> 
             Result
     end.
+
+%% Adds and ID to a map if not already present
+-spec add_id(atom(), map()) ->
+    {binary(), map()}.
+
+add_id(Key, Config) ->
+    add_id(Key, Config, <<>>).
+
+
+%% Adds and ID to a map if not already present, with a prefix
+-spec add_id(atom(), map(), binary()) ->
+    {binary(), map()}.
+
+add_id(Key, Config, Prefix) ->
+    case maps:find(Key, Config) of
+        {ok, Id} when is_binary(Id) ->
+            {Id, Config};
+        {ok, Id} ->
+            Id2 = to_binary(Id),
+            {Id2, maps:put(Key, Id2, Config)};
+        _ when Prefix == <<>> ->
+            Id = nklib_util:luid(),
+            {Id, maps:put(Key, Id, Config)};
+        _ ->
+            Id1 = nklib_util:luid(),
+            Id2 = <<(to_binary(Prefix))/binary, $-, Id1/binary>>,
+            {Id2, maps:put(Key, Id2, Config)}
+    end.
+
+
+
+%% @doc URL safe base64-compatible codec (removing final = or ==)
+%%
+%% Based on https://github.com/dvv/base64url/blob/master/src/base64url.erl
+-spec base64url_encode(binary() | iolist()) ->
+    binary().
+
+base64url_encode(Bin) when is_binary(Bin) ->
+    << << (urlencode_digit(D)) >> || <<D>> <= base64:encode(Bin), D =/= $= >>;
+base64url_encode(L) when is_list(L) ->
+    base64url_encode(iolist_to_binary(L)).
+
+%% @doc Encodes with the final '=' or '=='
+-spec base64url_encode_mime(  binary() | iolist()) ->
+    binary().
+
+base64url_encode_mime(Bin) when is_binary(Bin) ->
+    << << (urlencode_digit(D)) >> || <<D>> <= base64:encode(Bin) >>;
+base64url_encode_mime(L) when is_list(L) ->
+    base64url_encode_mime(iolist_to_binary(L)).
+
+
+%% @doc
+-spec base64url_decode(binary() | iolist()) ->
+    binary().
+
+base64url_decode(Bin) when is_binary(Bin) ->
+  Bin2 = case byte_size(Bin) rem 4 of
+    2 -> << Bin/binary, "==" >>;
+    3 -> << Bin/binary, "=" >>;
+    _ -> Bin
+  end,
+  base64:decode(<< << (urldecode_digit(D)) >> || <<D>> <= Bin2 >>);
+
+base64url_decode(L) when is_list(L) ->
+  base64url_decode(iolist_to_binary(L)).
+
+
+%% @private
+urlencode_digit($/) -> $_;
+urlencode_digit($+) -> $-;
+urlencode_digit(D)  -> D.
+
+%% @private
+urldecode_digit($_) -> $/;
+urldecode_digit($-) -> $+;
+urldecode_digit(D)  -> D.
+
+
+
+
 
 
 %% ===================================================================
