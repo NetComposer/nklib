@@ -31,6 +31,8 @@
 %% Private
 %% ===================================================================
 
+
+
 %% @doc Starts NkLIB stand alone.
 -spec start() -> 
     ok | {error, Reason::term()}.
@@ -49,6 +51,7 @@ start(_Type, _Args) ->
 	code:ensure_loaded(jiffy),     % We can work without it
     HwAddr = nklib_util:get_hwaddr(),
     application:set_env(?APP, hw_addr, HwAddr),
+    spawn(fun() -> maybe_start_reloader() end),
     nklib_sup:start_link().
 
 
@@ -57,3 +60,12 @@ stop(_) ->
     ok.
 
 
+%% @private
+maybe_start_reloader() ->
+    timer:sleep(1000),
+    case application:get_env(?APP, rebar_reloader) of
+        {ok, true} ->
+            nklib_rebar_reloader:start();
+        _ ->
+            ok
+    end.

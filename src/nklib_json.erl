@@ -61,7 +61,7 @@ encode(Term) ->
 
 %% @doc Encodes a term() to JSON
 -spec encode_pretty(term()) ->
-    binary().
+    binary() | error.
 
 encode_pretty(Term) ->
     try
