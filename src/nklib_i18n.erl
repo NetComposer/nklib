@@ -28,7 +28,6 @@
          handle_info/2]).
 
 -compile({no_auto_import,[get/1]}).
--compile([export_all]).
 
 %% ===================================================================
 %% Types
@@ -224,7 +223,7 @@ find(Type, Key, Lang) ->
         [] when Lang==en ->
             not_found;
         [] ->
-            find(Key, Type, en);
+            find(Type, Key, en);
         [{_, Body}] -> 
             Body
     end.
@@ -253,26 +252,90 @@ do_insert(Term, Lang) ->
     do_insert([Term], Lang).
 
 
-i() ->
+
+
+
+%% ===================================================================
+%% EUnit tests
+%% ===================================================================
+
+% -define(TEST, 1).
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+
+
+basic_test_() ->
+    {setup, 
+        fun() -> 
+            case whereis(?MODULE) of
+                undefined ->
+                    start_link();
+                _ ->
+                    ok
+            end
+        end,
+        fun(_) ->  ok end,
+        [
+            fun single/0
+        ]
+    }.
+
+
+
+single() ->
     insert([
-        {k1, "user k1 ~p"},
-        {k1, "user k1b ~p", "msg k1b ~p"}
+        {k1, "u_k1_en:~p", "m_k1_en:~p"},
+        {k2, "u_k1_en:~p"},
+        k3
     ]),
 
     insert([
-        {k2, "user k1 ~p"},
-        {k2, "user k1b ~p", "msg k1b ~p"}
+        {k4, "u_k4_es:~p", "m_k4_es:~p"}
     ], es),
 
+    insert([
+        {k4, "u_k4_en:~p", "m_k4_en:~p"}
+    ], en),
 
-    {a, <<>>, <<>>} = get(a),
-    {k1, <<"user k1b ~p">>, <<"msg k1b ~p">>} = get(k1),
-    {k1, <<"user k1b a">>,<<"msg k1b ~p">>} = get({k1, [a]}),
-    {k1, <<"user k1b a">>,<<"msg k1b ~p">>} = get({k1, a}),
-    {k1, <<"user k1b a">>,<<"msg k1b b">>} = get({k1, [a], [b]}),
-    {k1, <<"user k1b a">>,<<"msg k1b b">>} = get({k1, a, [b]}),
-    {k1, <<"user k1b a">>,<<"msg k1b b">>} = get({k1, [a], b}),
-    {k1, <<"user k1b a">>,<<"msg k1b b">>} = get({k1, a, b}),
 
+
+    R1 = {k0, <<>>, <<>>} = get(k0),
+    R1 = get(k0, en),
+    R1 = get(k0, es),
+    
+    R2 = {k1, <<"u_k1_en:~p">>, <<"m_k1_en:~p">>} = get(k1),
+    R2 = get(k1, en),
+    R2 = get(k1, es),
+
+    R3 = {k1, <<"u_k1_en:a">>,<<"m_k1_en:~p">>} = get({k1, [a]}),
+    R3 = get({k1, [a]}, en),
+    R3 = get({k1, [a]}, es),
+
+    {k1, <<"u_k1_en:a">>, <<"m_k1_en:~p">>} = get({k1, a}),
+    {k1, <<"u_k1_en:a">>, <<"m_k1_en:b">>} = get({k1, [a], [b]}),
+    {k1, <<"u_k1_en:a">>, <<"m_k1_en:b">>} = get({k1, a, [b]}),
+    {k1, <<"u_k1_en:a">>, <<"m_k1_en:b">>} = get({k1, [a], b}),
+    {k1, <<"u_k1_en:a">>, <<"m_k1_en:b">>} = get({k1, a, b}), 
+
+    R4 = {k2, <<"u_k1_en:~p">>, <<>>} = get(k2),
+    R4 = get(k2, en),
+    R4 = get(k2, es),
+
+    R5 = {k2, <<"u_k1_en:c">>, <<>>} = get({k2, c}),
+    R5 = get({k2, c}, en),
+    R5 = get({k2, c}, es),
+
+    R6 = {k3, <<>>, <<>>} = get(k3),
+    R6 = get({k3, a}),
+    R6 = get({k3, a, b}),
+
+    R7 = {k4, <<"u_k4_en:~p">>, <<"m_k4_en:~p">>} = get(k4),
+    R7 = get(k4, en),
+    {k4, <<"u_k4_es:~p">>, <<"m_k4_es:~p">>} = get(k4, es),
+    {k4, <<"u_k4_en:e">>, <<"m_k4_en:f">>} = get({k4, e, f}),
+    {k4, <<"u_k4_es:g">>, <<"m_k4_es:h">>} = get({k4, g, [h]}, es),
     ok.
 
+
+-endif.
