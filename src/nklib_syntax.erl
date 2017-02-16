@@ -24,13 +24,19 @@
 
 -export([parse/2, parse/3]).
 
--export_type([syntax/0, parse_opts/0]).
+-export_type([syntax/0]).
 
 
 %% ===================================================================
 %% Types
 %% ===================================================================
 
+-type syntax() :: #{ atom() => syntax_opt()}.
+
+-type syntax_opt() ::
+    syntax_subopt() | 
+    {list|slist|ulist, syntax_subopt()} | 
+    {update, map|list, MapOrList::atom(), Key::atom(), syntax_subopt()}.
 
 -type syntax_subopt() ::
     ignore | 
@@ -58,7 +64,7 @@
     tokens | words | 
     map | 
     log_level |
-    map() | 
+    map() |                     % Allow for nested objects
     list() |                    % First mathing option is used
     syntax_fun().
 
@@ -82,44 +88,36 @@
         no_ok => [binary()]
     }.
 
--type syntax_opt() ::
-    syntax_subopt() | 
-    {list|slist|ulist, syntax_subopt()} | 
-    {update, map|list, MapOrList::atom(), Key::atom(), syntax_subopt()}.
-
--type syntax() :: #{ atom() => syntax_opt()}.
-
 -type parse_opts() ::
     #{
-        return => map|list,         % Default is map
-        path => binary(),           % Returned in errors
+        return => list,             % Default is map
+        path => binary(),           % Use base path instead of <<>>
         defaults => map(), 
         mandatory => [atom()|binary()],
         warning_unknown => boolean()
     }.
 
--type out_opts() ::
-    #{
-
-    }.
-
-
 -type error() ::
     {syntax_error, Path::binary()} |
-    internal_error.
+    {missing_field, binary()} |
+    term().                             % When syntax_fun() returns {error, term()}
 
+-type out() :: #{atom() => term()} | [{atom(), term()}].
+
+-type out_exp() :: [{binary(), term()}].
+
+-type missing() :: [binary()].
 
 
 -record(parse, {
-    ok = [],
-    no_ok = [],
-    ok_exp = [],
-    syntax,
-    path,
-    defaults,
-    opts
+    ok = [] :: [{atom(), term()}],
+    ok_exp = [] :: [{binary(), term()}],
+    no_ok = [] :: [binary()],
+    syntax :: map(),
+    path :: binary(),
+    defaults :: map(),
+    opts :: map()
 }).
-
 
 
 %% ===================================================================
@@ -129,19 +127,21 @@
 
 %% @doc Equivalent to parse(Terms, Spec, #{})
 -spec parse(map()|list(), syntax()) ->
-    {ok, [{atom(), term()}], out_opts()} |
-    {ok, #{atom()=>term()}, out_opts()} |
+    {ok, out(), out_exp(), missing()} |
     {error, error()}.
 
 parse(Terms, Spec) ->
     parse(Terms, Spec, #{}).
 
 
-%% @doc Parses a list of options
-%% For lists, if duplicated entries, the last one wins
+%% @doc Parses a list of options using a syntaxis
+%% It returns:
+%% - the returning map or list
+%% - a list with "expanded" values (<<"field1.fieldA">>)
+%% - a list of missing fields
+
 -spec parse(map()|list(), syntax(), parse_opts()) ->
-    {ok, [{atom(), term()}], out_opts()} |
-    {ok, #{atom()=>term()}, out_opts()} |
+    {ok, out(), out_exp(), missing()} |
     {error, error()}.
 
 parse(Terms, Syntax, Opts) when is_list(Terms) ->
@@ -149,7 +149,7 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
         syntax = Syntax,
         opts = Opts,
         path = maps:get(path, Opts, <<>>),
-        defaults = maps:get(defaults, Opts, [])
+        defaults = maps:get(defaults, Opts, #{})
     },
     case do_parse(Terms, Parse) of
         {ok, #parse{ok=Ok, no_ok=NoOk, ok_exp=Exp}=Parse2} ->
@@ -193,33 +193,65 @@ parse(Terms, Syntax, Opts) when is_map(Terms) ->
     {ok, #parse{}} | {error, error()}.
 
 do_parse([], Parse) ->
-    parse_defaults(Parse);
+    case parse_defaults(Parse) of
+        {ok, #parse{ok_exp=Exp}=Parse2} ->
+            {ok, Parse2#parse{ok_exp=lists:reverse(Exp)}};
+        {error, Error} ->
+            {error, Error}
+    end;
 
-do_parse([{Key, Val}|Rest], #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk}=Parse) ->
-    case to_existing_atom(Key) of
-        {ok, Key2} ->
-            case find_config(Key2, Val, Parse) of
-                {ok, Key3, Val3, Parse2} ->
-                    Parse3 = Parse2#parse{
-                        ok = [{Key3, Val3}|OK],
-                        ok_exp = [{path_key(Key3, Parse), Val3}|OkExp]
-                    },
-                    do_parse(Rest, Parse3);
-                no_spec ->
-                    Parse2 = Parse#parse{no_ok = [path_key(Key, Parse)|NoOk]},
-                    do_parse(Rest, Parse2);
-                ignore ->
-                    do_parse(Rest, Parse);
-                {error, Error} ->
-                    {error, Error}
-            end;
-        error ->
-            Parse2 = Parse#parse{no_ok=[path_key(Key, Parse)|NoOk]},
-            do_parse(Rest, Parse2)
+do_parse([{Key, Val}|Rest], Parse) ->
+    case do_parse_key(Key, Val, Parse) of
+        {ok, Parse2} ->
+            do_parse(Rest, Parse2);
+        {error, Error} ->
+            {error, Error}
     end;
 
 do_parse([Key|Rest], Parse) ->
     do_parse([{Key, true}|Rest], Parse).
+
+
+%% @private
+do_parse_key(Key, Val, Parse) ->
+    #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk, defaults=Defaults} = Parse,
+    case to_existing_atom(Key) of
+        {ok, Key2} ->
+            case find_config(Key2, Val, Parse) of
+                {ok, Key3, Val3} ->
+                    Parse2 = Parse#parse{
+                        ok = [{Key3, Val3}|OK],
+                        ok_exp = [{path_key(Key3, Parse), Val3}|OkExp]
+                    },
+                    {ok, Parse2};
+                {nested, Val2, Nested} ->
+                    NestedParse = Parse#parse{
+                        ok = [], 
+                        path = path_key(Key, Parse), 
+                        syntax = Nested,
+                        defaults = maps:get(Key, Defaults, #{})
+                    },
+                    case do_parse(Val2, NestedParse) of
+                        {ok, #parse{ok=Ok2, ok_exp=Exp2, no_ok=NoOk2}} ->
+                            Parse2 = Parse#parse{
+                                ok = [{Key, {Ok2}}|OK],
+                                ok_exp = Exp2,
+                                no_ok = NoOk2
+                            },
+                            {ok, Parse2};
+                        {error, Error} ->
+                            {error, Error}
+                    end;
+                no_spec ->
+                    {ok, Parse#parse{no_ok=[path_key(Key, Parse)|NoOk]}};
+                ignore ->
+                    {ok, Parse};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        error ->
+            {ok, Parse#parse{no_ok=[path_key(Key, Parse)|NoOk]}}
+    end.
 
 
 %% @private
@@ -240,11 +272,11 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
             end,
             case FunRes of
                 ok ->
-                    {ok, Key, Val, Parse};
+                    {ok, Key, Val};
                 {ok, Val2} ->
-                    {ok, Key, Val2, Parse};
+                    {ok, Key, Val2};
                 {ok, Key2, Val2} when is_atom(Key2) ->
-                    {ok, Key2, Val2, Parse};
+                    {ok, Key2, Val2};
                 % {new_ok, OKB} ->
                 %     parse(Rest, OKB, NoOk, Syntax, Opts);
                 error ->
@@ -252,25 +284,17 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
                 {error, Error} ->
                     {error, Error};
                 {'EXIT', Error} ->
-                    lager:warning("NkLIB Syntax: error calling syntax fun for ~p:~p ~p", 
-                                  [Key, Val, Error]),
-                    {error, internal_error}
+                    lager:warning("NkLIB Syntax: error calling syntax fun for "
+                                  "(~p, ~p) ~p", [Key, Val, Error]),
+                    error(fun_call_error)
             end;
         Nested when is_map(Nested) ->
-            case is_list(Val) orelse is_map(Val) of
-                true ->
-                    NestedParse = Parse#parse{
-                        ok = [], 
-                        path = path_key(Key, Parse), 
-                        syntax = Nested
-                    },
-                    case parse(Val, NestedParse) of
-                        {ok, #parse{ok=Ok2, ok_exp=Exp2}} ->
-                            {ok, Key, Ok2, Parse#parse{ok_exp=Exp2}};
-                        Other ->
-                            Other
-                    end;
-                false ->
+            case Val of
+                _ when is_map(Val) ->
+                    {nested, maps:to_list(Val), Nested};
+                {List} when is_list(List) ->
+                    {nested, List, Nested};
+                _ ->
                     {error, syntax_error(Key, Parse)}
             end;
         % {update, UpdType, Index2, Key2, SubSyntax} ->
@@ -295,7 +319,7 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
         SyntaxOp ->
             case spec(SyntaxOp, Val) of
                 {ok, Val2} ->
-                    {ok, Key, Val2, Parse};
+                    {ok, Key, Val2};
                 error ->
                     {error, syntax_error(Key, Parse)};
                 unknown ->
@@ -631,41 +655,38 @@ do_parse_map([{Key, Val}|Rest]) ->
 
 
 %% @private
-parse_defaults(#parse{ok=Ok, defaults=Defaults}=Parse) ->
-    case parse_defaults(Ok, [], Defaults) of
-        [] ->
-            {ok, Parse};
-        New ->
-            parse(New, Parse#parse{defaults=[]})
-    end.
+parse_defaults(#parse{defaults=Defaults}=Parse) ->
+    parse_defaults(maps:to_list(Defaults), Parse).
 
 
 %% @private
-parse_defaults(_Ok, Acc, []) ->
-    Acc;
+parse_defaults([], Parse) ->
+    {ok, Parse};
 
-parse_defaults(Ok, Acc, [{Key, Val}|Rest]) ->
+parse_defaults([{Key, Val}|Rest], #parse{ok=Ok}=Parse) ->
     case lists:keymember(Key, 1, Ok) of
         true ->
-            parse_defaults(Ok, Acc, Rest);
+            parse_defaults(Rest, Parse);
         false ->
-            parse_defaults(Ok, [{Key, Val}|Acc], Rest)
-    end;
-
-parse_defaults(Ok, Acc, Map) when is_map(Map) ->
-    parse_defaults(Ok, Acc, maps:to_list(Map)).
-
+            % If Val is a map, it will go nested
+            case do_parse_key(Key, Val, Parse) of
+                {ok, Parse2} ->
+                    parse_defaults(Rest, Parse2);
+                {error, Error} ->
+                    {error, Error}
+            end
+    end.
 
 %% @private
 check_mandatory([], _Parse) ->
     ok;
 
 check_mandatory([Term|Rest], #parse{ok_exp=Exp}=Parse) ->
-    case lists:member(to_bin(Term), Exp) of
+    case lists:keymember(to_bin(Term), 1, Exp) of
         true ->
             check_mandatory(Rest, Parse);
         false ->
-            {error, {missing_field, to_bin(Exp)}}
+            {error, {missing_field, to_bin(Term)}}
     end.
 
 
@@ -698,6 +719,7 @@ path_key(Key, #parse{path=Path}) ->
 
 %% @private
 list_to_map(List) ->
+    % lager:error("List: ~p", [List]),
     list_to_map(List, []).
 
 
@@ -705,8 +727,8 @@ list_to_map(List) ->
 list_to_map([], Acc) ->
     maps:from_list(Acc);
 
-list_to_map([{K, V}|Rest], Acc) when is_list(V) ->
-    list_to_map(Rest, [{K, list_to_map(V)}|Acc]);
+list_to_map([{K, {List}}|Rest], Acc) when is_list(List) ->
+    list_to_map(Rest, [{K, list_to_map(List)}|Acc]);
 
 list_to_map([{K, V}|Rest], Acc) ->
     list_to_map(Rest, [{K, V}|Acc]).
@@ -714,3 +736,213 @@ list_to_map([{K, V}|Rest], Acc) ->
 
 %% @private
 to_bin(K) -> nklib_util:to_binary(K).
+
+
+
+%% ===================================================================
+%% EUnit tests
+%% ===================================================================
+
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+
+parse1_test() ->
+    Spec = #{
+        field01 => atom,
+        field02 => boolean,
+        field03 => {atoms, [a, b]},
+        field04 => integer,
+        field05 => {integer, 1, 5},
+        field06 => string,
+        field07 => binary,
+        field08 => host,
+        field09 => host6,
+        field10 => fun parse_fun/3,
+        field11 => [{atoms, [a]}, binary],
+        field12 => {list, atom},
+        field13 => module,
+        fieldXX => invalid
+    },
+
+    {ok, #{}, [], []} = parse([], Spec),
+    {ok, [], [], []} = parse(#{}, Spec, #{return=>list}),
+
+    {error, {syntax_error, <<"field01">>}} = parse([{field01, "12345"}], Spec),
+    
+    {ok, 
+        #{field01:=fieldXX, field02:=false},
+        [{<<"field01">>, fieldXX}, {<<"field02">>, false}],
+        [<<"unknown">>]
+    } = 
+        parse(
+            [{field01, "fieldXX"}, {field02, <<"false">>}, {"unknown", a}],
+            Spec),
+
+    {ok,
+        #{
+            field03:=b,
+            field04:=-1,
+            field05:=2,
+            field06:="a",
+            field07:=<<"b">>,
+            field08:=<<"host">>,
+            field09:=<<"[::1]">>
+        },
+        _, 
+        []
+    } = 
+        parse(
+            [{field03, <<"b">>}, {"field04", -1}, {field05, 2}, {field06, "a"}, 
+            {field07, "b"}, {<<"field08">>, "host"}, {field09, <<"::1">>}],
+            Spec),
+
+    {error, {syntax_error, <<"field03">>}} = parse([{field03, c}], Spec),
+    {error, {syntax_error, <<"mypath.field05">>}} = 
+        parse([{field05, 0}], Spec, #{path=><<"mypath">>}),
+    {error, {syntax_error, <<"field05">>}} = parse([{field05, 6}], Spec),
+    {'EXIT', {{invalid_syntax, invalid}, _}} = (catch parse([{fieldXX, a}], Spec)),
+
+    {ok, #{field10:=data1}, _, []} = parse([{field10, data}], Spec),
+
+    {ok, #{field11:=a}, _, []} = parse([{field11, a}], Spec),
+    {ok, #{field11:=<<"b">>}, _, []} = parse([{field11, b}], Spec),
+
+    {ok, #{field12:=[a, b, '3']}, _, []} = parse(#{field12 => [a, "b", 3]}, Spec),
+
+    {error, {syntax_error, <<"field13">>}} = parse([{field13, kkk383838}], Spec),
+    {ok, #{field13:=string}, _, []} = parse([{field13, string}], Spec),
+    ok.
+
+
+parse2_test() ->
+    Spec = #{
+        field1 => integer,
+        field2 => #{
+            field3 => binary,
+            field4 => integer,
+            field5 => #{
+                field6 => binary
+            }
+        }
+    },
+
+    {error,{syntax_error,<<"field1">>}} = parse(#{field1=>[]}, Spec),
+    {error,{syntax_error,<<"field2">>}} = parse(#{field2=>1}, Spec),
+    {ok, #{field1:=1}, [{<<"field1">>,1}], [<<"fieldX">>]} = 
+        parse(#{field1=>1, fieldX=>a}, Spec),
+    {ok, #{field2:=#{}}, [], []} = parse(#{field2=>#{}}, Spec),
+    {error,{syntax_error,<<"field2.field4">>}} = parse(#{field2=>#{field4=>a}}, Spec),
+    
+    {ok,
+        #{field2 := #{field4 := 2}},
+        [{<<"field2.field4">>, 2}],
+        [<<"field2.fieldX">>]
+    } = 
+        parse(#{field2=>#{field4=>2, fieldX=>3}}, Spec),
+
+    {ok,
+        #{field1 := 1,field2 := #{field4 := 2,field5 := #{field6 := <<"a">>}}},
+        [{<<"field1">>,1}, {<<"field2.field4">>,2}, {<<"field2.field5.field6">>,<<"a">>}],
+        [<<"fieldX1">>, <<"field2.fieldX2">>, <<"field2.field5.fieldX3">>]
+    } = 
+        parse(#{
+            field1 => 1, 
+            fieldX1 => a,
+            field2 => #{
+                field4 => 2, 
+                fieldX2 => b,
+                field5 => #{
+                    field6 => a,
+                    fieldX3 => c
+                }
+            }}, Spec),
+    ok.
+
+parse3_test() ->
+    Spec = #{
+        field1 => integer,
+        field2 => #{
+            field3 => binary,
+            field4 => integer,
+            field5 => #{
+                field6 => binary,
+                field7 => integer
+            }
+        }
+    },
+
+    Def = #{field1=>11, field2=>#{field3=>a, field5=>#{field6=>b}}},
+    {ok, 
+        #{field1:=11, field2:=#{field3:=<<"a">>, field5:=#{field6:=<<"b">>}}},
+        [{<<"field1">>,11}, {<<"field2.field3">>,<<"a">>}, {<<"field2.field5.field6">>,<<"b">>}],
+        []
+    } = 
+        parse(#{}, Spec, #{defaults=>Def}),
+
+    {ok, 
+        #{field1:=12, field2:=#{field3:=<<"a">>, field5:=#{field6:=<<"b">>}}},
+        [{<<"field1">>,12}, {<<"field2.field3">>,<<"a">>}, {<<"field2.field5.field6">>,<<"b">>}],
+        []
+    } = 
+        parse(#{field1=>12}, Spec, #{defaults=>Def}),
+
+    {ok,
+        #{
+            field1:=12, 
+            field2:=#{field3:=<<"a">>, field4:=5, field5:=#{field6:=<<"b">>}}},
+        [
+            {<<"field1">>,12},
+            {<<"field2.field4">>,5},
+            {<<"field2.field3">>,<<"a">>},
+            {<<"field2.field5.field6">>,<<"b">>}
+        ],
+        []
+    } = 
+        parse(#{field1=>12, field2=>#{field4=>5}}, Spec, #{defaults=>Def}),
+
+    {ok,
+        #{
+            field1:=12, 
+            field2:=#{field3:=<<"a">>, field4:=5, field5:=#{field6:=<<"f">>}}},
+        [
+            {<<"field2.field3">>,<<"a">>},
+            {<<"field1">>,12},
+            {<<"field2.field4">>,5},
+            {<<"field2.field5.field6">>,<<"f">>}
+        ],
+        [<<"field2.field5.fieldX">>]
+    } = 
+        parse(#{field1=>12, field2=>#{field4=>5, field5=>#{field6=>f, fieldX=>1}}}, 
+              Spec, #{defaults=>Def}),
+
+    Mand = [<<"field1">>, <<"field2.field4">>, <<"field2.field5.field6">>],
+
+    {error, {missing_field, <<"field1">>}} = parse(#{}, Spec, #{mandatory=>Mand}),
+    {error, {missing_field, <<"field2.field4">>}} = 
+        parse(#{field1=>1}, Spec, #{mandatory=>Mand}),
+    {error, {missing_field,<<"field2.field5.field6">>}} = 
+        parse(#{field1=>1, field2=>#{field4=>22}}, Spec, #{mandatory=>Mand}),
+    {ok, _, _, []} = 
+        parse(#{field1=>1, field2=>#{field4=>22, field5=>#{field6=>33}}}, Spec, 
+              #{mandatory=>Mand}),
+
+    {error, {missing_field, <<"field2.field4">>}} = 
+        parse(#{}, Spec, #{mandatory=>Mand, defaults=>Def}),
+
+    {ok, _, _, _} = 
+        parse(#{field2=>#{field4=>22}}, Spec, #{mandatory=>Mand, defaults=>Def}),
+    ok.
+
+
+parse_fun(field10, data, _Opts) ->
+    {ok, data1}.
+
+
+-endif.
+
+
+
+

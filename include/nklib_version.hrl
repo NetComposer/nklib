@@ -1,1 +1,1 @@
--define(VERSION, <<"ng-fd0ce73, Wed Feb 15 23:26:13 2017 +0100">>).
+-define(VERSION, <<"ng-b24f732, Thu Feb 16 13:27:22 2017 +0100">>).

@@ -38,8 +38,7 @@
     {atom(), Reason::string()|binary()} |
     {atom(), Reason::string()|binary(), User::string()|binary()}.
 
--type lang() :: atom().         % en | es ...
-
+-type lang() :: nklib:lang().
 
 
 
@@ -229,7 +228,7 @@ find(Type, Key, Lang) ->
     end.
 
 %% @doc
--spec do_insert(key(), lang()) ->
+-spec do_insert(key()|[key()], lang()) ->
     ok.
 
 do_insert([], _Lang) ->

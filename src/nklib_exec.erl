@@ -145,14 +145,14 @@ start_link(Cmd, Opts) ->
 
 -record(state, {
     cmd :: binary(),
-    user_pid :: pid(),
+    user_pid :: pid() | undefined,
     port :: port(),
-    os_pid :: integer(),
-    timeout_time :: integer(),
-    timeout_ref :: reference(),
+    os_pid :: integer() | undefined,
+    timeout_time :: integer() | undefined,
+    timeout_ref :: reference() | undefined, 
     refresh_fun :: function(),
-    parser :: function(),
-    kill_time :: integer(),
+    parser :: function() | undefined,
+    kill_time :: integer() | undefined,
     buffer = <<>> :: binary()
 }).
 
