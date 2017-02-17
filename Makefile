@@ -60,5 +60,5 @@ docs:
 
 
 shell:
-	$(REBAR) shell --config config/shell.config --name nklib@127.0.0.1 --setcookie nk --apps nklib 
+	$(REBAR) shell --config config/shell.config --name $(APP)@127.0.0.1 --setcookie nk --apps $(APP) 
 
