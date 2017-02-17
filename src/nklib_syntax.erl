@@ -116,6 +116,7 @@
     syntax :: map(),
     path :: binary(),
     defaults :: map(),
+    mandatory :: [binary()],
     opts :: map()
 }).
 
@@ -149,12 +150,12 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
         syntax = Syntax,
         opts = Opts,
         path = maps:get(path, Opts, <<>>),
-        defaults = maps:get(defaults, Opts, #{})
+        defaults = maps:get(defaults, Opts, #{}),
+        mandatory = maps:get(mandatory, Opts, [])
     },
     case do_parse(Terms, Parse) of
         {ok, #parse{ok=Ok, no_ok=NoOk, ok_exp=Exp}=Parse2} ->
-            Mandatory = maps:get(mandatory, Opts, []),
-            case check_mandatory(Mandatory, Parse2) of
+            case check_mandatory(Parse2) of
                 ok ->
                     case NoOk /= [] andalso maps:find(warning_unknown, Opts) of
                         {ok, true} ->
@@ -214,8 +215,14 @@ do_parse([Key|Rest], Parse) ->
 
 %% @private
 do_parse_key(Key, Val, Parse) ->
-    #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk, defaults=Defaults} = Parse,
+    #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk} = Parse,
     case to_existing_atom(Key) of
+        {ok, '__defaults'} when is_map(Val) ->
+            #parse{defaults=Defaults} = Parse,
+            {ok, Parse#parse{defaults=maps:merge(Val, Defaults)}};
+        {ok, '__mandatory'} when is_list(Val) ->
+            #parse{mandatory=Mandatory} = Parse,
+            {ok, Parse#parse{mandatory=Mandatory++Val}};
         {ok, Key2} ->
             case find_config(Key2, Val, Parse) of
                 {ok, Key3, Val3} ->
@@ -225,6 +232,7 @@ do_parse_key(Key, Val, Parse) ->
                     },
                     {ok, Parse2};
                 {nested, Val2, Nested} ->
+                    #parse{defaults=Defaults} = Parse,
                     NestedParse = Parse#parse{
                         ok = [], 
                         path = path_key(Key, Parse), 
@@ -678,6 +686,11 @@ parse_defaults([{Key, Val}|Rest], #parse{ok=Ok}=Parse) ->
     end.
 
 %% @private
+check_mandatory(#parse{mandatory=Mandatory}=Parse) ->
+    check_mandatory(Mandatory, Parse).
+
+
+%% @private
 check_mandatory([], _Parse) ->
     ok;
 
@@ -743,8 +756,7 @@ to_bin(K) -> nklib_util:to_binary(K).
 %% EUnit tests
 %% ===================================================================
 
-
-
+-define(TEST, 1).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
