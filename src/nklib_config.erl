@@ -25,7 +25,7 @@
 
 -export([get/2, get/3, put/3, del/2, increment/3]).
 -export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4]).
--export([load_env/3]).
+-export([load_env/2, load_env/3]).
 -export([make_cache/5]).
 -export([parse_config/2, parse_config/3]).
 
@@ -129,6 +129,14 @@ del_domain(Mod, Domain, Key) ->
 
 increment_domain(Mod, Domain, Key, Count) ->
     ets:update_counter(?MODULE, {Mod, Domain, Key}, Count).
+
+
+%% @doc Loads parsed application environment
+-spec load_env(atom(), syntax()) ->
+    {ok, map()} | {error, term()}.
+
+load_env(App, Syntax) ->
+    load_env(App, Syntax, #{}).
 
 
 %% @doc Loads parsed application environment

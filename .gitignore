@@ -13,3 +13,5 @@ log
 .eunit
 deps
 nklib.version
+/.rebar3
+/include/nklib_version.hrl

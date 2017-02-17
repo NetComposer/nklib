@@ -66,7 +66,9 @@
     log_level |
     map() |                     % Allow for nested objects
     list() |                    % First mathing option is used
-    syntax_fun().
+    syntax_fun() |
+    '__defaults' |              % Defaults for this level
+    '__mandatory'.              % Mandatory fields (only root level)
 
 -type syntax_fun() ::
     fun((Val::term()) -> syntax_fun_out()) |
@@ -217,12 +219,6 @@ do_parse([Key|Rest], Parse) ->
 do_parse_key(Key, Val, Parse) ->
     #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk} = Parse,
     case to_existing_atom(Key) of
-        {ok, '__defaults'} when is_map(Val) ->
-            #parse{defaults=Defaults} = Parse,
-            {ok, Parse#parse{defaults=maps:merge(Val, Defaults)}};
-        {ok, '__mandatory'} when is_list(Val) ->
-            #parse{mandatory=Mandatory} = Parse,
-            {ok, Parse#parse{mandatory=Mandatory++Val}};
         {ok, Key2} ->
             case find_config(Key2, Val, Parse) of
                 {ok, Key3, Val3} ->
@@ -663,8 +659,10 @@ do_parse_map([{Key, Val}|Rest]) ->
 
 
 %% @private
-parse_defaults(#parse{defaults=Defaults}=Parse) ->
-    parse_defaults(maps:to_list(Defaults), Parse).
+parse_defaults(#parse{defaults=Defs1, syntax=Syntax}=Parse) ->
+    SynDefs = maps:get('__defaults', Syntax, #{}),
+    Defs2 = maps:merge(SynDefs, Defs1),
+    parse_defaults(maps:to_list(Defs2), Parse).
 
 
 %% @private
@@ -686,8 +684,9 @@ parse_defaults([{Key, Val}|Rest], #parse{ok=Ok}=Parse) ->
     end.
 
 %% @private
-check_mandatory(#parse{mandatory=Mandatory}=Parse) ->
-    check_mandatory(Mandatory, Parse).
+check_mandatory(#parse{mandatory=Mandatory, syntax=Syntax}=Parse) ->
+    SynMand = maps:get('__mandatory', Syntax, []),
+    check_mandatory(Mandatory++SynMand, Parse).
 
 
 %% @private
