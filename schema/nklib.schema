@@ -1,0 +1,29 @@
+%% @doc Platform-specific installation paths (substituted by rebar)
+{mapping, "bin_dir", "nklib.bin_dir", [
+    {datatype, directory},
+    {default, "{{platform_bin_dir}}"}
+]}.
+
+%% @see platform_bin_dir
+{mapping, "data_dir", "nklib.data_dir", [
+    {datatype, directory},
+    {default, "{{platform_data_dir}}"}
+]}.
+
+%% @see platform_bin_dir
+{mapping, "etc_dir", "nklib.etc_dir", [
+    {datatype, directory},
+    {default, "{{platform_etc_dir}}"}
+]}.
+
+%% @see platform_bin_dir
+{mapping, "lib_dir", "nklib.lib_dir", [
+    {datatype, directory},
+    {default, "{{platform_lib_dir}}"}
+]}.
+
+%% @see platform_bin_dir
+{mapping, "log_dir", "nklib.log_dir", [
+    {datatype, directory},
+    {default, "{{platform_log_dir}}"}
+]}.

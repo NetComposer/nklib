@@ -6,7 +6,7 @@
 %% console : standard out
 %% both : log.console.file and standard out.
 {mapping, "log.service", "lager.service",
- [{default, "{{service}}"},
+ [{default, "{{log_service}}"},
   {datatype, string},
   {hidden, true}]}.
 
@@ -27,18 +27,18 @@
 %% @doc location of the console log
 {mapping, "log.console.file", "lager.handlers",
  [{datatype, file},
-  {default, "{{log_path}}/console.log"}]}.
+  {default, "$(log_dir)/console.log"}]}.
 
 %% @doc location of the error log
 {mapping, "log.error.file", "lager.handlers",
  [{datatype, file},
-  {default, "{{log_path}}/error.log"}]}.
+  {default, "$(log_dir)/error.log"}]}.
 
 %% @doc location of the debug log
 {mapping, "log.debug.file", "lager.handlers",
  [{datatype, [{atom, off}, file]},
   {default, off},
-  {commented, "{{log_path}}/debug.log"}]}.
+  {commented, "$(log_dir)/debug.log"}]}.
 
 %% *gasp* notice the same @mapping!
 %% @doc turn on syslog
@@ -103,7 +103,7 @@
 %% @doc Whether to write a crash log, and where.
 %% Commented/omitted/undefined means no crash logger.
 {mapping, "log.crash.file", "lager.crash_log",
- [{default, "{{log_path}}/crash.log"}]}.
+ [{default, "$(log_dir)/crash.log"}]}.
 
 %% @doc Maximum size in bytes of events in the crash log - defaults to 65536
 %% @datatype integer
