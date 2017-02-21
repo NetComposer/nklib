@@ -666,7 +666,10 @@ to_ip(Address) when is_list(Address) ->
     case inet_parse:address(Address) of
         {ok, Ip} -> {ok, Ip};
         _ -> error
-    end.
+    end;
+
+to_ip(_) ->
+    error.
 
 
 %% @doc Converts an IP or host to a binary host value
