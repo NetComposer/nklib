@@ -355,7 +355,7 @@ spec(boolean, Val) ->
         error -> error
     end;
 
-spec({atoms, List}, Val) ->
+spec({atom, List}, Val) ->
     case to_existing_atom(Val) of
         {ok, Atom} ->
             case lists:member(Atom, List) of
@@ -764,7 +764,7 @@ parse1_test() ->
     Spec = #{
         field01 => atom,
         field02 => boolean,
-        field03 => {atoms, [a, b]},
+        field03 => {atom, [a, b]},
         field04 => integer,
         field05 => {integer, 1, 5},
         field06 => string,
@@ -772,7 +772,7 @@ parse1_test() ->
         field08 => host,
         field09 => host6,
         field10 => fun parse_fun/3,
-        field11 => [{atoms, [a]}, binary],
+        field11 => [{atom, [a]}, binary],
         field12 => {list, atom},
         field13 => module,
         fieldXX => invalid
