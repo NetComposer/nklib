@@ -19,21 +19,15 @@
 
 %% @doc rebar-aware reloader
 %%
-%% This module monitors:
-%% - Directory "src"
-%% - Directory "_checkouts"
-%%
-%% When a Erlang source file is updated it lanches a recompile, 
-%% To modify a dep, move it to _checkouts
-%%
-%% It is loaded automatically if rebar_reloader=true in nklib env
-
+%% If the key 'rebar_reloader_dirs' is present on nklib's envs, 
+%% those directories will be monitorized, and, when an Erlang source file is updated,
+%% it lanches a recompile
 
 -module(nklib_rebar_reloader).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -behaviour(gen_server).
 
--export([start_link/0, start/0, stop/0, get_init/0]).
+-export([start_link/1, start/1, stop/0, get_init/1]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
          handle_cast/2, handle_info/2]).
 
@@ -50,11 +44,11 @@
 
 
 %% @doc
--spec start_link() ->
+-spec start_link([string()]) ->
     {ok, pid()} | {error, term()}.
 
-start_link() ->
-    case get_init() of
+start_link(Dirs) ->
+    case get_init(Dirs) of
         {ok, Data} ->
             gen_server:start_link({local, ?MODULE}, ?MODULE, [Data], []);
         {error, Error} ->
@@ -63,11 +57,11 @@ start_link() ->
 
 
 %% @doc
--spec start() ->
+-spec start([string()]) ->
     {ok, pid()} | {error, term()}.
 
-start() ->
-    case get_init() of
+start(Dirs) ->
+    case get_init(Dirs) of
         {ok, Data} ->
             gen_server:start({local, ?MODULE}, ?MODULE, [Data], []);
         {error, Error} ->
@@ -177,14 +171,11 @@ terminate(_Reason, _State) ->
 %% ===================================================================
 
 %% @private
-get_init() ->
+get_init(Dirs) ->
     case sys:get_state(rebar_agent) of
-        {_, St, _, _} ->
-            % Dir1 = rebar_dir:deps_dir(St),
-            Root = rebar_dir:root_dir(St),
-            Dir2 = filelib:wildcard(Root++"/src*"),
-            Dir3 = filelib:wildcard(Root++"/_checkouts*"),
-            {ok, #{dirs=>Dir2++Dir3}};
+        {_, _St, _, _} ->
+            %% Root = rebar_dir:root_dir(St),
+            {ok, #{dirs=>Dirs}};
         _ ->
             {error, no_rebar_agent}
     end.

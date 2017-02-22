@@ -63,9 +63,9 @@ stop(_) ->
 %% @private
 maybe_start_reloader() ->
     timer:sleep(1000),
-    case application:get_env(?APP, rebar_reloader) of
-        {ok, true} ->
-            nklib_rebar_reloader:start();
-        _ ->
+    case application:get_env(?APP, rebar_reloader_dirs) of
+        {ok, Dirs} when is_list(Dirs) ->
+            nklib_rebar_reloader:start(Dirs);
+        undefined ->
             ok
     end.
