@@ -12,3 +12,5 @@ rebar.lock
 nklib.version
 log
 _build
+/include/nklib_version.hrl
+/.rebar3
