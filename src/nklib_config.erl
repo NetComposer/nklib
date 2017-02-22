@@ -189,14 +189,15 @@ load_env(App, Syntax, Defaults) ->
     ok.
 
 make_cache(KeyList, Mod, Domain, Module, Path) ->
-    Syntax = lists:foldl(
+    Syntax1 = lists:foldl(
         fun(Key, Acc) ->
             Val = get_domain(Mod, Domain, Key),
-            [nklib_code:getter(Key, Val)|Acc] 
+            [nklib_code:getter(Key, Val)|Acc]
         end,
         [],
         KeyList),
-    {ok, Tree} = nklib_code:compile(Module, Syntax),
+    Syntax2 = [nklib_code:getter(hot_compiled, true) | Syntax1],
+    {ok, Tree} = nklib_code:compile(Module, Syntax2),
     case Path of
         none -> ok;
         _ -> ok = nklib_code:write(Module, Tree, Path)
