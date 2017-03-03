@@ -29,7 +29,6 @@
 
 
 -export([start_link/1, start/1, stop/0, get_init/1]).
--export([reload_app/1]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
          handle_cast/2, handle_info/2]).
 
@@ -77,36 +76,6 @@ start(Dirs) ->
 
 stop() ->
     gen_server:cast(?MODULE, stop).
-
-
-%% @doc Reloads all beams on disk for an app
-reload_app(App) ->
-    App2 = nklib_util:to_binary(App),
-    Dirs = lists:foldl(
-        fun(Path, Acc) ->
-            case re:run(Path, App2) of
-                {match, _} -> [Path|Acc];
-                nomatch -> Acc
-            end
-        end,
-        [],
-        code:get_path()),
-    lists:foreach(
-        fun(Dir) ->
-            lists:foreach(
-                fun(File) ->
-                    Mod = list_to_atom(filename:basename(File, ".beam")),
-                    io:format("Reloading ~s...", [Mod]),
-                    code:purge(Mod),
-                    {module, Mod} = code:load_file(Mod),
-                    io:format("ok\n")
-                end,
-                filelib:wildcard(Dir++"/*.beam"))
-        end,
-        Dirs).
-
-
-
 
 
 % ===================================================================
