@@ -233,12 +233,12 @@ do_parse_key(Key, Val, Parse) ->
                         ok = [], 
                         path = path_key(Key, Parse), 
                         syntax = Nested,
-                        defaults = maps:get(Key, Defaults, #{})
+                        defaults = maps:get(Key2, Defaults, #{})
                     },
                     case do_parse(Val2, NestedParse) of
                         {ok, #parse{ok=Ok2, ok_exp=Exp2, no_ok=NoOk2}} ->
                             Parse2 = Parse#parse{
-                                ok = [{Key, {Ok2}}|OK],
+                                ok = [{Key2, {Ok2}}|OK],
                                 ok_exp = Exp2,
                                 no_ok = NoOk2
                             },
