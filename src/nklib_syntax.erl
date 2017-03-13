@@ -22,7 +22,7 @@
 -module(nklib_syntax).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([parse/2, parse/3]).
+-export([parse/2, parse/3, map_merge/2]).
 
 -export_type([syntax/0]).
 
@@ -182,6 +182,26 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
 parse(Terms, Syntax, Opts) when is_map(Terms) ->
     parse(maps:to_list(Terms), Syntax, Opts).
 
+
+%% @doc Deep merge of two dictionaries
+-spec map_merge(map(), map()) ->
+    map().
+
+map_merge(Update, Map) ->
+    do_map_merge(maps:to_list(Update), Map).
+
+
+%% @private
+do_map_merge([], Map) ->
+    Map;
+
+do_map_merge([{Key, Val}|Rest], Map) when is_map(Val) ->
+    Val2 = maps:get(Key, Map, #{}),
+    Map2 = map_merge(Val, Val2),
+    do_map_merge(Rest, Map#{Key=>Map2});
+
+do_map_merge([{Key, Val}|Rest], Map) ->
+    do_map_merge(Rest, Map#{Key=>Val}).
 
 
 
