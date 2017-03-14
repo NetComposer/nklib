@@ -22,7 +22,7 @@
 -module(nklib_syntax).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([parse/2, parse/3, map_merge/2]).
+-export([parse/2, parse/3, spec/2, map_merge/2]).
 
 -export_type([syntax/0]).
 
