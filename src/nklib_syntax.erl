@@ -22,7 +22,8 @@
 -module(nklib_syntax).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([parse/2, parse/3, spec/2, map_merge/2]).
+-export([parse/2, parse/3, spec/2]).
+-export([add_defaults/2, add_mandatory/2, map_merge/2]).
 
 -export_type([syntax/0]).
 
@@ -181,6 +182,22 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
 
 parse(Terms, Syntax, Opts) when is_map(Terms) ->
     parse(maps:to_list(Terms), Syntax, Opts).
+
+
+%% @doc
+-spec add_defaults(map(), syntax()) ->
+    syntax().
+
+add_defaults(Defaults, Syntax) ->
+    Base = maps:get('__defaults', Syntax, #{}),
+    Syntax#{'__defaults' => maps:merge(Base, Defaults)}.
+
+
+%% @doc
+add_mandatory(List, Syntax) ->
+    Base = maps:get('__mandatory', Syntax, []),
+    Syntax#{'__mandatory' => List++Base}.
+
 
 
 %% @doc Deep merge of two dictionaries
