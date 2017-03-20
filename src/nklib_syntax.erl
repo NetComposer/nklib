@@ -35,11 +35,10 @@
 -type syntax() :: #{ atom() => syntax_opt()}.
 
 -type syntax_opt() ::
-    syntax_subopt() | 
-    {list|slist|ulist, syntax_subopt()} | 
-    {update, map|list, MapOrList::atom(), Key::atom(), syntax_subopt()}.
+    syntax_term() |
+    {list|slist|ulist, syntax_term()}.
 
--type syntax_subopt() ::
+-type syntax_term() ::
     ignore | 
     any | 
     atom | {atom, [atom()]} |
@@ -66,7 +65,7 @@
     map | 
     log_level |
     map() |                     % Allow for nested objects
-    list() |                    % First mathing option is used
+    list() |                    % First matching option is used
     syntax_fun() |
     '__defaults' |              % Defaults for this level
     '__mandatory'.              % Mandatory fields (only root level)
@@ -75,6 +74,7 @@
     fun((Val::term()) -> syntax_fun_out()) |
     fun((Key::atom(), Val::term()) -> syntax_fun_out()) |
     fun((Key::atom(), Val::term(), fun_ctx()) -> syntax_fun_out()).
+
 
 -type syntax_fun_out() ::
     ok | 
@@ -97,7 +97,8 @@
         path => binary(),           % Use base path instead of <<>>
         defaults => map(), 
         mandatory => [atom()|binary()],
-        warning_unknown => boolean()
+        warning_unknown => boolean(),
+        {binary_key, binary()} => boolean()
     }.
 
 -type error() ::
@@ -120,7 +121,7 @@
     path :: binary(),
     defaults :: map(),
     mandatory :: [binary()],
-    opts :: map()
+    opts :: parse_opts()
 }).
 
 
@@ -254,14 +255,19 @@ do_parse([Key|Rest], Parse) ->
 
 %% @private
 do_parse_key(Key, Val, Parse) ->
-    #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk} = Parse,
+    #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk, opts=Opts} = Parse,
     case to_existing_atom(Key) of
         {ok, Key2} ->
             case find_config(Key2, Val, Parse) of
                 {ok, Key3, Val3} ->
+                    PathKey = path_key(Key3, Parse),
+                    Key4 = case maps:get({binary_key, PathKey}, Opts, false) of
+                        false -> Key3;
+                        true -> to_bin(Key3)
+                    end,
                     Parse2 = Parse#parse{
-                        ok = [{Key3, Val3}|OK],
-                        ok_exp = [{path_key(Key3, Parse), Val3}|OkExp]
+                        ok = [{Key4, Val3}|OK],
+                        ok_exp = [{PathKey, Val3}|OkExp]
                     },
                     {ok, Parse2};
                 {nested, Val2, Nested} ->
@@ -273,11 +279,16 @@ do_parse_key(Key, Val, Parse) ->
                         defaults = maps:get(Key2, Defaults, #{})
                     },
                     case do_parse(Val2, NestedParse) of
-                        {ok, #parse{ok=Ok2, ok_exp=Exp2, no_ok=NoOk2}} ->
+                        {ok, #parse{ok=OK2, ok_exp=Exp2, no_ok=NoOK2}} ->
+                            PathKey = path_key(Key2, Parse),
+                            Key3 = case maps:get({binary_key, PathKey}, Opts, false) of
+                                false -> Key2;
+                                true -> to_bin(Key2)
+                            end,
                             Parse2 = Parse#parse{
-                                ok = [{Key2, {Ok2}}|OK],
+                                ok = [{Key3, {OK2}}|OK],
                                 ok_exp = Exp2,
-                                no_ok = NoOk2
+                                no_ok = NoOK2
                             },
                             {ok, Parse2};
                         {error, Error} ->
@@ -338,23 +349,6 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
                 _ ->
                     {error, syntax_error(Key, Parse)}
             end;
-        % {update, UpdType, Index2, Key2, SubSyntax} ->
-        %     case do_parse(SubSyntax, Val) of
-        %         {ok, Val2} ->
-        %             NewOK = case lists:keytake(Index2, 1, OK) of
-        %                 false when UpdType==map -> 
-        %                     [{Index2, maps:put(Key2, Val2, #{})}|OK];
-        %                 false when UpdType==list -> 
-        %                     [{Index2, [{Key2, Val2}]}|OK];
-        %                 {value, {Index2, Base}, OKA} when UpdType==map ->
-        %                     [{Index2, maps:put(Key2, Val2, Base)}|OKA];
-        %                 {value, {Index2, Base}, OKA} when UpdType==list ->
-        %                     [{Index2, [{Key2, Val2}|Base]}|OKA]
-        %             end,
-        %             parse(Rest, NewOK, NoOk, Syntax, Opts);
-        %         error ->
-        %             throw_syntax_error(Key, Opts)
-        %     end;
         ignore ->
             ignore;
         SyntaxOp ->
