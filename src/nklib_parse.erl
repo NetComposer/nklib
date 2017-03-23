@@ -283,6 +283,7 @@ parse_dates([Next|Rest], Acc) ->
 -type norm_opts() ::
     #{
         space => allowed | skip | integer(),
+        underscore => allowed | skip | integer(),
         unrecognized => skip | integer(),
         allowed => [integer()]
     }.
@@ -316,6 +317,16 @@ norm([32|T], Opts, Acc) ->
     case maps:get(space, Opts, allowed) of
         allowed ->
             norm(T, Opts, [32|Acc]);
+        skip ->
+            norm(T, Opts, Acc);
+        Char when is_integer(Char) ->
+            norm(T, Opts, [Char|Acc])
+    end;
+
+norm([$_|T], Opts, Acc) ->
+    case maps:get(underscore, Opts, $-) of
+        allowed ->
+            norm(T, Opts, [$_|Acc]);
         skip ->
             norm(T, Opts, Acc);
         Char when is_integer(Char) ->

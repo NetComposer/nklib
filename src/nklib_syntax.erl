@@ -56,7 +56,8 @@
     base64 | base64url |
     lower | 
     upper |
-    ip | ip4 | ip6 | host | host6 | 
+    ip | ip4 | ip6 | host | host6 |
+    email |
     {function, pos_integer()} |
     unquote | 
     path | fullpath | 
@@ -421,8 +422,17 @@ spec(proc, Val) ->
 
 spec(pid, Val) ->
     case is_pid(Val) of
-        true -> {ok, Val};
-        false -> error
+        true ->
+            {ok, Val};
+        false when is_binary(Val) ->
+            try binary_to_term(base64:decode(Val)) of
+                Pid when is_pid(Pid) -> {ok, Pid};
+                _ -> error
+            catch
+                _:_ -> error
+            end;
+        false ->
+            error
     end;
 
 spec(module, Val) ->
@@ -506,7 +516,10 @@ spec(binary, Val) ->
         true ->
             error
     end;
- 
+
+spec(urltoken, Val) ->
+    to_urltoken(nklib_util:to_list(Val), []);
+
 spec(base64, Val) ->
     case catch base64:decode(Val) of
         {'EXIT', _} ->
@@ -593,6 +606,13 @@ spec(uris, Val) ->
     case nklib_parse:uris(Val) of
         error -> error;
         Uris -> {ok, Uris}
+    end;
+
+spec(email, Val) ->
+    Val2 = to_bin(Val),
+    case binary:split(Val2, <<"@">>, [global]) of
+        [_, _] -> {ok, Val2};
+        _ -> error
     end;
 
 spec(tokens, Val) ->
@@ -744,7 +764,6 @@ to_existing_atom(Term) ->
         Atom -> {ok, Atom}
     end.
 
-
 %% @private
 syntax_error(Key, Parse) ->
     {syntax_error, path_key(Key, Parse)}.
@@ -775,6 +794,22 @@ list_to_map([{K, {List}}|Rest], Acc) when is_list(List) ->
 
 list_to_map([{K, V}|Rest], Acc) ->
     list_to_map(Rest, [{K, V}|Acc]).
+
+
+to_urltoken([], Acc) ->
+    list_to_binary(lists:reverse(Acc));
+to_urltoken([Char|Rest], Acc) when Char >= $0, Char =< $9 ->
+    to_urltoken(Rest, [Char|Acc]);
+to_urltoken([Char|Rest], Acc) when Char >= $A, Char =< $Z ->
+    to_urltoken(Rest, [Char+32|Acc]);
+to_urltoken([Char|Rest], Acc) when Char >= $a, Char =< $z ->
+    to_urltoken(Rest, [Char|Acc]);
+to_urltoken([32|Rest], Acc) ->
+    to_urltoken(Rest, [$-|Acc]);
+to_urltoken([Char|Rest], Acc) when Char==$- ->
+    to_urltoken(Rest, [Rest|Acc]);
+to_urltoken([_|Rest], Acc) ->
+    to_urltoken(Rest, Acc).
 
 
 %% @private
