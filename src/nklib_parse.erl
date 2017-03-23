@@ -21,13 +21,14 @@
 %% @doc Generic parsing functions
 %%
 %% This module implements several functions to parse sip requests, responses
-%% headers, uris, vias, etc.
+%% headers, uris, etc.
 
 -module(nklib_parse).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([uris/1, ruris/1, tokens/1, integers/1, dates/1, scheme/1, name/1]).
 -export([unquote/1, path/1, fullpath/1]).
+-export([normalize/1, normalize/2]).
 
 -include("nklib.hrl").
 
@@ -279,6 +280,176 @@ parse_dates([Next|Rest], Acc) ->
     end.
 
 
+-type norm_opts() ::
+    #{
+        space => allowed | skip | integer(),
+        unrecognized => skip | integer(),
+        allowed => [integer()]
+    }.
+
+
+%% @doc Normalizes a value into a lower-case, using only a-z, 0-9 and spaces
+%% All other values are converted into these if possible (Ä->a, é->e, etc.)
+%% Utf8 and Latin-1 encodings are supported
+%% Unrecognized values are converted into '#'
+%% See Options
+-spec normalize(string()|binary()) ->
+    binary().
+
+normalize(Text) ->
+    normalize(Text, #{}).
+
+
+%% @doc
+-spec normalize(string()|binary(), norm_opts()) ->
+    binary().
+
+normalize(Text, Opts) ->
+    norm(nklib_util:to_list(Text), Opts, []).
+
+
+%% @private
+norm([], _Opts, Acc) ->
+    list_to_binary(lists:reverse(string:strip(Acc)));
+
+norm([32|T], Opts, Acc) ->
+    case maps:get(space, Opts, allowed) of
+        allowed ->
+            norm(T, Opts, [32|Acc]);
+        skip ->
+            norm(T, Opts, Acc);
+        Char when is_integer(Char) ->
+            norm(T, Opts, [Char|Acc])
+    end;
+
+norm([H|T], Opts, Acc) when H >= $0, H =< $9 ->
+    norm(T, Opts, [H|Acc]);
+
+norm([H|T], Opts, Acc) when H >= $a, H =< $z ->
+    norm(T, Opts, [H|Acc]);
+
+norm([H|T], Opts, Acc) when H >= $A, H =< $Z ->
+    norm(T, Opts, [H+32|Acc]);
+
+%% UTF-8
+norm([16#c3, U|T], Opts, Acc) when U >= 16#80, U =< 16#bc->
+    L = if
+        U >= 16#80, U =< 16#86 -> $a;
+        U == 16#87 -> $c;
+        U >= 16#88, U =< 16#8b -> $e;
+        U >= 16#8c, U =< 16#8f -> $i;
+        U == 16#90 -> $d;
+        U == 16#91 -> $n;
+        U >= 16#92, U =< 16#96 -> $o;
+        U == 16#98 -> $o;
+        U >= 16#99, U =< 16#9c -> $u;
+        U == 16#9D -> $y;
+        U == 16#9F -> $b;
+        U >= 16#a0, U =< 16#a6 -> $a;
+        U == 16#a7 -> $c;
+        U >= 16#a8, U =< 16#ab -> $e;
+        U >= 16#ac, U =< 16#af -> $i;
+        U == 16#b0 -> $d;
+        U == 16#b1 -> $n;
+        U >= 16#b2, U =< 16#b6 -> $o;
+        U == 16#b8 -> $o;
+        U >= 16#b9, U =< 16#bc -> $u;
+        U == 16#bd -> $y;
+        U == 16#bf -> $y;
+        true -> norm_unrecognized(Opts)
+    end,
+    case L of
+        skip ->
+            norm(T, Opts, Acc);
+        _ ->
+            norm(T, Opts, [L|Acc])
+    end;
+
+%% Latin-1
+%% (16#c3 is Atilde in latin-1, it could be confused as such)
+norm([H|T], Opts, Acc) when H >= 16#c0 ->
+    L = if
+        H >= 16#c0, H =< 16#c6 -> $a;
+        H == 16#c7 -> $c;
+        H >= 16#c8, H =< 16#cb -> $e;
+        H >= 16#cc, H =< 16#cf -> $i;
+        H == 16#d0 -> $d;
+        H == 16#d1 -> $n;
+        H >= 16#d2, H =< 16#d6 -> $o;
+        H == 16#d8-> $o;
+        H >= 16#d9, H =< 16#dc -> $u;
+        H == 16#dd-> $y;
+        H == 16#df-> $b;
+        H >= 16#e0, H =< 16#e6 -> $a;
+        H == 16#e7 -> $c;
+        H >= 16#e8, H =< 16#eb -> $e;
+        H >= 16#ec, H =< 16#ef -> $i;
+        H == 16#f0 -> $d;
+        H == 16#f1 -> $n;
+        H >= 16#f2, H =< 16#f6 -> $o;
+        H == 16#f8-> $o;
+        H >= 16#f9, H =< 16#fc -> $u;
+        H == 16#fd -> $y;
+        H == 16#ff -> $y;
+        true -> norm_unrecognized(Opts)
+    end,
+    norm(T, Opts, [L|Acc]);
+
+norm([Char|T], Opts, Acc) ->
+    Allowed = maps:get(allowed, Opts, []),
+    case lists:member(Char, Allowed) of
+        true ->
+            norm(T, Opts, [Char|Acc]);
+        false ->
+            case norm_unrecognized(Opts) of
+                skip ->
+                    norm(T, Opts, Acc);
+                New ->
+                    norm(T, Opts, [New|Acc])
+            end
+    end.
+
+
+%% @private
+norm_unrecognized(Opts) ->
+    case maps:get(unrecognized, Opts, skip) of
+        skip ->
+            skip;
+        Char when is_integer(Char) ->
+            Char
+    end.
+
+
+
+%% ===================================================================
+%% EUnit tests
+%% ===================================================================
+
+%%-define(TEST, true).
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+
+norm_test() ->
+    S1 = <<"aáàäâeéèëêiíìïîoòóöôuúùüûñçAÁÀÄÂEÉÈËÊIÍÌÏÎOÒÓÖÔUÚÙÜÛÑÇ">>,
+    <<"aaaaaeeeeeiiiiiooooouuuuuncaaaaaeeeeeiiiiiooooouuuuunc">> = normalize(S1),
+
+    S2 = <<"aáàäâeéèëêiíìïîoòóöôuúùüûñçAÁÀÄÂEÉÈËÊIÍÌÏÎOÒÓÖÔUÚÙÜÛÑÇ"/utf8>>,
+    <<"aaaaaeeeeeiiiiiooooouuuuuncaaaaaeeeeeiiiiiooooouuuuunc">> = normalize(S2),
+
+    S3 = "a  b",
+    <<"a  b">> = normalize(S3),
+    <<"ab">> = normalize(S3, #{space=>skip}),
+    <<"a__b">> = normalize(S3, #{space=>$_}),
+    S4 = "-!",
+    <<>> = normalize(S4),
+    <<"!">> = normalize(S4, #{allowed=>[$!]}),
+    <<"+!">> = normalize(S4, #{allowed=>[$!], unrecognized=>$+}),
+    ok.
+
+
+
+-endif.
 
 
 
