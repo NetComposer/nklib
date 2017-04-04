@@ -68,8 +68,9 @@
     map() |                     % Allow for nested objects
     list() |                    % First matching option is used
     syntax_fun() |
+    {syntax, syntax_opt()} |    % Nested syntax (i.e. {list, {syntax, Syntax}})
     '__defaults' |              % Defaults for this level
-    '__mandatory'.              % Mandatory fields (only root level)
+    '__mandatory'.              % Mandatory fields (full path for keys)
 
 -type syntax_fun() ::
     fun((Val::term()) -> syntax_fun_out()) |
@@ -353,20 +354,62 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
         ignore ->
             ignore;
         SyntaxOp ->
-            case spec(SyntaxOp, Val) of
+            case spec(SyntaxOp, Key, Val, Parse) of
                 {ok, Val2} ->
                     {ok, Key, Val2};
                 error ->
                     {error, syntax_error(Key, Parse)};
+                {error, Error} ->
+                    {error, Error};
                 unknown ->
                     error({invalid_syntax, SyntaxOp})
             end
     end.
 
 
+
+%% @private
+-spec spec(syntax_opt(), term(), term(), #parse{}) ->
+    {ok, term()} | error | {error, term()} | unknown.
+
+spec({ListType, SyntaxOp}, Key, Val, Parse) when ListType==list; ListType==slist; ListType==ulist ->
+    case Val of
+        [] ->
+            {ok, []};
+        [Head|_] when not is_integer(Head) ->
+            do_parse_list(ListType, SyntaxOp, Key, Val, Parse, []);
+        _ ->
+            do_parse_list(ListType, SyntaxOp, Key, [Val], Parse, [])
+    end;
+
+spec({syntax, Syntax}, Key, Val, Parse) ->
+    Path2 = path_key(Key, Parse),
+    case parse(Val, Syntax, #{path=>Path2}) of
+        {ok, Parsed, _List, _Other} ->
+            {ok, Parsed};
+        {error, Error} ->
+            {error, Error}
+    end;
+
+spec([Opt|Rest], Key, Val, Parse) ->
+    case spec(Opt, Key, Val, Parse) of
+        {ok, Val2} ->
+            {ok, Val2};
+        _ ->
+            spec(Rest, Key, Val, Parse)
+    end;
+
+spec([], _Key, _Val, _Parse) ->
+    error;
+
+spec(SyntaxOp, _Key, Val, _Parse) ->
+    spec(SyntaxOp, Val).
+
+
+
 %% @private
 -spec spec(syntax_opt(), term()) ->
-    {ok, term()} | error | unknown.
+    {ok, term()} | error | {error, term()} | unknown.
 
 spec(any, Val) ->
     {ok, Val};
@@ -402,16 +445,6 @@ spec(list, Val) ->
     case is_list(Val) of
         true -> {ok, Val};
         false -> error
-    end;
-
-spec({List, Type}, Val) when List==list; List==slist; List==ulist ->
-    case Val of
-        [] ->
-            {ok, []};
-        [Head|_] when not is_integer(Head) ->
-            do_parse_list(List, Val, Type, []);
-        _ -> 
-            do_parse_list(List, [Val], Type, [])
     end;
 
 spec(proc, Val) ->
@@ -650,38 +683,29 @@ spec(map, Map) ->
         _ -> error
     end;
 
-spec([Opt|Rest], Val) ->
-    case spec(Opt, Val) of
-        {ok, Val2} -> {ok, Val2};
-        _ -> spec(Rest, Val)
-    end;
-
-spec([], _Val) ->
-    error;
-
 spec(_Type, _Val) ->
     unknown.
 
 
 %% @private
-do_parse_list(list, [], _Type, Acc) ->
+do_parse_list(list, _SyntaxOp, _Key, [], _Parse, Acc) ->
     {ok, lists:reverse(Acc)};
 
-do_parse_list(slist, [], _Type, Acc) ->
+do_parse_list(slist, _SyntaxOp, _Key, [], _Parse, Acc) ->
     {ok, lists:sort(Acc)};
 
-do_parse_list(ulist, [], _Type, Acc) ->
+do_parse_list(ulist, _SyntaxOp, _Key, [], _Parse, Acc) ->
     {ok, lists:usort(Acc)};
 
-do_parse_list(ListType, [Term|Rest], Type, Acc) ->
-    case spec(Type, Term) of
+do_parse_list(ListType, SyntaxOp, Key, [Term|Rest], Parse, Acc) ->
+    case spec(SyntaxOp, Key, Term, Parse) of
         {ok, Val} ->
-            do_parse_list(ListType, Rest, Type, [Val|Acc]);
-        error ->
-            error
+            do_parse_list(ListType, SyntaxOp, Key, Rest, Parse, [Val|Acc]);
+        Other ->
+            Other
     end;
 
-do_parse_list(_, _, _, _) ->
+do_parse_list(_ListType, _Key, _Val, _Parse, _SyntaxOp, _Acc) ->
     error.
 
 %% @private
@@ -749,7 +773,7 @@ check_mandatory([Term|Rest], #parse{ok_exp=Exp}=Parse) ->
         true ->
             check_mandatory(Rest, Parse);
         false ->
-            {error, {missing_field, to_bin(Term)}}
+            {error, {missing_field, path_key(Term, Parse)}}
     end.
 
 
