@@ -272,6 +272,18 @@ do_parse_key(Key, Val, Parse) ->
                         ok_exp = [{PathKey, Val3}|OkExp]
                     },
                     {ok, Parse2};
+                {ok, Key3, Val3, Exp3, NoOk3} ->
+                    PathKey = path_key(Key3, Parse),
+                    Key4 = case maps:get({binary_key, PathKey}, Opts, false) of
+                        false -> Key3;
+                        true -> to_bin(Key3)
+                    end,
+                    Parse2 = Parse#parse{
+                        ok = [{Key4, Val3}|OK],
+                        ok_exp = [{PathKey, Val3}|Exp3++OkExp],
+                        no_ok = NoOk3++NoOk
+                    },
+                    {ok, Parse2};
                 {nested, Val2, Nested} ->
                     #parse{defaults=Defaults} = Parse,
                     NestedParse = Parse#parse{
@@ -357,6 +369,8 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
             case spec(SyntaxOp, Key, Val, Parse) of
                 {ok, Val2} ->
                     {ok, Key, Val2};
+                {ok, Val2, Exp2, NoOk2} ->
+                    {ok, Key, Val2, Exp2, NoOk2};
                 error ->
                     {error, syntax_error(Key, Parse)};
                 {error, Error} ->
@@ -370,7 +384,8 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
 
 %% @private
 -spec spec(syntax_opt(), term(), term(), #parse{}) ->
-    {ok, term()} | error | {error, term()} | unknown.
+    {ok, term()} | {ok, term(), [binary()], [binary()]} |
+    error | {error, term()} | unknown.
 
 spec({ListType, SyntaxOp}, Key, Val, Parse) when ListType==list; ListType==slist; ListType==ulist ->
     case Val of
@@ -385,8 +400,9 @@ spec({ListType, SyntaxOp}, Key, Val, Parse) when ListType==list; ListType==slist
 spec({syntax, Syntax}, Key, Val, Parse) ->
     Path2 = path_key(Key, Parse),
     case parse(Val, Syntax, #{path=>Path2}) of
-        {ok, Parsed, _List, _Other} ->
-            {ok, Parsed};
+        {ok, Parsed, Exp, NoOk} ->
+            %% lager:warning("Parsed: ~p\nExp: ~p\nNoOk: ~p", [Parsed, Exp, NoOk]),
+            {ok, Parsed, Exp, NoOk};
         {error, Error} ->
             {error, Error}
     end;
