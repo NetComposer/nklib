@@ -257,35 +257,24 @@ do_parse([Key|Rest], Parse) ->
 
 %% @private
 do_parse_key(Key, Val, Parse) ->
-    #parse{ok=OK, ok_exp=OkExp, no_ok=NoOk, opts=Opts} = Parse,
     case to_existing_atom(Key) of
         {ok, Key2} ->
             case find_config(Key2, Val, Parse) of
-                {ok, Key3, Val3} ->
-                    PathKey = path_key(Key3, Parse),
+                {ok, Key3, Val3, Parse2} ->
+                    PathKey = path_key(Key3, Parse2),
+                    #parse{ok=OK, ok_exp=OkExp, opts=Opts} = Parse2,
                     Key4 = case maps:get({binary_key, PathKey}, Opts, false) of
                         false -> Key3;
                         true -> to_bin(Key3)
                     end,
-                    Parse2 = Parse#parse{
+                    #parse{ok=OK, ok_exp=OkExp} = Parse2,
+                    Parse3 = Parse2#parse{
                         ok = [{Key4, Val3}|OK],
                         ok_exp = [{PathKey, Val3}|OkExp]
                     },
-                    {ok, Parse2};
-                {ok, Key3, Val3, Exp3, NoOk3} ->
-                    PathKey = path_key(Key3, Parse),
-                    Key4 = case maps:get({binary_key, PathKey}, Opts, false) of
-                        false -> Key3;
-                        true -> to_bin(Key3)
-                    end,
-                    Parse2 = Parse#parse{
-                        ok = [{Key4, Val3}|OK],
-                        ok_exp = [{PathKey, Val3}|Exp3++OkExp],
-                        no_ok = NoOk3++NoOk
-                    },
-                    {ok, Parse2};
+                    {ok, Parse3};
                 {nested, Val2, Nested} ->
-                    #parse{defaults=Defaults} = Parse,
+                    #parse{defaults=Defaults, opts=Opts} = Parse,
                     NestedParse = Parse#parse{
                         ok = [], 
                         path = path_key(Key, Parse), 
@@ -299,6 +288,7 @@ do_parse_key(Key, Val, Parse) ->
                                 false -> Key2;
                                 true -> to_bin(Key2)
                             end,
+                            #parse{ok=OK} = Parse,
                             Parse2 = Parse#parse{
                                 ok = [{Key3, {OK2}}|OK],
                                 ok_exp = Exp2,
@@ -309,6 +299,7 @@ do_parse_key(Key, Val, Parse) ->
                             {error, Error}
                     end;
                 no_spec ->
+                    #parse{no_ok=NoOk} = Parse,
                     {ok, Parse#parse{no_ok=[path_key(Key, Parse)|NoOk]}};
                 ignore ->
                     {ok, Parse};
@@ -316,6 +307,7 @@ do_parse_key(Key, Val, Parse) ->
                     {error, Error}
             end;
         error ->
+            #parse{no_ok=NoOk} = Parse,
             {ok, Parse#parse{no_ok=[path_key(Key, Parse)|NoOk]}}
     end.
 
@@ -368,9 +360,9 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
         SyntaxOp ->
             case spec(SyntaxOp, Key, Val, Parse) of
                 {ok, Val2} ->
-                    {ok, Key, Val2};
-                {ok, Val2, Exp2, NoOk2} ->
-                    {ok, Key, Val2, Exp2, NoOk2};
+                    {ok, Key, Val2, Parse};
+                {ok, Val2, Parse2} ->
+                    {ok, Key, Val2, Parse2};
                 error ->
                     {error, syntax_error(Key, Parse)};
                 {error, Error} ->
@@ -384,7 +376,7 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
 
 %% @private
 -spec spec(syntax_opt(), term(), term(), #parse{}) ->
-    {ok, term()} | {ok, term(), [binary()], [binary()]} |
+    {ok, term()} | {ok, term(), #parse{}} |
     error | {error, term()} | unknown.
 
 spec({ListType, SyntaxOp}, Key, Val, Parse) when ListType==list; ListType==slist; ListType==ulist ->
@@ -400,9 +392,11 @@ spec({ListType, SyntaxOp}, Key, Val, Parse) when ListType==list; ListType==slist
 spec({syntax, Syntax}, Key, Val, Parse) ->
     Path2 = path_key(Key, Parse),
     case parse(Val, Syntax, #{path=>Path2}) of
-        {ok, Parsed, Exp, NoOk} ->
+        {ok, Parsed, Exp2, NoOk2} ->
             %% lager:warning("Parsed: ~p\nExp: ~p\nNoOk: ~p", [Parsed, Exp, NoOk]),
-            {ok, Parsed, Exp, NoOk};
+            #parse{ok_exp=Exp, no_ok=NoOk} = Parse,
+            Parse2 = Parse#parse{ok_exp=Exp2++Exp, no_ok=NoOk2++NoOk},
+            {ok, Parsed, Parse2};
         {error, Error} ->
             {error, Error}
     end;
@@ -704,19 +698,21 @@ spec(_Type, _Val) ->
 
 
 %% @private
-do_parse_list(list, _SyntaxOp, _Key, [], _Parse, Acc) ->
-    {ok, lists:reverse(Acc)};
+do_parse_list(list, _SyntaxOp, _Key, [], Parse, Acc) ->
+    {ok, lists:reverse(Acc), Parse};
 
-do_parse_list(slist, _SyntaxOp, _Key, [], _Parse, Acc) ->
-    {ok, lists:sort(Acc)};
+do_parse_list(slist, _SyntaxOp, _Key, [], Parse, Acc) ->
+    {ok, lists:sort(Acc), Parse};
 
-do_parse_list(ulist, _SyntaxOp, _Key, [], _Parse, Acc) ->
-    {ok, lists:usort(Acc)};
+do_parse_list(ulist, _SyntaxOp, _Key, [], Parse, Acc) ->
+    {ok, lists:usort(Acc), Parse};
 
 do_parse_list(ListType, SyntaxOp, Key, [Term|Rest], Parse, Acc) ->
     case spec(SyntaxOp, Key, Term, Parse) of
         {ok, Val} ->
             do_parse_list(ListType, SyntaxOp, Key, Rest, Parse, [Val|Acc]);
+        {ok, Val, Parse2} ->
+            do_parse_list(ListType, SyntaxOp, Key, Rest, Parse2, [Val|Acc]);
         Other ->
             Other
     end;
