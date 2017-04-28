@@ -330,11 +330,11 @@ find_config(Key, Val, #parse{syntax=Syntax}=Parse) ->
             end,
             case FunRes of
                 ok ->
-                    {ok, Key, Val};
+                    {ok, Key, Val, Parse};
                 {ok, Val2} ->
-                    {ok, Key, Val2};
+                    {ok, Key, Val2, Parse};
                 {ok, Key2, Val2} when is_atom(Key2) ->
-                    {ok, Key2, Val2};
+                    {ok, Key2, Val2, Parse};
                 % {new_ok, OKB} ->
                 %     parse(Rest, OKB, NoOk, Syntax, Opts);
                 error ->
@@ -405,6 +405,8 @@ spec([Opt|Rest], Key, Val, Parse) ->
     case spec(Opt, Key, Val, Parse) of
         {ok, Val2} ->
             {ok, Val2};
+        {ok, Val2, Parse2} ->
+            {ok, Val2, Parse2};
         _ ->
             spec(Rest, Key, Val, Parse)
     end;
