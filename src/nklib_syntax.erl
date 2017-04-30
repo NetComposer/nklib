@@ -689,9 +689,15 @@ spec(log_level, Val) ->
         _ -> error
     end;
 
-spec(map, Map) ->
-    case is_map(Map) andalso do_parse_map(maps:to_list(Map)) of
+spec(map, Map) when is_map(Map) ->
+    case do_parse_map(maps:to_list(Map)) of
         ok -> {ok, Map};
+        _ -> error
+    end;
+
+spec(map, List) when is_list(List) ->
+    case do_parse_map(List) of
+        ok -> {ok, maps:from_list(List)};
         _ -> error
     end;
 
