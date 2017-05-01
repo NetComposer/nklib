@@ -69,6 +69,7 @@
     list() |                    % First matching option is used
     syntax_fun() |
     {syntax, syntax_opt()} |    % Nested syntax (i.e. {list, {syntax, Syntax}})
+                                % Can have mandatory, but must have full path
     '__defaults' |              % Defaults for this level
     '__mandatory'.              % Mandatory fields (full path for keys)
 
@@ -793,7 +794,9 @@ check_mandatory([Term|Rest], #parse{ok_exp=Exp}=Parse) ->
         true ->
             check_mandatory(Rest, Parse);
         false ->
-            {error, {missing_field, path_key(Term, Parse)}}
+            %% Path should be already present at Term, right?
+            %%  {error, {missing_field, path_key(Term, Parse)}}
+            {error, {missing_field, to_bin(Term)}}
     end.
 
 
