@@ -68,8 +68,7 @@
     map() |                     % Allow for nested objects
     list() |                    % First matching option is used
     syntax_fun() |
-    {syntax, syntax_opt()} |    % Nested syntax (i.e. {list, {syntax, Syntax}})
-                                % Can have mandatory, but must have full path
+    {syntax, syntax_opt()} |    % Nested syntax (i.e. {list, {syntax, Syntax}}). __mandatory is local.
     '__defaults' |              % Defaults for this level
     '__mandatory'.              % Mandatory fields (full path for keys)
 
@@ -392,7 +391,14 @@ spec({ListType, SyntaxOp}, Key, Val, Parse) when ListType==list; ListType==slist
 
 spec({syntax, Syntax}, Key, Val, Parse) ->
     Path2 = path_key(Key, Parse),
-    case parse(Val, Syntax, #{path=>Path2}) of
+    Syntax2 = case Syntax of
+        #{'__mandatory':=List} ->
+            List2 = [<<Path2/binary, $., (to_bin(M))/binary>> || M <- List],
+            Syntax#{'__mandatory':=List2};
+        _ ->
+            Syntax
+    end,
+    case parse(Val, Syntax2, #{path=>Path2}) of
         {ok, Parsed, Exp2, NoOk2} ->
             %% lager:warning("Parsed: ~p\nExp: ~p\nNoOk: ~p", [Parsed, Exp, NoOk]),
             #parse{ok_exp=Exp, no_ok=NoOk} = Parse,
