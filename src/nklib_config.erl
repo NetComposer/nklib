@@ -136,16 +136,8 @@ increment_domain(Mod, Domain, Key, Count) ->
     {ok, map()} | {error, term()}.
 
 load_env(App, Syntax) ->
-    load_env(App, Syntax, #{}).
-
-
-%% @doc Loads parsed application environment
--spec load_env(atom(), syntax(), map()) ->
-    {ok, map()} | {error, term()}.
-
-load_env(App, Syntax, Defaults) ->
     AppEnv = application:get_all_env(App),
-    case nklib_syntax:parse(AppEnv, Syntax#{'__defaults'=>Defaults}) of
+    case nklib_syntax:parse(AppEnv, Syntax) of
         {ok, Opts, _} ->
             lists:foreach(fun({K,V}) -> put(App, K, V) end, maps:to_list(Opts)),
             {ok, Opts};
@@ -154,34 +146,14 @@ load_env(App, Syntax, Defaults) ->
     end.
 
 
-% %% @doc Loads a domain configuration
-% -spec load_domain(term(), nklib:domain(), map(), map(), syntax()) ->
-%     ok | {error, term()}.
+%% @doc Loads parsed application environment
+-spec load_env(atom(), syntax(), map()) ->
+    {ok, map()} | {error, term()}.
 
-% load_domain(Mod, Domain, Opts, Defaults, Syntax) ->
-%     do_load_domain(Mod, Domain, nklib_util:to_list(Opts), 
-%                     nklib_util:to_list(Defaults), Syntax).
-
-% %% @private
-% do_load_domain(Mod, Domain, Opts, Defaults, Syntax) ->
-%     ValidDomainKeys = proplists:get_keys(Defaults),
-%     DomainKeys = proplists:get_keys(Opts),
-%     case DomainKeys -- ValidDomainKeys of
-%         [] ->
-%             ok;
-%         Rest ->
-%             lager:warning("Ignoring config keys ~p starting domain", [Rest])
-%     end,
-%     ValidOpts = nklib_util:extract(Opts, ValidDomainKeys),
-%     DefaultDomainOpts = [{K, get(Mod, K)} || K <- ValidDomainKeys],
-%     Opts2 = nklib_util:defaults(ValidOpts, DefaultDomainOpts),
-%     case parse_config(Opts2, Syntax) of
-%         {ok, Opts3, _} ->
-%             lists:foreach(fun({K,V}) -> put_domain(Mod, Domain, K, V) end, Opts3),
-%             ok;
-%         {error, Error} ->
-%             {error, Error}
-%     end.
+load_env(App, Syntax, Defaults) ->
+    Defaults1 = maps:get('__defaults', Syntax, #{}),
+    Defaults2 = maps:merge(Defaults1, Defaults),
+    load_env(App, Syntax#{'__defaults' => Defaults2}).
 
 
 %% Generates on the fly a 'cache' module for the indicated keys
