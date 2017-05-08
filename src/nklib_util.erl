@@ -41,6 +41,7 @@
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
 -export([base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
+-export([map_merge/2]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -1136,6 +1137,25 @@ urldecode_digit($-) -> $+;
 urldecode_digit(D)  -> D.
 
 
+%% @doc Deep merge of two dictionaries
+-spec map_merge(map(), map()) ->
+    map().
+
+map_merge(Update, Map) ->
+    do_map_merge(maps:to_list(Update), Map).
+
+
+%% @private
+do_map_merge([], Map) ->
+    Map;
+
+do_map_merge([{Key, Val} | Rest], Map) when is_map(Val) ->
+    Val2 = maps:get(Key, Map, #{}),
+    Map2 = map_merge(Val, Val2),
+    do_map_merge(Rest, Map#{Key=>Map2});
+
+do_map_merge([{Key, Val} | Rest], Map) ->
+    do_map_merge(Rest, Map#{Key=>Val}).
 
 
 

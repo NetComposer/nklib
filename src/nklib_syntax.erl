@@ -23,8 +23,6 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([parse/2, parse/3, spec/2]).
--export([add_defaults/2, add_mandatory/2, map_merge/2]).
-
 -export_type([syntax/0]).
 
 
@@ -172,47 +170,6 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
 
 parse(Terms, Syntax, Opts) when is_map(Terms) ->
     parse(maps:to_list(Terms), Syntax, Opts).
-
-
-%% ===================================================================
-%% Utils
-%% ===================================================================
-
-
-%% @doc
--spec add_defaults(map(), syntax()) ->
-    syntax().
-
-add_defaults(Defaults, Syntax) ->
-    Base = maps:get('__defaults', Syntax, #{}),
-    Syntax#{'__defaults' => maps:merge(Base, Defaults)}.
-
-
-%% @doc
-add_mandatory(List, Syntax) ->
-    Base = maps:get('__mandatory', Syntax, []),
-    Syntax#{'__mandatory' => List ++ Base}.
-
-
-%% @doc Deep merge of two dictionaries
--spec map_merge(map(), map()) ->
-    map().
-
-map_merge(Update, Map) ->
-    do_map_merge(maps:to_list(Update), Map).
-
-
-%% @private
-do_map_merge([], Map) ->
-    Map;
-
-do_map_merge([{Key, Val} | Rest], Map) when is_map(Val) ->
-    Val2 = maps:get(Key, Map, #{}),
-    Map2 = map_merge(Val, Val2),
-    do_map_merge(Rest, Map#{Key=>Map2});
-
-do_map_merge([{Key, Val} | Rest], Map) ->
-    do_map_merge(Rest, Map#{Key=>Val}).
 
 
 %% ===================================================================
@@ -846,7 +803,6 @@ to_bin(K) -> nklib_util:to_binary(K).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-
 parse1_test() ->
     Spec = #{
         field01 => atom,
@@ -965,7 +921,7 @@ parse3_test() ->
             }
         }
     },
-    Spec2 = map_merge(Def, Spec),
+    Spec2 = nklib_util:map_merge(Def, Spec),
 
     {ok, #{field1:=11, field2:=#{field3:=<<"a">>, field5:=#{field6:=<<"b">>}}}, []} =parse(#{}, Spec2),
 
@@ -996,7 +952,7 @@ parse3_test() ->
             }
         }
     },
-    Spec3 = map_merge(Spec, Mand),
+    Spec3 = nklib_util:map_merge(Spec, Mand),
 
     {error, {missing_field, <<"field1">>}} = parse(#{}, Spec3),
     {error, {missing_field, <<"field2">>}} = parse(#{field1=>1}, Spec3),
@@ -1005,7 +961,7 @@ parse3_test() ->
     {error, {missing_field, <<"field2.field5.field6">>}} = parse(#{field1=>1, field2=>#{field4=>22, field5=>#{}}}, Spec3),
     {ok, _, []} = parse(#{field1=>1, field2=>#{field4=>22, field5=>#{field6=>33}}}, Spec3),
 
-    Spec4 = map_merge(Spec3, Def),
+    Spec4 = nklib_util:map_merge(Spec3, Def),
     {error, {missing_field, <<"field2.field4">>}} = parse(#{}, Spec4),
 
     {ok, _, _} = parse(#{field2=>#{field4=>22}}, Spec4),
