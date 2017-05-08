@@ -252,6 +252,8 @@ do_parse([Key | Rest], Parse) ->
 %% @private
 do_parse_key(Key, Val, Parse) ->
      case find_config(Key, Parse) of
+         {ok, _Key2, ignore} ->
+             {ok, Parse};
          {ok, Key2, SyntaxOp} ->
              case parse_opt(SyntaxOp, Key2, Val, Parse) of
                  {ok, Key3, Val3, Parse3} ->
@@ -271,9 +273,7 @@ do_parse_key(Key, Val, Parse) ->
              end;
          no_spec ->
             #parse{no_ok=NoOk} = Parse,
-            {ok, Parse#parse{no_ok = [path_key(Key, Parse) | NoOk]}};
-        ignore ->
-            {ok, Parse}
+            {ok, Parse#parse{no_ok = [path_key(Key, Parse) | NoOk]}}
      end.
 
 
