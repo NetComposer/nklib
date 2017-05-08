@@ -81,7 +81,6 @@
     map() |                     % Allow for nested objects
     list() |                    % First matching option is used
     syntax_fun() |
-    {syntax, syntax_opt()} |    % Nested syntax (i.e. {list, {syntax, Syntax}}). __mandatory is local.
     '__defaults' |              % Defaults for this level #{atom() => term()}
     '__mandatory'.              % Mandatory fields for this level [atom()]
 
@@ -114,7 +113,7 @@
 -type parse_opts() ::
     #{
         path => binary(),           % Use base path instead of <<>>
-        warning_unknown => boolean()
+        term() => term()            % To be used as context in external functions
     }.
 
 -type error() ::
@@ -124,9 +123,7 @@
 
 -type out() :: #{key() => term()}.
 
-
 -type unknown_keys() :: [binary()].
-
 
 -record(parse, {
     ok = [] :: [{key(), val()}],
@@ -168,13 +165,6 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
     },
     case do_parse(Terms, Parse) of
         {ok, #parse{ok=Ok, no_ok=NoOk}} ->
-            case NoOk /= [] andalso maps:find(warning_unknown, Opts) of
-                {ok, true} ->
-                    lager:warning("NkLIB Syntax: unknown keys in config: ~p",
-                        [NoOk]);
-                _ ->
-                    ok
-            end,
             {ok, list_to_map(Ok), NoOk};
         {error, Error} ->
             {error, Error}

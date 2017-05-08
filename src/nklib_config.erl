@@ -146,7 +146,7 @@ load_env(App, Syntax) ->
 load_env(App, Syntax, Defaults) ->
     AppEnv = application:get_all_env(App),
     case nklib_syntax:parse(AppEnv, Syntax#{'__defaults'=>Defaults}) of
-        {ok, Opts, _, _} ->
+        {ok, Opts, _} ->
             lists:foreach(fun({K,V}) -> put(App, K, V) end, maps:to_list(Opts)),
             {ok, Opts};
         {error, Error} ->
