@@ -283,7 +283,7 @@ parse_dates([Next|Rest], Acc) ->
 -type norm_opts() ::
     #{
         space => allowed | skip | integer(),
-        underscore => allowed | skip | integer(),
+        % underscore => allowed | skip | integer(),
         unrecognized => skip | integer(),
         allowed => [integer()]
     }.
@@ -292,7 +292,7 @@ parse_dates([Next|Rest], Acc) ->
 %% @doc Normalizes a value into a lower-case, using only a-z, 0-9 and spaces
 %% All other values are converted into these if possible (Ä->a, é->e, etc.)
 %% Utf8 and Latin-1 encodings are supported
-%% Unrecognized values are converted into '#'
+%% Unrecognized values are skipped or converted into something else
 %% See Options
 -spec normalize(string()|binary()) ->
     binary().
@@ -323,15 +323,15 @@ norm([32|T], Opts, Acc) ->
             norm(T, Opts, [Char|Acc])
     end;
 
-norm([$_|T], Opts, Acc) ->
-    case maps:get(underscore, Opts, $-) of
-        allowed ->
-            norm(T, Opts, [$_|Acc]);
-        skip ->
-            norm(T, Opts, Acc);
-        Char when is_integer(Char) ->
-            norm(T, Opts, [Char|Acc])
-    end;
+%%norm([$_|T], Opts, Acc) ->
+%%    case maps:get(underscore, Opts, $-) of
+%%        allowed ->
+%%            norm(T, Opts, [$_|Acc]);
+%%        skip ->
+%%            norm(T, Opts, Acc);
+%%        Char when is_integer(Char) ->
+%%            norm(T, Opts, [Char|Acc])
+%%    end;
 
 norm([H|T], Opts, Acc) when H >= $0, H =< $9 ->
     norm(T, Opts, [H|Acc]);
