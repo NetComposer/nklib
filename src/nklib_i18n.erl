@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -behaviour(gen_server).
 
--export([get/1, get/2, get/3, insert/1, insert/2]).
+-export([get/1, get/2, get/3, insert/1, insert/2, load/1]).
 -export([start_link/0, init/1, terminate/2, code_change/3, handle_call/3, handle_cast/2, 
          handle_info/2]).
 
@@ -37,6 +37,9 @@
 -type text() :: string() | binary().
 
 -type lang() :: nklib:lang().
+
+-callback i18n() ->admin
+    #{ lang() => #{ key() => text() }}.
 
 
 %% ===================================================================
@@ -102,7 +105,22 @@ insert([{_, _}|_]=Keys, Lang) ->
     gen_server:cast(?MODULE, {insert, Keys, to_bin(Lang)});
 
 insert({Key, Txt}, Lang) ->
-    insert([{Key, Txt}], Lang).
+    insert([{Key, Txt}], Lang);
+
+insert(Map, Lang) when is_map(Map) ->
+    insert(maps:to_list(Map), Lang).
+
+
+%% @doc Bulk loading for modules implementing this behaviour
+-spec load(module()) ->
+    ok.
+
+load(Module) ->
+    Data = Module:i18n(),
+    lists:foreach(
+        fun({Lang, Keys}) -> insert(Keys, Lang) end,
+        maps:to_list(Data)).
+
 
 
 %% ===================================================================
