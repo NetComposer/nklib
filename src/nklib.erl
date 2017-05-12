@@ -84,8 +84,8 @@
 %% See nklib_links. Last element of tuple may be a pid()
 -type link() :: term() | pid() | tuple().
 
-%% Languaje 
--type lang() :: atom().         % en | es ...
+%% Language
+-type lang() :: binary().         % <<"en">> | <<"es">> ...
 
 
 %% ===================================================================
