@@ -38,7 +38,7 @@
 
 -type lang() :: nklib:lang().
 
--callback i18n() ->admin
+-callback i18n() ->
     #{ lang() => #{ key() => text() }}.
 
 
