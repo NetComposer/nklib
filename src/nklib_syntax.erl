@@ -305,6 +305,8 @@ parse_opt({ListType, SyntaxOp}, Key, Val, Parse) when ListType == list; ListType
     case Val of
         [] ->
             {ok, Key, [], Parse};
+        [{_, _} | _] ->
+            parse_opt_list(ListType, SyntaxOp, Key, [Val], Parse, []);
         [Head | _] when not is_integer(Head) ->
             parse_opt_list(ListType, SyntaxOp, Key, Val, Parse, []);
         _ ->
