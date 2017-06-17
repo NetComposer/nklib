@@ -111,6 +111,7 @@
 -type parse_opts() ::
     #{
         path => binary(),           % Use base path instead of <<>>
+        allow_unknown => boolean(),
         term() => term()            % To be used as context in external functions
     }.
 
@@ -129,6 +130,7 @@
     ok_all = [] :: [{binary(), val()}],
     syntax :: map(),
     path :: binary(),
+    allow_unknown :: boolean(),
     opts :: parse_opts()
 }).
 
@@ -159,7 +161,8 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
     Parse = #parse{
         syntax = Syntax,
         opts = Opts,
-        path = maps:get(path, Opts, <<>>)
+        path = maps:get(path, Opts, <<>>),
+        allow_unknown = maps:get(allow_unknown, Opts, false)
     },
     case do_parse(Terms, Parse) of
         {ok, #parse{ok=Ok, no_ok=NoOk}} ->
@@ -207,7 +210,7 @@ do_parse([Key | Rest], Parse) ->
 
 
 %% @private
-do_parse_key(Key, Val, Parse) ->
+do_parse_key(Key, Val, #parse{allow_unknown=AllowUnknown}=Parse) ->
      case find_config(Key, Parse) of
          {ok, _Key2, ignore} ->
              {ok, Parse};
@@ -228,6 +231,14 @@ do_parse_key(Key, Val, Parse) ->
                  {error, Error} ->
                      {error, Error}
              end;
+         no_spec when AllowUnknown ->
+             #parse{ok=OK, ok_all=OkAll} = Parse,
+             PathKey = path_key(Key, Parse),
+             Parse2 = Parse#parse{
+                 ok = [{Key, Val} | OK],
+                 ok_all = [{PathKey, Val} | OkAll]
+             },
+             {ok, Parse2};
          no_spec ->
             #parse{no_ok=NoOk} = Parse,
             {ok, Parse#parse{no_ok = [path_key(Key, Parse) | NoOk]}}
@@ -313,11 +324,11 @@ parse_opt({ListType, SyntaxOp}, Key, Val, Parse) when ListType == list; ListType
             parse_opt_list(ListType, SyntaxOp, Key, [Val], Parse, [])
     end;
 
-parse_opt(Syntax, Key, Val, Parse) when is_map(Syntax) ->
+parse_opt(Syntax, Key, Val, #parse{opts=Opts}=Parse) when is_map(Syntax) ->
     case is_list(Val) orelse is_map(Val) of
         true ->
             Path2 = path_key(Key, Parse),
-            case parse(Val, Syntax, #{path=>Path2}) of
+            case parse(Val, Syntax, Opts#{path=>Path2}) of
                 {ok, Parsed, NoOk2} ->
                     #parse{ok_all = OkAll, no_ok = NoOk} = Parse,
                     Parse2 = Parse#parse{no_ok = NoOk++NoOk2, ok_all = [{Path2, Parsed}|OkAll]},
