@@ -71,7 +71,7 @@
     email |
     {function, pos_integer()} |
     unquote |
-    path | fullpath |
+    path | basepath | fullpath |
     uri | uris |
     tokens | words |
     map |
@@ -608,6 +608,9 @@ spec(unquote, Val) when is_list(Val); is_binary(Val) ->
 
 spec(path, Val) when is_list(Val); is_binary(Val) ->
     {ok, nklib_parse:path(Val)};
+
+spec(basepath, Val) when is_list(Val); is_binary(Val) ->
+    {ok, nklib_parse:basepath(Val)};
 
 spec(fullpath, Val) when is_list(Val); is_binary(Val) ->
     {ok, nklib_parse:fullpath(filename:absname(Val))};

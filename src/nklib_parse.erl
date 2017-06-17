@@ -27,7 +27,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([uris/1, ruris/1, tokens/1, integers/1, dates/1, scheme/1, name/1]).
--export([unquote/1, path/1, fullpath/1]).
+-export([unquote/1, path/1, basepath/1, fullpath/1]).
 -export([normalize/1, normalize/2]).
 
 -include("nklib.hrl").
@@ -155,7 +155,7 @@ unquote(_) ->
     error.
 
 
-%% @doc Adds starting "/" and removes ending "/"
+%% @doc Adds starting "/" and removes ending "/". If empty, stays empty
 -spec path(string()|binary()|iolist()) ->
     binary().
 
@@ -177,6 +177,20 @@ path(Bin) when is_binary(Bin) ->
                 _ -> Bin1
             end
     end.
+
+
+%% @doc Like path but will never end in /, even if "/" or empty
+-spec basepath(string()|binary()|iolist()) ->
+    binary().
+
+basepath(List) when is_list(List) ->
+    basepath(list_to_binary(List));
+basepath(<<>>) ->
+    <<>>;
+basepath(<<"/">>) ->
+    <<>>;
+basepath(Other) ->
+    path(Other).
 
 
 
