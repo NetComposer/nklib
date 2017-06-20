@@ -28,7 +28,7 @@
 
 -export([uris/1, ruris/1, tokens/1, integers/1, dates/1, scheme/1, name/1]).
 -export([unquote/1, path/1, basepath/1, fullpath/1]).
--export([normalize/1, normalize/2]).
+-export([normalize/1, normalize/2, normalize_words/1, normalize_words/2]).
 
 -include("nklib.hrl").
 
@@ -297,8 +297,7 @@ parse_dates([Next|Rest], Acc) ->
 -type norm_opts() ::
     #{
         space => allowed | skip | integer(),
-        % underscore => allowed | skip | integer(),
-        unrecognized => skip | integer(),
+        unrecognized => skip | keep | integer(),
         allowed => [integer()]
     }.
 
@@ -320,12 +319,13 @@ normalize(Text) ->
     binary().
 
 normalize(Text, Opts) ->
-    norm(nklib_util:to_list(Text), Opts, []).
+    String = norm(nklib_util:to_list(Text), Opts, []),
+    list_to_binary(String).
 
 
 %% @private
 norm([], _Opts, Acc) ->
-    list_to_binary(lists:reverse(string:strip(Acc)));
+    lists:reverse(string:strip(Acc));
 
 norm([32|T], Opts, Acc) ->
     case maps:get(space, Opts, allowed) of
@@ -386,6 +386,8 @@ norm([16#c3, U|T], Opts, Acc) when U >= 16#80, U =< 16#bc->
     case L of
         skip ->
             norm(T, Opts, Acc);
+        keep ->
+            norm(T, Opts, [U, 16#c3|Acc]);
         _ ->
             norm(T, Opts, [L|Acc])
     end;
@@ -418,7 +420,14 @@ norm([H|T], Opts, Acc) when H >= 16#c0 ->
         H == 16#ff -> $y;
         true -> norm_unrecognized(Opts)
     end,
-    norm(T, Opts, [L|Acc]);
+    case L of
+        skip ->
+            norm(T, Opts, Acc);
+        keep ->
+            norm(T, Opts, [H|Acc]);
+        _ ->
+            norm(T, Opts, [L|Acc])
+    end;
 
 norm([Char|T], Opts, Acc) ->
     Allowed = maps:get(allowed, Opts, []),
@@ -429,6 +438,8 @@ norm([Char|T], Opts, Acc) ->
             case norm_unrecognized(Opts) of
                 skip ->
                     norm(T, Opts, Acc);
+                keep ->
+                    norm(T, Opts, [Char|Acc]);
                 New ->
                     norm(T, Opts, [New|Acc])
             end
@@ -440,9 +451,63 @@ norm_unrecognized(Opts) ->
     case maps:get(unrecognized, Opts, skip) of
         skip ->
             skip;
+        keep ->
+            keep;
         Char when is_integer(Char) ->
             Char
     end.
+
+
+-type norm_words_opts() ::
+    norm_opts() | #{split => binary()}.
+
+
+%% @doc
+-spec normalize_words(string()|binary()) ->
+    binary().
+
+normalize_words(Text) ->
+    normalize_words(Text, #{}).
+
+
+%% @doc
+-spec normalize_words(string()|binary(), norm_words_opts()) ->
+    binary().
+
+normalize_words(Text, Opts) ->
+    String = norm(nklib_util:to_list(Text), Opts, []),
+    Chars = maps:get(split, Opts, [32, $., $/, $-, $_, $,, $;, $:]),
+    norm_split(String, Chars, false, [], []).
+
+-compile(export_all).
+norm_split([], _Chars, _Skipping, [], Acc2) ->
+    lists:reverse(Acc2);
+
+norm_split([], _Chars, _Skipping, Acc1, Acc2) ->
+    Word = list_to_binary(lists:reverse(Acc1)),
+    lists:reverse([Word|Acc2]);
+
+norm_split([Char|Rest], Chars, false, Acc1, Acc2) ->
+    case lists:member(Char, Chars) of
+        true when Acc1==[] ->
+            norm_split(Rest, Chars, true, [], Acc2);
+        true ->
+            Word = list_to_binary(lists:reverse(Acc1)),
+            norm_split(Rest, Chars, true, [], [Word|Acc2]);
+        false ->
+            norm_split(Rest, Chars, false, [Char|Acc1], Acc2)
+    end;
+
+norm_split([Char|Rest], Chars, true, [], Acc2) ->
+    case lists:member(Char, Chars) of
+        true ->
+            norm_split(Rest, Chars, true, [], Acc2);
+        false ->
+            norm_split(Rest, Chars, false, [Char], Acc2)
+    end.
+
+
+
 
 
 
@@ -450,7 +515,7 @@ norm_unrecognized(Opts) ->
 %% EUnit tests
 %% ===================================================================
 
-%%-define(TEST, true).
+-define(TEST, true).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -469,7 +534,14 @@ norm_test() ->
     S4 = "-!",
     <<>> = normalize(S4),
     <<"!">> = normalize(S4, #{allowed=>[$!]}),
+    <<"-!">> = normalize(S4, #{allowed=>[$!], unrecognized=>keep}),
     <<"+!">> = normalize(S4, #{allowed=>[$!], unrecognized=>$+}),
+
+    [<<"a">>,<<"bcd">>,<<"ef">>] = normalize_words(".  á //   bcd e.f ;;"),
+    [<<"a">>,<<"bcd">>,<<"e">>,<<"f">>] = normalize_words(".  á //   bcd e.f ;;", #{allowed=>[$.]}),
+
+
+
     ok.
 
 
