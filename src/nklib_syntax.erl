@@ -74,6 +74,8 @@
     path | basepath | fullpath |
     uri | uris |
     tokens | words |
+    normalize | {normalize, nklib_parse:norm_opts()} |
+    is_normalized | {is_normalized, nklib_parse:norm_opts()} |
     map |
     log_level |
     map() |                     % Allow for nested objects
@@ -644,6 +646,22 @@ spec(words, Val) ->
     case nklib_parse:tokens(Val) of
         error -> error;
         Tokens -> {ok, [W || {W, _} <- Tokens]}
+    end;
+
+spec(normalize, Val) ->
+    spec({normalize, #{}}, Val);
+
+spec({normalize, Opts}, Val) ->
+    {ok, nklib_parse:normalize(Val, Opts)};
+
+spec(is_normalized, Val) ->
+    spec({is_normalized, #{}}, Val);
+
+spec({is_normalized, Opts}, Val) ->
+    Norm = nklib_parse:normalize(Val, Opts),
+    case to_bin(Val) of
+        Norm -> {ok, Norm};
+        _ -> error
     end;
 
 spec(log_level, Val) when Val >= 0, Val =< 8 ->
