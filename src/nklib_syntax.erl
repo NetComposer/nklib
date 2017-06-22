@@ -491,6 +491,9 @@ spec({integer, List}, Val) when is_list(List) ->
             end
     end;
 
+spec({integer, _}, _Val) ->
+    error;
+
 spec(float, Val) ->
     case nklib_util:to_float(Val) of
         error ->
@@ -608,14 +611,26 @@ spec(unquote, Val) when is_list(Val); is_binary(Val) ->
         Bin -> {ok, Bin}
     end;
 
+spec(unquote, _Val) ->
+    error;
+
 spec(path, Val) when is_list(Val); is_binary(Val) ->
     {ok, nklib_parse:path(Val)};
+
+spec(path, _) ->
+    error;
 
 spec(basepath, Val) when is_list(Val); is_binary(Val) ->
     {ok, nklib_parse:basepath(Val)};
 
+spec(basepath, _) ->
+    error;
+
 spec(fullpath, Val) when is_list(Val); is_binary(Val) ->
     {ok, nklib_parse:fullpath(filename:absname(Val))};
+
+spec(fullpath, _) ->
+    error;
 
 spec(uri, Val) ->
     case nklib_parse:uris(Val) of
@@ -692,6 +707,9 @@ spec(map, List) when is_list(List) ->
         ok -> {ok, maps:from_list(List)};
         _ -> error
     end;
+
+spec(map, _) ->
+    error;
 
 spec(_Type, _Val) ->
     unknown.
