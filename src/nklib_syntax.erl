@@ -63,7 +63,7 @@
     float |
     {record, atom()} |
     string |
-    binary |
+    binary | {binary, [binary()]} |
     base64 | base64url |
     lower |
     upper |
@@ -536,6 +536,13 @@ spec(binary, Val) ->
             {ok, nklib_util:to_binary(Val)};
         true ->
             error
+    end;
+
+spec({binary, List}, Val) ->
+    Bin = to_bin(Val),
+    case lists:member(Bin, List) of
+        true -> {ok, Bin};
+        false -> error
     end;
 
 spec(urltoken, Val) ->
