@@ -52,7 +52,7 @@
 -type syntax_term() ::
     ignore |
     any |
-    atom | {atom, [atom()]} |
+    atom | {atom, [atom()]} | {atom_or_binary, [atom()]} |
     boolean |
     list |
     pid |
@@ -424,6 +424,17 @@ spec({atom, List}, Val) ->
             end;
         error ->
             error
+    end;
+
+spec({atom_or_binary, List}, Val) ->
+    case to_existing_atom(Val) of
+        {ok, Atom} ->
+            case lists:member(Atom, List) of
+                true -> {ok, Atom};
+                false -> {ok, to_bin(Val)}
+            end;
+        error ->
+            {ok, to_bin(Val)}
     end;
 
 spec(list, Val) ->
