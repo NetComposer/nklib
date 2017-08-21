@@ -63,7 +63,7 @@
     float |
     {record, atom()} |
     string |
-    binary | {binary, [binary()]} |
+    binary | {binary, [binary()]} | {binary, none|integer(), none|integer()} |
     base64 | base64url |
     lower |
     upper |
@@ -554,6 +554,18 @@ spec({binary, List}, Val) ->
     case lists:member(Bin, List) of
         true -> {ok, Bin};
         false -> error
+    end;
+
+spec({binary, Min, Max}, Val) ->
+    Bin = to_bin(Val),
+    case
+        (Min == none orelse byte_size(Bin) >= Min) andalso
+        (Max == none orelse byte_size(Bin) =< Max)
+    of
+        true ->
+            {ok, Bin};
+        _ ->
+            error
     end;
 
 spec(urltoken, Val) ->
