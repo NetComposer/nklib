@@ -25,7 +25,7 @@
 
 -export([get/2, get/3, put/3, del/2, increment/3]).
 -export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4]).
--export([load_env/2, load_env/3]).
+-export([load_env/2, load_env/3, get_env/1]).
 -export([make_cache/5]).
 -export([parse_config/2, parse_config/3]).
 
@@ -140,6 +140,7 @@ load_env(App, Syntax) ->
     case nklib_syntax:parse(AppEnv, Syntax) of
         {ok, Opts, _} ->
             lists:foreach(fun({K,V}) -> put(App, K, V) end, maps:to_list(Opts)),
+            put(App, '__nklib_all_env', Opts),
             {ok, Opts};
         {error, Error} ->
             {error, Error}
@@ -154,6 +155,15 @@ load_env(App, Syntax, Defaults) ->
     Defaults1 = maps:get('__defaults', Syntax, #{}),
     Defaults2 = maps:merge(Defaults1, Defaults),
     load_env(App, Syntax#{'__defaults' => Defaults2}).
+
+
+%% @doc Gets all loaded keys
+-spec get_env(atom()) ->
+    {ok, map()} | {error, term()}.
+
+get_env(App) ->
+    get(App, '__nklib_all_env').
+
 
 
 %% Generates on the fly a 'cache' module for the indicated keys
