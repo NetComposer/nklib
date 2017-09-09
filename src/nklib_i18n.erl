@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -behaviour(gen_server).
 
--export([get/1, get/2, get/3, insert/1, insert/2, load/1]).
+-export([get/2, get/3, get/4, insert/2, insert/3, load/2]).
 -export([start_link/0, init/1, terminate/2, code_change/3, handle_call/3, handle_cast/2, 
          handle_info/2]).
 
@@ -33,6 +33,7 @@
 %% Types
 %% ===================================================================
 
+-type srv_id() :: term().
 -type key() :: binary().
 -type text() :: string() | binary().
 
@@ -47,32 +48,35 @@
 %% ===================================================================
 
 %% @doc Gets a string for english
--spec get(key()) ->
+-spec get(srv_id(), key()) ->
     binary().
 
-get(Key) ->
-    get(Key, <<"en">>).
+get(SrvId, Key) ->
+    get(SrvId, Key, <<"en">>).
 
 
 %% @doc Gets a string for any language, or use english default
--spec get(key(), lang()) ->
+-spec get(srv_id(), key(), lang()) ->
     binary().
 
-get(Key, Lang) ->
+get(SrvId, Key, Lang) ->
     Lang2 = to_bin(Lang),
-    case ets:lookup(?MODULE, {to_bin(Key), Lang2}) of
-        [] when Lang2 == <<"en">> -> <<>>;
-        [] -> get(Key, <<"en">>);
-        [{_, Msg}] -> Msg
+    case ets:lookup(?MODULE, {SrvId, to_bin(Key), Lang2}) of
+        [] when Lang2 == <<"en">> ->
+            <<>>;
+        [] ->
+            get(SrvId, Key, <<"en">>);
+        [{_, Msg}] ->
+            Msg
     end.
 
 
 %% @doc Gets a string an expands parameters
--spec get(key(), list(), lang()) ->
+-spec get(srv_id(), key(), list(), lang()) ->
     binary().
 
-get(Key, List, Lang) when is_list(List) ->
-    case get(Key, Lang) of
+get(SrvId, Key, List, Lang) when is_list(List) ->
+    case get(SrvId, Key, Lang) of
         <<>> ->
             <<>>;
         Msg ->
@@ -87,38 +91,38 @@ get(Key, List, Lang) when is_list(List) ->
 
 
 %% @doc Inserts a key or keys for english
--spec insert({key(), text()}|[{key(), text()}]) ->
+-spec insert(srv_id(), {key(), text()}|[{key(), text()}]) ->
     ok.
 
-insert(Keys) ->
-    insert(Keys, <<"en">>).
+insert(SrvId, Keys) ->
+    insert(SrvId, Keys, <<"en">>).
 
 
 %% @doc Inserts a key or keys for any language
--spec insert({key(), text()}|[{key(), text()}], lang()) ->
+-spec insert(srv_id(), {key(), text()}|[{key(), text()}], lang()) ->
     ok.
 
-insert([], _Lang) ->
+insert(_SrvId, [], _Lang) ->
     ok;
 
-insert([{_, _}|_]=Keys, Lang) ->
-    gen_server:cast(?MODULE, {insert, Keys, to_bin(Lang)});
+insert(SrvId, [{_, _}|_]=Keys, Lang) ->
+    gen_server:cast(?MODULE, {insert, SrvId, Keys, to_bin(Lang)});
 
-insert({Key, Txt}, Lang) ->
-    insert([{Key, Txt}], Lang);
+insert(SrvId, {Key, Txt}, Lang) ->
+    insert(SrvId, [{Key, Txt}], Lang);
 
-insert(Map, Lang) when is_map(Map) ->
-    insert(maps:to_list(Map), Lang).
+insert(SrvId, Map, Lang) when is_map(Map) ->
+    insert(SrvId, maps:to_list(Map), Lang).
 
 
 %% @doc Bulk loading for modules implementing this behaviour
--spec load(module()) ->
+-spec load(srv_id(), module()) ->
     ok.
 
-load(Module) ->
+load(SrvId, Module) ->
     Data = Module:i18n(),
     lists:foreach(
-        fun({Lang, Keys}) -> insert(Keys, Lang) end,
+        fun({Lang, Keys}) -> insert(SrvId, Keys, Lang) end,
         maps:to_list(Data)).
 
 
@@ -159,8 +163,8 @@ handle_call(Msg, _From, State) ->
 -spec handle_cast(term(), #state{}) ->
     {noreply, #state{}}.
 
-handle_cast({insert, Keys, Lang}, State) ->
-    Values = [{{to_bin(Key), Lang}, to_bin(Txt)} || {Key, Txt} <- Keys],
+handle_cast({insert, SrvId, Keys, Lang}, State) ->
+    Values = [{{SrvId, to_bin(Key), Lang}, to_bin(Txt)} || {Key, Txt} <- Keys],
     ets:insert(?MODULE, Values),
     {noreply, State};
 
