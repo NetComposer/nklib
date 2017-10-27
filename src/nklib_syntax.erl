@@ -78,6 +78,7 @@
     is_normalized | {is_normalized, nklib_parse:norm_opts()} |
     map |
     log_level |
+    {mfa, module(), atom(), [term()]} |
     map() |                     % Allow for nested objects
     list() |                    % First matching option is used
     syntax_fun() |
@@ -286,6 +287,27 @@ find_config(Key, #parse{syntax = Syntax}) ->
 -spec parse_opt(syntax_opt(), term(), term(), #parse{}) ->
     {ok, key(), val(), #parse{}} | {error, term()}.
 
+parse_opt({mfa, Mod, Fun, Args}, Key, Val, Parse) ->
+    FunRes = case erlang:function_exported(Mod, Fun, length(Args)+1) of
+        true ->
+            catch apply(Mod, Fun, Args++[Val]);
+        false ->
+            case erlang:function_exported(Mod, Fun, length(Args)+2) of
+                true ->
+                    catch apply(Mod, Fun, Args++[Key, Val]);
+                false ->
+                    case erlang:function_exported(Mod, Fun, length(Args)+3) of
+                        true ->
+                            #parse{ok = Ok, ok_all = OkAll, no_ok = NoOk, path = Path, opts = Opts} = Parse,
+                            FunOpts = Opts#{ok=>Ok, ok_all=>OkAll, no_ok=>NoOk, path=>Path},
+                            catch apply(Mod, Fun, Args++[Key, Val, FunOpts]);
+                        false ->
+                            function_not_exported
+                    end
+            end
+    end,
+    parse_fun_res(FunRes, Key, Val, Parse);
+
 parse_opt(Fun, Key, Val, Parse) when is_function(Fun) ->
     FunRes = if
         is_function(Fun, 1) ->
@@ -297,22 +319,7 @@ parse_opt(Fun, Key, Val, Parse) when is_function(Fun) ->
             FunOpts = Opts#{ok=>Ok, ok_all=>OkAll, no_ok=>NoOk, path=>Path},
             catch Fun(Key, Val, FunOpts)
     end,
-    case FunRes of
-        ok ->
-            {ok, Key, Val, Parse};
-        {ok, Val2} ->
-            {ok, Key, Val2, Parse};
-        {ok, Key2, Val2} when is_atom(Key2) ->
-            {ok, Key2, Val2, Parse};
-        error ->
-            {error, syntax};
-        {error, Error} ->
-            {error, Error};
-        {'EXIT', Error} ->
-            lager:warning("NkLIB Syntax: error calling syntax fun for "
-            "(~s, ~p) ~p", [Key, Val, Error]),
-            error(fun_call_error)
-    end;
+    parse_fun_res(FunRes, Key, Val, Parse);
 
 parse_opt({ListType, SyntaxOp}, Key, Val, Parse) when ListType == list; ListType == slist; ListType == ulist ->
     case Val of
@@ -361,6 +368,26 @@ parse_opt(SyntaxOp, Key, Val, Parse) ->
             {error, syntax};
         unknown ->
             {error, unknown}
+    end.
+
+
+%% @private
+parse_fun_res(Res, Key, Val, Parse) ->
+    case Res of
+        ok ->
+            {ok, Key, Val, Parse};
+        {ok, Val2} ->
+            {ok, Key, Val2, Parse};
+        {ok, Key2, Val2} when is_atom(Key2) ->
+            {ok, Key2, Val2, Parse};
+        error ->
+            {error, syntax};
+        {error, Error} ->
+            {error, Error};
+        {'EXIT', Error} ->
+            lager:warning("NkLIB Syntax: error calling syntax fun for "
+                          "(~s, ~p) ~p", [Key, Val, Error]),
+            error(fun_call_error)
     end.
 
 
