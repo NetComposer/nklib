@@ -57,7 +57,13 @@ start_link() ->
             permanent,
             5000,
             worker,
-            [nklib_store]}
+            [nklib_store]},
+        {nklib_types,
+            {nklib_types, start_link, []},
+            permanent,
+            5000,
+            worker,
+            [nklib_types]}
      ],
     supervisor:start_link({local, ?MODULE}, ?MODULE, {{one_for_one, 10, 60}, ChildsSpec}).
 
