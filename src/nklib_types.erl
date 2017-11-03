@@ -26,7 +26,7 @@
 
 -export([get_module/2, get_all_modules/1]).
 -export([get_type/2, get_all_types/1]).
--export([register/3]).
+-export([register_type/3, update_meta/3]).
 -export([start_link/0]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
          handle_cast/2, handle_info/2]).
@@ -38,6 +38,7 @@
 
 -type class() :: term().
 -type type() :: binary().
+-type meta() :: map().
 
 
 %% ===================================================================
@@ -79,14 +80,22 @@ get_all_types(Class) ->
 
 
 %% @doc Gets the obj module for a type
--spec register(class(), type(), module()) ->
+-spec register_type(class(), type(), module()) ->
     ok.
 
-register(Class, Type, Module) when is_atom(Module) ->
+register_type(Class, Type, Module) when is_atom(Module) ->
     code:ensure_loaded(Module),
     Type2 = to_bin(Type),
     gen_server:call(?MODULE, {register_type, Class, Type2, Module}).
 
+
+%% @doc Updates meta for a type
+-spec update_meta(class(), type(), fun((meta()) -> meta())) ->
+    ok | {error, term()}.
+
+update_meta(Class, Type, Fun) when is_function(Fun, 1)->
+    Type2 = to_bin(Type),
+    gen_server:call(?MODULE, {update_meta, Class, Type2, Fun}).
 
 
 
@@ -117,8 +126,32 @@ init([]) ->
     {stop, Reason::term(), #state{}} | {stop, Reason::term(), Reply::term(), #state{}}.
 
 handle_call({register_type, Class, Type, Module}, _From, State) ->
-    State2 = register_type(Class, Type, Module, State),
-    {reply, ok, State2};
+    AllModules1 = get_all_modules(Class),
+    AllModules2 = lists:usort([Module|AllModules1]),
+    AllTypes1 = get_all_types(Class),
+    AllTypes2 = lists:usort([Type|AllTypes1]),
+    ets:insert(?MODULE, [
+        {{all_modules, Class}, AllModules2},
+        {{all_types, Class}, AllTypes2},
+        {{type, Class, Type}, Module},
+        {{module, Class, Module}, Type}
+    ]),
+    {reply, ok, State};
+
+handle_call({update_meta, Class, Type, Fun}, _From, State) ->
+    Meta1 = lookup({meta, Class, Type}, #{}),
+    try Fun(Meta1) of
+        Meta2 when is_map(Meta2) ->
+            ets:insert(?MODULE, {{meta, Class, Type}, Meta2}),
+            {reply, ok, State};
+        Other ->
+            lager:warning("NkLIB Types: invalid meta respose (~p ~p): ~p", [Class, Type, Other]),
+            {reply, {error, function_error, State}}
+    catch
+        error:Error ->
+        lager:warning("NkLIB Types: invalid meta respose (~p ~p): ~p", [Class, Type, Error]),
+        {reply, {error, function_error, State}}
+    end;
 
 handle_call(Msg, _From, State) ->
     lager:error("Module ~p received unexpected call ~p", [?MODULE, Msg]),
@@ -176,19 +209,6 @@ lookup(Term, Default) ->
         [{_, Val}] -> Val
     end.
 
-
-%% @private
-register_type(Class, Type, Module, _State) ->
-    AllModules1 = get_all_modules(Class),
-    AllModules2 = lists:usort([Module|AllModules1]),
-    AllTypes1 = get_all_types(Class),
-    AllTypes2 = lists:usort([Type|AllTypes1]),
-    ets:insert(?MODULE, [
-        {{all_modules, Class}, AllModules2},
-        {{all_types, Class}, AllTypes2},
-        {{type, Class, Type}, Module},
-        {{module, Class, Module}, Type}
-    ]).
 
 
 %% @private
