@@ -144,54 +144,55 @@ timestamp() ->
 test() ->
     Now = timestamp(),
     Wait = 5000 - (Now rem 5000),
-    io:format("Waiting ~p msecs\n", [Wait]),
+    io:format("\n\nWaiting for a 5-secs slot (~p msecs)\n\n", [Wait]),
     timer:sleep(Wait+1),
     Counters1 = #{},
 
     % We are starting at the beginning of a 5-secs slot
 
     Counters2 = incr([secs, secs5], Counters1),
+    io:format("Sending now...\ncounters: ~p\n\n", [Counters2]),
     #{secs := [{TS1, 1}], secs5 := [{T51, 1}]} = Counters2,
     io:format("Waiting 500 msecs\n"),
     timer:sleep(500),
     Counters3 = incr([secs, secs5], Counters2),
-    io:format("Counters: ~p\n", [Counters3]),
+    io:format("Sending now...\ncounters: ~p\n\n", [Counters3]),
     #{secs := [{TS1, 2}], secs5 := [{T51, 2}]} = Counters3,
 
-    io:format("Waiting 600 msecs\n"),   % 1100 from start
+    io:format("Waiting 600 msecs (total 1.1secs)\n"),   % 1100 from start
     timer:sleep(600),
     Counters4 = incr([secs, secs5], Counters3),
-    io:format("Counters: ~p\n", [Counters4]),
+    io:format("Sending now...\ncounters: ~p\n\n", [Counters4]),
     #{secs := [{TS2, 1}, {TS1, 2}], secs5 := [{T51, 3}]} = Counters4,
     TS2 = TS1+1,
 
-    io:format("Waiting 2000 msecs\n"),  % 4200 from start
+    io:format("Waiting 2000 msecs (total 4.2secs)\n"),  % 4200 from start
     timer:sleep(2000),
     Counters5 = incr([secs, secs5], Counters4),
     #{secs := [{TS3, 1}, {TS2, 1}, {TS1, 2}], secs5 := [{T51, 4}]} = Counters5,
-    io:format("Counters: ~p\n", [Counters5]),
+    io:format("Sending now...\ncounters: ~p\n\n", [Counters5]),
     TS3 = TS2+2,
 
-    io:format("Waiting 1910 msecs\n"),  % 5010 from start
+    io:format("Waiting 1910 msecs (total 5.1secs)\n"),  % 5010 from start
     timer:sleep(1910),
     Counters6 = incr([secs, secs5], Counters5),
     #{secs := [{TS4, 1}, {TS3, 1}, {TS2, 1}, {TS1, 2}], secs5 := [{T52, 1}, {T51, 4}]} = Counters6,
-    io:format("Counters: ~p\n", [Counters6]),
+    io:format("Sending now...\ncounters: ~p\n\n", [Counters6]),
     TS4 = TS3+2,
     T52 = T51+1,
 
-    io:format("Waiting 1000 msecs\n"),  % 6010 from start
+    io:format("Waiting 1000 msecs (total 6.1secs)\n"),  % 6010 from start
     timer:sleep(1000),
     Counters7 = incr([secs, secs5], Counters6),
     #{secs := [{TS5, 1}, {TS4, 1}, {TS3, 1}, {TS2, 1}, {TS1, 2}], secs5 := [{T52, 2}, {T51, 4}]} = Counters7,
-    io:format("Counters: ~p\n", [Counters7]),
+    io:format("Sending now...\ncounters: ~p\n\n", [Counters7]),
     TS5 = TS4+1,
 
-    io:format("Waiting 1000 msecs\n"),  % 7010 from start
+    io:format("Waiting 1000 msecs (total 7.1secs)\n"),  % 7010 from start
     timer:sleep(1000),
     Counters8 = incr([secs, secs5], Counters7),
     #{secs := [{TS6, 1}, {TS5, 1}, {TS4, 1}, {TS3, 1}, {TS2, 1}], secs5 := [{T52, 3}, {T51, 4}]} = Counters8,
-    io:format("Counters: ~p\n", [Counters8]),
+    io:format("Sending now...\ncounters: ~p\n\n", [Counters8]),
     TS6 = TS5+1,
     ok.
 
