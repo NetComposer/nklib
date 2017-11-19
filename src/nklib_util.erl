@@ -35,7 +35,7 @@
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1,
          to_float/1]).
 -export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
--export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
+-export([to_lower/1, to_upper/1, to_capital/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
@@ -718,6 +718,20 @@ to_upper(List) when is_list(List) ->
     list_to_binary(string:to_upper(List));
 to_upper(Other) -> 
     to_upper(to_list(Other)).
+
+
+%% @doc converts a `string()' or `binary()' to an upper `binary()'.
+-spec to_capital(string()|binary()|atom()) ->
+    binary().
+
+to_capital(Text) ->
+    case to_binary(Text) of
+        <<First, Rest/binary>> when First >= $a, First =< $z ->
+            <<(First-32), Rest/binary>>;
+        Bin ->
+            Bin
+    end.
+
 
 
 %% @doc Converts a binary(), string() or list() to a list of binaries
