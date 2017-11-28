@@ -570,6 +570,12 @@ spec(binary, Val) ->
                 {'EXIT', _} -> error;
                 Bin -> {ok, Bin}
             end;
+        is_list(Val) ->
+            Val2 = [nklib_util:to_binary(Term) || Term <- Val],
+            case catch list_to_binary(Val2) of
+                {'EXIT', _} -> error;
+                Bin -> {ok, Bin}
+            end;
         is_atom(Val); is_integer(Val) ->
             {ok, nklib_util:to_binary(Val)};
         true ->
