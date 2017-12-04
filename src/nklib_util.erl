@@ -41,7 +41,7 @@
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
 -export([base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
--export([map_merge/2]).
+-export([map_merge/2, prefix/2]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -1170,6 +1170,24 @@ do_map_merge([{Key, Val} | Rest], Map) when is_map(Val) ->
 
 do_map_merge([{Key, Val} | Rest], Map) ->
     do_map_merge(Rest, Map#{Key=>Val}).
+
+
+
+%% @doc Finds a binary prefix in a list of binaries
+prefix(_Bin, []) ->
+    error;
+
+prefix(Bin, [Head|Rest]) when is_binary(Bin) ->
+    Size = byte_size(Bin),
+    case Head of
+        <<Bin:Size/binary, Data/binary>> ->
+            {ok, Data};
+        _ ->
+            prefix(Bin, Rest)
+    end;
+
+prefix(Bin, List) when is_list(List) ->
+    prefix(to_binary(Bin), List).
 
 
 
