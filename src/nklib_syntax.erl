@@ -83,7 +83,9 @@
     list() |                    % First matching option is used
     syntax_fun() |
     '__defaults' |              % Defaults for this level #{atom() => term()}
-    '__mandatory'.              % Mandatory fields for this level [atom()]
+    '__mandatory' |              % Mandatory fields for this level [atom()]
+    '__post_check'.
+
 
 -type key() :: atom().
 -type val() :: term().
@@ -192,7 +194,7 @@ do_parse([], Parse) ->
         {ok, Parse2} ->
             case check_mandatory(Parse2) of
                 ok ->
-                    {ok, Parse2};
+                    check_post_check(Parse2);
                 {error, Error} ->
                     {error, Error}
             end;
@@ -845,6 +847,24 @@ check_mandatory([Key | Rest], #parse{ok = Ok} = Parse) ->
         false ->
             {error, {missing_field, path_key(Key, Parse)}}
     end.
+
+
+%% @private
+check_post_check(#parse{syntax = Syntax, ok = Ok} = Parse) ->
+    case maps:get('__post_check', Syntax, none) of
+        Fun when is_function(Fun, 1) ->
+            case Fun(Ok) of
+                ok ->
+                    {ok, Parse};
+                {error, {field, Key}} ->
+                    {error, {syntax_error, path_key(Key, Parse)}};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        _ ->
+            {ok, Parse}
+    end.
+
 
 
 %% @private
