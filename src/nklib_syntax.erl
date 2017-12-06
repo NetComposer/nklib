@@ -494,9 +494,14 @@ spec(pid, Val) ->
     end;
 
 spec(module, Val) ->
-    case code:ensure_loaded(Val) of
-        {module, Val} -> {ok, Val};
-        _ -> error
+    case to_existing_atom(Val) of
+        {ok, Module} ->
+            case code:ensure_loaded(Module) of
+                {module, Module} -> {ok, Module};
+                _ -> error
+            end;
+        error ->
+            error
     end;
 
 spec(integer, Val) ->
