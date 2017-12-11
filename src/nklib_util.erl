@@ -40,7 +40,7 @@
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
--export([base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
+-export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
 -export([map_merge/2, prefix/2]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
@@ -1101,6 +1101,20 @@ add_id(Key, Config, Prefix) ->
             {Id2, maps:put(Key, Id2, Config)}
     end.
 
+
+%% @doc
+base64_decode(Bin) when is_binary(Bin) ->
+    Bin2 = case byte_size(Bin) rem 4 of
+        2 -> << Bin/binary, "==" >>;
+        3 -> << Bin/binary, "=" >>;
+    _ -> Bin
+    end,
+    base64:decode(Bin2);
+
+base64_decode(List) ->
+    Bin = to_binary(List),
+    true = is_binary(Bin),
+    base64_decode(Bin).
 
 
 %% @doc URL safe base64-compatible codec (removing final = or ==)

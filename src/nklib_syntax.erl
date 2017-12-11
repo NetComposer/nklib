@@ -612,7 +612,7 @@ spec(urltoken, Val) ->
     to_urltoken(nklib_util:to_list(Val), []);
 
 spec(base64, Val) ->
-    case catch base64:decode(Val) of
+    case catch nklib_util:base64_decode(Val) of
         {'EXIT', _} ->
             error;
         Bin ->
