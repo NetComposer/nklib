@@ -53,6 +53,7 @@
     ignore |
     any |
     atom | {atom, [atom()]} | {atom_or_binary, [atom()]} |
+    new_atom |
     boolean |
     list |
     pid |
@@ -430,6 +431,13 @@ spec(any, Val) ->
 
 spec(atom, Val) ->
     to_existing_atom(Val);
+
+% Use with caution!
+spec(new_atom, Val) when is_atom(Val) ->
+    {ok, Val};
+
+spec(new_atom, Val) ->
+    {ok, binary_to_atom(nklib_util:to_binary(Val), utf8)};
 
 spec(boolean, Val) when Val == 0; Val == "0" ->
     {ok, false};
