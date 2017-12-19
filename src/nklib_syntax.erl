@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([parse/2, parse/3, spec/2]).
--export_type([syntax/0]).
+-export_type([syntax/0, post_check_fun/0]).
 
 
 %% ===================================================================
@@ -85,7 +85,7 @@
     syntax_fun() |
     '__defaults' |              % Defaults for this level #{atom() => term()}
     '__mandatory' |              % Mandatory fields for this level [atom()]
-    '__post_check'.
+    '__post_check'.             % See post_check_fun()
 
 
 -type key() :: atom().
@@ -113,6 +113,11 @@
         no_ok => [binary()],
         path => binary()
     }.
+
+-type post_check_fun() ::
+    fun(([{term(), term()}]) ->
+        ok | {error, {field, term()}} | {error, {missing_field, term()}} | {error, term()}).
+
 
 -type parse_opts() ::
     #{
@@ -871,6 +876,8 @@ check_post_check(#parse{syntax = Syntax, ok = Ok} = Parse) ->
                     {ok, Parse};
                 {error, {field, Key}} ->
                     {error, {syntax_error, path_key(Key, Parse)}};
+                {error, {missing_field, Key}} ->
+                    {error, {missing_field, path_key(Key, Parse)}};
                 {error, Error} ->
                     {error, Error}
             end;
