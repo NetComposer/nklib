@@ -599,10 +599,10 @@ do_start(Type, Name, Module, Args, Pid, Ref) ->
                     gen_server:enter_loop(Module, [], StateData, Timeout);
                 {ok, StateName, StateData} when Type==fsm->
                     Pid ! {Ref, {ok, self()}},
-                    gen_fsm:enter_loop(Module, [], StateName, StateData);
+                    gen_statem:enter_loop(Module, [], StateName, StateData);
                 {ok, StateName, StateData, Timeout} when Type==fsm->
                     Pid ! {Ref, {ok, self()}},
-                    gen_fsm:enter_loop(Module, [], StateName, StateData, Timeout);
+                    gen_statem:enter_loop(Module, [], StateName, StateData, Timeout);
                 {stop, Reason} ->
                     Pid ! {Ref, {error, Reason}};
                 ignore ->

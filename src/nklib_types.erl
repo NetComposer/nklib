@@ -113,7 +113,7 @@ start_link() ->
 
 %% @private
 -spec init(term()) ->
-    {ok, #state{}} | {error, term()}.
+    {ok, #state{}}.
 
 init([]) ->
     ets:new(?MODULE, [named_table, public, {read_concurrency, true}]),

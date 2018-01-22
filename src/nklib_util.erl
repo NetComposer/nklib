@@ -201,11 +201,7 @@ lhash(Base) ->
 
 
 %% @private
--ifdef(old_crypto_hash).
-sha(Term) -> crypto:sha(Term).
--else.
 sha(Term) -> crypto:hash(sha, Term).
--endif.
 
 
 %% @doc Generates a new random tag of 6 chars
@@ -974,19 +970,19 @@ randomize([]) ->
 randomize([A]) ->
     [A];
 randomize([A, B]) ->
-    case crypto:rand_uniform(0, 2) of
-        0 -> [A, B];
-        1 -> [B, A]
+    case rand:uniform(2) of
+        1 -> [A, B];
+        2 -> [B, A]
     end;
 randomize([A, B, C]) ->
-    case crypto:rand_uniform(0, 3) of
-        0 -> [A, B, C];
-        1 -> [B, C, A];
-        2 -> [C, A, B]
+    case rand:uniform(3) of
+        1 -> [A, B, C];
+        2 -> [B, C, A];
+        3 -> [C, A, B]
     end;
 randomize(List) when is_list(List) ->
     Size = length(List),
-    List1 = [{crypto:rand_uniform(0, Size), Term} || Term <- List],
+    List1 = [{rand:uniform(Size), Term} || Term <- List],
     [Term || {_, Term} <- lists:sort(List1)].
 
 

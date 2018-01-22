@@ -464,7 +464,7 @@ norm_unrecognized(Opts) ->
 
 %% @doc
 -spec normalize_words(string()|binary()) ->
-    binary().
+    [binary()].
 
 normalize_words(Text) ->
     normalize_words(Text, #{}).
@@ -472,14 +472,13 @@ normalize_words(Text) ->
 
 %% @doc
 -spec normalize_words(string()|binary(), norm_words_opts()) ->
-    binary().
+    [binary()].
 
 normalize_words(Text, Opts) ->
     String = norm(nklib_util:to_list(Text), Opts, []),
     Chars = maps:get(split, Opts, [32, $., $/, $-, $_, $,, $;, $:]),
     norm_split(String, Chars, false, [], []).
 
--compile(export_all).
 norm_split([], _Chars, _Skipping, [], Acc2) ->
     lists:reverse(Acc2);
 
@@ -515,7 +514,7 @@ norm_split([Char|Rest], Chars, true, [], Acc2) ->
 %% EUnit tests
 %% ===================================================================
 
--define(TEST, true).
+%-define(TEST, true).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
