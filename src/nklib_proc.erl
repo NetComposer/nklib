@@ -110,12 +110,17 @@ reg(Name, Value) -> reg(Name, Value, self()).
 %% has already registered this name.
 -spec reg(term(), term(), pid()) -> true | {false, pid()} | timeout.
 reg(Name, Value, Pid) when is_pid(Pid) -> 
-    case ets:insert_new(nklib_proc_store,  {Name, [{val, Value, Pid}]}) of
-        true -> 
-            put(Name, Value, Pid),
+    case whereis_name(Name) of
+        Pid ->
             true;
-        false ->
-            timed_call({reg, Name, Value, Pid}, 5000)
+        _ ->
+            case ets:insert_new(nklib_proc_store,  {Name, [{val, Value, Pid}]}) of
+                true ->
+                    put(Name, Value, Pid),
+                    true;
+                false ->
+                    timed_call({reg, Name, Value, Pid}, 5000)
+            end
     end.
 
 
@@ -124,9 +129,14 @@ reg(Name, Value, Pid) when is_pid(Pid) ->
 %% registered. 
 -spec reg(term(), term(), pid(), integer()|infinity) -> true | timeout.
 reg(Name, Value, Pid, Timeout) when is_pid(Pid) ->
-    case timed_call({wait_reg, Name, Value, Pid}, Timeout) of
-        ok -> true;
-        timeout -> timeout
+    case whereis_name(Name) of
+        Pid ->
+            true;
+        _ ->
+            case timed_call({wait_reg, Name, Value, Pid}, Timeout) of
+                ok -> true;
+                timeout -> timeout
+            end
     end.
 
     
