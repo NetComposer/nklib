@@ -188,6 +188,9 @@ compile(Mod, Tree) ->
             [erl_syntax:atom(Mod)]),
         erl_syntax:attribute(
             erl_syntax:atom(compile),
+            [erl_syntax:list([erl_syntax:atom(nowarn_export_all)])]),
+        erl_syntax:attribute(
+            erl_syntax:atom(compile),
             [erl_syntax:list([erl_syntax:atom(export_all)])])
         | Tree
     ],
