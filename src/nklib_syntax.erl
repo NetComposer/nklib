@@ -432,7 +432,12 @@ parse_opt_list(_ListType, _Key, _Val, _Parse, _SyntaxOp, _Acc) ->
     {ok, term()} | error | unknown.
 
 spec(any, Val) ->
-    {ok, Val};
+    case nklib_util:to_binary(Val) of
+        <<"null">> ->
+            {ok, null};
+        _ ->
+            {ok, Val}
+    end;
 
 spec(atom, Val) ->
     to_existing_atom(Val);
