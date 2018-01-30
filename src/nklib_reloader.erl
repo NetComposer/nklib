@@ -32,9 +32,12 @@ reload_app([App|Rest]) when is_atom(App) ->
     App2 = nklib_util:to_binary(App),
     Dirs = lists:foldl(
         fun(Path, Acc) ->
-            case re:run(Path, App2) of
-                {match, _} -> [Path|Acc];
-                nomatch -> Acc
+            Path2 = nklib_util:to_binary(Path),
+            case binary:split(Path2, <<App2/binary, "/ebin">>) of
+                [_, <<>>] ->
+                    [Path|Acc];
+                _ ->
+                    Acc
             end
         end,
         [],
