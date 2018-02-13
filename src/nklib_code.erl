@@ -195,8 +195,8 @@ compile(Mod, Tree) ->
         | Tree
     ],
 
-    % io:format("\nGenerated ~p:\n\n", [Mod]),
-    % [io:format("~s\n\n", [erl_prettypr:format(S)]) || S<-Tree],
+%%    io:format("\nGenerated ~p:\n\n", [Mod]),
+%%    [io:format("~s\n\n", [erl_prettypr:format(S)]) || S<-Tree],
    
     Forms1 = [erl_syntax:revert(X) || X <- Tree1],
     Options = [report_errors, report_warnings, return_errors],
