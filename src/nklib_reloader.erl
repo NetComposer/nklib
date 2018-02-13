@@ -18,8 +18,8 @@
 %% -------------------------------------------------------------------
 
 -module(nklib_reloader).
--export([reload_app/1, remote_reload/2]).
-
+-export([reload_app/1, remote_reload/2, remote_reload/1]).
+-export([get_beams/1]).
 
 %% @doc Reloads all beams on disk for an app(s)
 -spec reload_app(atom()|[atom()]|list()|binary()) ->
@@ -29,33 +29,15 @@ reload_app([]) ->
     ok;
 
 reload_app([App|Rest]) when is_atom(App) ->
-    App2 = nklib_util:to_binary(App),
-    Dirs = lists:foldl(
-        fun(Path, Acc) ->
-            Path2 = nklib_util:to_binary(Path),
-            case binary:split(Path2, <<App2/binary, "/ebin">>) of
-                [_, <<>>] ->
-                    [Path|Acc];
-                _ ->
-                    Acc
-            end
-        end,
-        [],
-        code:get_path()),
+    Beams = get_beams(App),
     lists:foreach(
-        fun(Dir) ->
-            lists:foreach(
-                fun(File) ->
-                    Mod = list_to_atom(filename:basename(File, ".beam")),
-                    io:format("Reloading ~s...", [Mod]),
-                    code:purge(Mod),
-                    {module, Mod} = code:load_file(Mod),
-                    io:format("ok\n")
-
-                end,
-                filelib:wildcard(Dir++"/*.beam"))
+        fun({Mod, File, Bin}) ->
+            io:format("Reloading ~s...", [Mod]),
+            code:purge(Mod),
+            {module, Mod} = code:load_binary(Mod, File, Bin),
+            io:format("ok\n")
         end,
-        Dirs),
+        Beams),
     reload_app(Rest);
 
 reload_app(App) when is_atom(App) ->
@@ -71,7 +53,57 @@ remote_reload(Node, Apps) ->
     Node2 = nklib_util:to_atom(Node),
     case net_adm:ping(Node2) of
         pong ->
-            rpc:call(Node2, ?MODULE, reload_app, [Apps]);
+            Beams = get_beams(Apps),
+            Mods1 = [Mod || {Mod, _F, _B} <- Beams],
+            Mods2 = nklib_util:bjoin(Mods1, <<", ">>),
+            io:format("Reloading at ~s: ~s\n\n", [Node, Mods2]),
+            spawn_link(
+                fun() ->
+                    lists:foreach(
+                        fun({Mod, File, Bin}) ->
+                            rpc:call(Node2, code, purge, [Mod]),
+                            {module, Mod} = rpc:call(Node2, code, load_binary, [Mod, File, Bin])
+                        end,
+                        Beams)
+                end);
         pang ->
             {error, not_connected}
     end.
+
+
+%% @doc Reloads all beams on disk for an app on a remote node
+remote_reload(Apps) ->
+    lists:foreach(
+        fun(Node) -> {Node, remote_reload(Node, Apps)} end,
+        [node()|nodes()]
+    ).
+
+
+get_beams(App) ->
+    App2 = nklib_util:to_binary(App),
+    Dirs = lists:foldl(
+        fun(Path, Acc) ->
+            Path2 = nklib_util:to_binary(Path),
+            case binary:split(Path2, <<App2/binary, "/ebin">>) of
+                [_, <<>>] ->
+                    [Path|Acc];
+                _ ->
+                    Acc
+            end
+        end,
+        [],
+        code:get_path()),
+    lists:flatten(lists:foldl(
+        fun(Dir, Acc) ->
+            Mods = lists:foldl(
+                fun(File, Acc2) ->
+                    Mod = list_to_atom(filename:basename(File, ".beam")),
+                    {ok, Bin} = file:read_file(File),
+                    [{Mod, File, Bin}|Acc2]
+                end,
+                Acc,
+                filelib:wildcard(Dir++"/*.beam")),
+            [Mods|Acc]
+        end,
+        [],
+        Dirs)).
