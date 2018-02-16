@@ -22,10 +22,11 @@
 -module(nklib_code).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([expression/1, getter/2, fun_expr/4, call_expr/4, callback_expr/3]).
+-export([expression/1, getter/2, getter_args/3, fun_expr/4, call_expr/4, callback_expr/3]).
 -export([case_expr/5, case_expr_ok/5, compile/2, write/3]).
 -export([get_funs/1]).
 
+-include_lib("syntax_tools/include/merl.hrl").
 
 %% ===================================================================
 %% Private
@@ -61,6 +62,40 @@ getter(Fun, Value) ->
     catch
         error:Error -> lager:warning("Could not make getter for ~p", [Value]),
         error(Error)
+    end.
+
+
+
+%% @doc Generates a getter function (fun(X, Y, Z) -> Value; fun(_, _, _) -> Default
+-spec getter_args(atom(), [{[term()], term()}], term()) ->
+    erl_syntax:syntaxTree().
+
+getter_args(Fun, ArgsValues, Default) ->
+    try
+        erl_syntax:function(
+            erl_syntax:atom(Fun),
+            [
+                erl_syntax:clause(
+                    [erl_syntax:abstract(Arg) || Arg <- Args],
+                    none, [erl_syntax:abstract(Val)])
+                ||
+                {Args, Val} <- ArgsValues
+            ]
+            ++
+            case Default of
+                none ->
+                    [];
+                _ ->
+                    [{Args0, _}|_] = ArgsValues,
+                    [
+                        erl_syntax:clause(
+                            [erl_syntax:variable('_') || _ <- Args0],
+                            none, [erl_syntax:abstract(Default)])
+                    ]
+            end)
+    catch
+        error:Error -> lager:warning("Could not make getter for ~p", [ArgsValues]),
+            error(Error)
     end.
 
 
