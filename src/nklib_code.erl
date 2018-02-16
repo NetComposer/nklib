@@ -22,7 +22,7 @@
 -module(nklib_code).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([expression/1, getter/2, getter_args/3, fun_expr/4, call_expr/4, callback_expr/3]).
+-export([expression/1, getter/2, getter_args/4, fun_expr/4, call_expr/4, callback_expr/3]).
 -export([case_expr/5, case_expr_ok/5, compile/2, write/3]).
 -export([get_funs/1]).
 
@@ -67,10 +67,11 @@ getter(Fun, Value) ->
 
 
 %% @doc Generates a getter function (fun(X, Y, Z) -> Value; fun(_, _, _) -> Default
--spec getter_args(atom(), [{[term()], term()}], term()) ->
+% If Default=none, not catch-all clause will be added
+-spec getter_args(atom(), integer(), [{[term()], term()}], term()|none) ->
     erl_syntax:syntaxTree().
 
-getter_args(Fun, ArgsValues, Default) ->
+getter_args(Fun, Arity, ArgsValues, Default) ->
     try
         erl_syntax:function(
             erl_syntax:atom(Fun),
@@ -79,17 +80,16 @@ getter_args(Fun, ArgsValues, Default) ->
                     [erl_syntax:abstract(Arg) || Arg <- Args],
                     none, [erl_syntax:abstract(Val)])
                 ||
-                {Args, Val} <- ArgsValues
+                {Args, Val} <- ArgsValues, length(Args)==Arity
             ]
             ++
             case Default of
                 none ->
                     [];
                 _ ->
-                    [{Args0, _}|_] = ArgsValues,
                     [
                         erl_syntax:clause(
-                            [erl_syntax:variable('_') || _ <- Args0],
+                            [erl_syntax:variable('_') || _ <- lists:seq(1,Arity)],
                             none, [erl_syntax:abstract(Default)])
                     ]
             end)
