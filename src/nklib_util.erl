@@ -22,7 +22,7 @@
 -module(nklib_util).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([ensure_all_started/2, call/2, call/3, apply/3, safe_call/3]).
+-export([ensure_all_started/2, call/2, call/3, call2/2, call2/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
 -export([get_hwaddr/0, timestamp/0, m_timestamp/0,
          l_timestamp/0, l_timestamp_to_float/1]).
@@ -120,6 +120,26 @@ call(Dest, Msg, Timeout) ->
     catch
         Class:Error ->
             {error, {Class, {Error, erlang:get_stacktrace()}}}
+    end.
+
+
+
+%% @doc Safe call (no exceptions)
+call2(Dest, Msg) ->
+    call(Dest, Msg, 5000).
+
+
+%% @doc Safe call (no exceptions)
+call2(Dest, Msg, Timeout) ->
+    case call(Dest, Msg, Timeout) of
+        {error, {exit, {{timeout, _Fun}, _Stack}}} ->
+            {error, timeout};
+        {error, {exit, {{noproc, _Fun}, _Stack}}} ->
+            {error, process_not_found};
+        {error, {exit, {{normal, _Fun}, _Stack}}} ->
+            {error, process_not_found};
+        Other ->
+            Other
     end.
 
 
