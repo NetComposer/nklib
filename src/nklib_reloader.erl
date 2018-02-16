@@ -18,7 +18,7 @@
 %% -------------------------------------------------------------------
 
 -module(nklib_reloader).
--export([reload_app/1, remote_reload/2, remote_reload/1]).
+-export([reload_app/1, remote_reload/2, remote_reload/1, remote_reload_ide/2]).
 -export([get_beams/1]).
 
 %% @doc Reloads all beams on disk for an app(s)
@@ -49,6 +49,7 @@ reload_app(Apps) ->
 
 
 %% @doc Reloads all beams on disk for an app on a remote node
+%% Remote node does not need to have beams on disk. We must.
 remote_reload(Node, Apps) ->
     Node2 = nklib_util:to_atom(Node),
     case net_adm:ping(Node2) of
@@ -69,6 +70,19 @@ remote_reload(Node, Apps) ->
         pang ->
             {error, not_connected}
     end.
+
+
+%% @doc Reloads all beams on disk for an app on a remote node
+%% supposing the remote node has the beams on disk
+remote_reload_ide(Node, Apps) ->
+    Node2 = nklib_util:to_atom(Node),
+    case net_adm:ping(Node2) of
+        pong ->
+            rpc:call(Node2, nklib_reloader, reload_app, [Apps]);
+        pang ->
+            {error, not_connected}
+    end.
+
 
 
 %% @doc Reloads all beams on disk for an app on a remote node
@@ -93,6 +107,7 @@ get_beams(App) ->
         end,
         [],
         code:get_path()),
+    io:format("NKLOG DIRS ~p\n", [Dirs]),
     lists:flatten(lists:foldl(
         fun(Dir, Acc) ->
             Mods = lists:foldl(
