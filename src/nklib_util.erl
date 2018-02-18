@@ -605,7 +605,9 @@ to_map(L) when is_list(L) ->
 
 to_integer(I) when is_integer(I) -> 
     I;
-to_integer(B) when is_binary(B) -> 
+to_integer(F) when is_float(F) ->
+    round(F);
+to_integer(B) when is_binary(B) ->
     to_integer(binary_to_list(B));
 to_integer(L) when is_list(L) -> 
     case catch list_to_integer(L) of
