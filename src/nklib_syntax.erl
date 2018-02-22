@@ -687,6 +687,13 @@ spec(host6, Val) ->
             {ok, nklib_util:to_binary(Val)}
     end;
 
+% For luerl
+spec({function, N}, {function, Val}) ->
+    case is_function(Val, N) of
+        true -> {ok, Val};
+        false -> error
+    end;
+
 spec({function, N}, Val) ->
     case is_function(Val, N) of
         true -> {ok, Val};
@@ -879,6 +886,8 @@ check_post_check(#parse{syntax = Syntax, ok = Ok} = Parse) ->
             case Fun(Ok) of
                 ok ->
                     {ok, Parse};
+                {ok, Ok2} ->
+                    {ok, Parse#parse{ok=Ok2}};
                 {error, {field, Key}} ->
                     {error, {syntax_error, path_key(Key, Parse)}};
                 {error, {missing_field, Key}} ->
