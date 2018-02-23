@@ -52,8 +52,8 @@
 -type syntax_term() ::
     ignore |
     any |
-    atom | {atom, [atom()]} | {atom_or_binary, [atom()]} | atom_or_binary |
-    new_atom |
+    atom | {atom, [atom()]} | {atom_or_binary, [atom()]} |
+    new_atom | raw_atom |
     boolean |
     list |
     pid |
@@ -439,6 +439,12 @@ spec(any, Val) ->
             {ok, Val}
     end;
 
+spec(raw_atom, Val) when is_atom(Val) ->
+    {ok, Val};
+
+spec(raw_atom, _Val) ->
+    error;
+
 spec(atom, Val) ->
     to_existing_atom(Val);
 
@@ -471,14 +477,6 @@ spec({atom, List}, Val) ->
             end;
         error ->
             error
-    end;
-
-spec(atom_or_binary, Val) ->
-    case to_existing_atom(Val) of
-        {ok, Atom} ->
-            {ok, Atom};
-        error ->
-            {ok, to_bin(Val)}
     end;
 
 spec({atom_or_binary, List}, Val) ->
