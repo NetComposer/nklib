@@ -37,7 +37,7 @@
 -export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_capital/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
--export([hex/1, extract/2, delete/2, defaults/2, bin_last/2, find_duplicated_terms/1]).
+-export([hex/1, extract/2, delete/2, defaults/2, bin_last/2, find_duplicated/1]).
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
 -export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
@@ -909,6 +909,8 @@ bjoin(List) ->
 -spec bjoin(List::[term()], Separator::binary()) -> 
     binary().
 
+bjoin(List, Sep) when is_integer(Sep) ->
+    bjoin(List, <<Sep>>);
 bjoin([], _J) ->
     <<>>;
 bjoin([Term], _J) ->
@@ -984,16 +986,11 @@ append_max(Term, [_|Rest], _) ->
 
 
 %% @doc Find if list has a duplicated value
--spec find_duplicated_terms(list()) ->
-    false | {true, list()}.
+-spec find_duplicated(list()) ->
+    list().
 
-find_duplicated_terms(List) ->
-    case List -- lists:usort(List) of
-        [] ->
-            false;
-        Duplicated ->
-            {true, Duplicated}
-    end.
+find_duplicated(List) ->
+    List -- lists:usort(List).
 
 
 %% @private
