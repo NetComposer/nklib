@@ -329,10 +329,15 @@ parse_opt(Fun, Key, Val, Parse) when is_function(Fun) ->
     end,
     parse_fun_res(FunRes, Key, Val, Parse);
 
-parse_opt({ListType, SyntaxOp}, Key, Val, Parse) when ListType == list; ListType == slist; ListType == ulist ->
+parse_opt({ListType, SyntaxOp}, Key, Val, Parse)
+        when ListType == list; ListType == slist; ListType == ulist ->
     case Val of
         [] ->
             {ok, Key, [], Parse};
+        [{1, _}|_] ->
+            % Luerl-style arrays
+            Val2 = [V || {_, V} <- Val],
+            parse_opt({ListType, SyntaxOp}, Key, Val2, Parse);
         [{_, _} | _] ->
             parse_opt_list(ListType, SyntaxOp, Key, [Val], Parse, []);
         [Head | _] when not is_integer(Head) ->
@@ -490,11 +495,18 @@ spec({atom_or_binary, List}, Val) ->
             {ok, to_bin(Val)}
     end;
 
-spec(list, Val) ->
-    case is_list(Val) of
-        true -> {ok, Val};
-        false -> error
-    end;
+%%% Luerl-style lists
+%%spec(list, [{1, _}|_]=Val) ->
+%%    lager:error("NKLOG VV0 ~p", [Val]),
+%%    spec(list, [V || {_, V} <- Val]);
+%%
+%%spec(list, Val) ->
+%%    lager:error("NKLOG VV ~p", [Val]),
+%%    case is_list(Val) of
+%%        true -> {ok, Val};
+%%        false -> error
+%%    end;
+
 
 spec(proc, Val) ->
     case is_atom(Val) orelse is_pid(Val) of
