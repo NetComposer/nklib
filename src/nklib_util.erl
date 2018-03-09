@@ -126,7 +126,7 @@ call(Dest, Msg, Timeout) ->
 
 %% @doc Safe call (no exceptions)
 call2(Dest, Msg) ->
-    call(Dest, Msg, 5000).
+    call2(Dest, Msg, 5000).
 
 
 %% @doc Safe call (no exceptions)
