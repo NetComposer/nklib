@@ -41,7 +41,7 @@
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
 -export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
--export([map_merge/2, prefix/2]).
+-export([map_merge/2, prefix/2, rand/2]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -1232,6 +1232,9 @@ prefix(Bin, List) when is_list(List) ->
     prefix(to_binary(Bin), List).
 
 
+%% @doc Gets a random number First >= N >= Last
+rand(First, Last) when First >=0, Last > First ->
+    rand:uniform(Last-First+1) + First - 1.
 
 
 %% ===================================================================
