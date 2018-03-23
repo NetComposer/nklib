@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([ensure_all_started/2, call/2, call/3, call2/2, call2/3, apply/3, safe_call/3]).
--export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
+-export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash/3, hash36/1, sha/1]).
 -export([get_hwaddr/0, timestamp/0, m_timestamp/0,
          l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
@@ -240,6 +240,15 @@ hash(Base) ->
         Hash when byte_size(Hash)==6 -> Hash;
         Hash -> <<(binary:copy(<<"a">>, 6-byte_size(Hash)))/binary, Hash/binary>>
     end.
+
+
+%% @doc Generates an integer hash Start =< X <= Stop
+-spec hash(term(), integer(), integer()) ->
+    integer().
+
+hash(Base, Start, Stop) when Start >= 0, Stop > Start ->
+    Hash = erlang:phash2([Base]),
+    Hash rem (Stop - Start + 1) + Start.
 
 
 %% @doc Generates a new tag based on a value (only numbers and uppercase) of 7 chars
@@ -1233,8 +1242,12 @@ prefix(Bin, List) when is_list(List) ->
 
 
 %% @doc Gets a random number First >= N >= Last
+rand(Single, Single) ->
+    Single;
 rand(First, Last) when First >=0, Last > First ->
     rand:uniform(Last-First+1) + First - 1.
+
+
 
 
 %% ===================================================================
