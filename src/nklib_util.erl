@@ -41,7 +41,7 @@
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
 -export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
--export([map_merge/2, prefix/2, rand/2]).
+-export([map_merge/2, prefix/2, rand/2, consistent_reorder/2, floor/1, ceiling/1]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -1248,7 +1248,36 @@ rand(First, Last) when First >=0, Last > First ->
     rand:uniform(Last-First+1) + First - 1.
 
 
+%% @doc Reorders a list consistently after the id
+consistent_reorder(_Id, []) ->
+    [];
 
+consistent_reorder(Id, List) ->
+    Hash = erlang:phash2(Id),
+    Len = length(List),
+    Start = Hash rem Len,   % 0 <= Start < Len
+    List2 = lists:sort(List),
+    lists:sublist(List2++List2, Start+1, Len).
+
+
+%% @doc Goes to the previous integer (-1.1 -> -2)
+floor(X) ->
+    T = erlang:trunc(X),
+    case (X - T) of
+        Neg when Neg < 0 -> T - 1;
+        Pos when Pos > 0 -> T;
+        _ -> T
+    end.
+
+
+%% @doc Goes to the next integer (1.1 -> 2)
+ceiling(X) ->
+    T = erlang:trunc(X),
+    case (X - T) of
+        Neg when Neg < 0 -> T;
+        Pos when Pos > 0 -> T + 1;
+        _ -> T
+    end.
 
 %% ===================================================================
 %% EUnit tests
