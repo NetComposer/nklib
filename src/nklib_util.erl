@@ -23,11 +23,12 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([ensure_all_started/2, call/2, call/3, call2/2, call2/3, apply/3, safe_call/3]).
--export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
+-export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash/3, hash36/1, sha/1]).
 -export([get_hwaddr/0, timestamp/0, m_timestamp/0,
          l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
+-export([rfc3339/0, rfc3339_m/0]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
 -export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
@@ -41,7 +42,7 @@
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
 -export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
--export([map_merge/2, prefix/2]).
+-export([map_merge/2, prefix/2, rand/2, consistent_reorder/2, floor/1, ceiling/1]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -242,6 +243,15 @@ hash(Base) ->
     end.
 
 
+%% @doc Generates an integer hash Start =< X <= Stop
+-spec hash(term(), integer(), integer()) ->
+    integer().
+
+hash(Base, Start, Stop) when Start >= 0, Stop > Start ->
+    Hash = erlang:phash2([Base]),
+    Hash rem (Stop - Start + 1) + Start.
+
+
 %% @doc Generates a new tag based on a value (only numbers and uppercase) of 7 chars
 -spec hash36(term()) -> 
     binary().
@@ -356,6 +366,14 @@ local_to_timestamp(DateTime) ->
         [] -> 0
     end.
 
+%% @doc Second resolution
+rfc3339() ->
+    rfc3339:format(nklib_util:timestamp(), seconds).
+
+
+%% @doc Millisecond resolution
+rfc3339_m() ->
+    rfc3339:format(nklib_util:m_timestamp(), millisecond).
 
 
 %% @doc Equivalent to `proplists:get_value/2' but faster.
@@ -1232,7 +1250,43 @@ prefix(Bin, List) when is_list(List) ->
     prefix(to_binary(Bin), List).
 
 
+%% @doc Gets a random number First >= N >= Last
+rand(Single, Single) ->
+    Single;
+rand(First, Last) when First >=0, Last > First ->
+    rand:uniform(Last-First+1) + First - 1.
 
+
+%% @doc Reorders a list consistently after the id
+consistent_reorder(_Id, []) ->
+    [];
+
+consistent_reorder(Id, List) ->
+    Hash = erlang:phash2(Id),
+    Len = length(List),
+    Start = Hash rem Len,   % 0 <= Start < Len
+    List2 = lists:sort(List),
+    lists:sublist(List2++List2, Start+1, Len).
+
+
+%% @doc Goes to the previous integer (-1.1 -> -2)
+floor(X) ->
+    T = erlang:trunc(X),
+    case (X - T) of
+        Neg when Neg < 0 -> T - 1;
+        Pos when Pos > 0 -> T;
+        _ -> T
+    end.
+
+
+%% @doc Goes to the next integer (1.1 -> 2)
+ceiling(X) ->
+    T = erlang:trunc(X),
+    case (X - T) of
+        Neg when Neg < 0 -> T;
+        Pos when Pos > 0 -> T + 1;
+        _ -> T
+    end.
 
 %% ===================================================================
 %% EUnit tests
