@@ -111,12 +111,12 @@ message(_Id, Msg, #state{ip=Ip, port=Port, socket=Socket}=State) ->
             Gelf2 = nklib_json:encode(maps:from_list(lists:flatten(Gelf1))),
             case byte_size(Gelf2) of
                 Size when Size =< ?MAX_UDP ->
-                    % io:format("SENDING ~p ~p (~p) ~s\n", 
+                    % io:format("SENDING ~p ~p (~p) ~s\n",
                     %           [Ip, Port, byte_size(Gelf2), Gelf2]),
                     ok = gen_udp:send(Socket, Ip, Port, Gelf2);
                 Size ->
                     Chunks = get_num_chunks(Size),
-                    Id = crypto:rand_bytes(8),
+                    Id = crypto:strong_rand_bytes(8),
                     Head = <<30, 15, Id/binary>>,
                     send_chunks(Gelf2, Head, 0, Chunks, Socket, Ip, Port)
             end,
