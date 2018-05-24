@@ -84,7 +84,8 @@
     list() |                    % First matching option is used
     syntax_fun() |
     '__defaults' |              % Defaults for this level #{atom() => term()}
-    '__mandatory' |              % Mandatory fields for this level [atom()]
+    '__mandatory' |             % Mandatory fields for this level [atom()]
+    '__allow_unknown' |         % Allow unknown fields (boolean)
     '__post_check'.             % See post_check_fun()
 
 
@@ -122,7 +123,7 @@
 -type parse_opts() ::
     #{
         path => binary(),           % Use base path instead of <<>>
-        allow_unknown => boolean(),
+        allow_unknown => boolean(), % TODO REMOVE, now a syntax-level opt
         term() => term()            % To be used as context in external functions
     }.
 
@@ -169,11 +170,17 @@ parse(Terms, Spec) ->
     {ok, out(), unknown_keys()} | {error, error()}.
 
 parse(Terms, Syntax, Opts) when is_list(Terms) ->
+    AllowUnknown = case Syntax of
+        #{'__allow_unknown':=Allow} ->
+            Allow;
+        _ ->
+            maps:get(allow_unknown, Opts, false)
+    end,
     Parse = #parse{
         syntax = Syntax,
         opts = Opts,
         path = maps:get(path, Opts, <<>>),
-        allow_unknown = maps:get(allow_unknown, Opts, false)
+        allow_unknown = AllowUnknown
     },
     case do_parse(Terms, Parse) of
         {ok, #parse{ok=Ok, no_ok=NoOk}} ->
