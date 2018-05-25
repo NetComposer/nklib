@@ -4,6 +4,6 @@
     {modules, []},
     {registered, []},
     {mod, {nklib_app, []}},
-    {applications, [kernel, stdlib, lager, enotify, jsx, yamerl, eper, recon, mimerl, jaml]},
+    {applications, [kernel, stdlib, lager, enotify, jsx, yamerl, eper, recon, mimerl, jam]},
     {env, []}
 ]}.
