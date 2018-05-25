@@ -28,7 +28,6 @@
          l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
--export([rfc3339/0, rfc3339_m/0]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
 -export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
@@ -365,15 +364,6 @@ local_to_timestamp(DateTime) ->
         [Time] -> gmt_to_timestamp(Time);
         [] -> 0
     end.
-
-%% @doc Second resolution
-rfc3339() ->
-    rfc3339:format(nklib_util:timestamp(), seconds).
-
-
-%% @doc Millisecond resolution
-rfc3339_m() ->
-    rfc3339:format(nklib_util:m_timestamp(), millisecond).
 
 
 %% @doc Equivalent to `proplists:get_value/2' but faster.

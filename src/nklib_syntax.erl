@@ -65,6 +65,7 @@
     {record, atom()} |
     string |
     binary | {binary, [binary()]} | {binary, none|integer(), none|integer()} |
+    date_3339 |                      % From any format or epoch to rfc3339
     base64 | base64url |
     lower |
     upper |
@@ -84,7 +85,8 @@
     list() |                    % First matching option is used
     syntax_fun() |
     '__defaults' |              % Defaults for this level #{atom() => term()}
-    '__mandatory' |              % Mandatory fields for this level [atom()]
+    '__mandatory' |             % Mandatory fields for this level [atom()]
+    '__allow_unknown' |         % Allow unknown fields (boolean)
     '__post_check'.             % See post_check_fun()
 
 
@@ -122,7 +124,7 @@
 -type parse_opts() ::
     #{
         path => binary(),           % Use base path instead of <<>>
-        allow_unknown => boolean(),
+        allow_unknown => boolean(), % TODO REMOVE, now a syntax-level opt
         term() => term()            % To be used as context in external functions
     }.
 
@@ -169,11 +171,17 @@ parse(Terms, Spec) ->
     {ok, out(), unknown_keys()} | {error, error()}.
 
 parse(Terms, Syntax, Opts) when is_list(Terms) ->
+    AllowUnknown = case Syntax of
+        #{'__allow_unknown':=Allow} ->
+            Allow;
+        _ ->
+            maps:get(allow_unknown, Opts, false)
+    end,
     Parse = #parse{
         syntax = Syntax,
         opts = Opts,
         path = maps:get(path, Opts, <<>>),
-        allow_unknown = maps:get(allow_unknown, Opts, false)
+        allow_unknown = AllowUnknown
     },
     case do_parse(Terms, Parse) of
         {ok, #parse{ok=Ok, no_ok=NoOk}} ->
@@ -674,6 +682,9 @@ spec(upper, Val) ->
         {ok, List} -> {ok, nklib_util:to_upper(List)};
         error -> error
     end;
+
+spec(date_3339, Val) ->
+    nklib_date:to_3339(Val);
 
 spec(ip, Val) ->
     case nklib_util:to_ip(Val) of
@@ -1257,7 +1268,8 @@ parse_fun(field10, data, _Opts) ->
     {ok, data1}.
 
 
--endif.
+
+    -endif.
 
 
 
