@@ -73,6 +73,14 @@ parse_decoded([Term|Rest], Acc) ->
 parse_decoded2([], Acc) ->
     maps:from_list(Acc);
 
+parse_decoded2([{Key, [List1|_]=List2}|Rest], Acc) when is_list(List1) ->
+    Values = lists:foldl(
+        fun(Term, Acc2) -> [parse_decoded2(Term, [])|Acc2] end,
+        [],
+        List2
+    ),
+    parse_decoded2(Rest, [{list_to_binary(Key), Values}|Acc]);
+
 parse_decoded2([{Key, [{_, _}|_]=List}|Rest], Acc) ->
     Values = parse_decoded2(List, []),
     parse_decoded2(Rest, [{list_to_binary(Key), Values}|Acc]);
