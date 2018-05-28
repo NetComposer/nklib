@@ -66,6 +66,7 @@
     string |
     binary | {binary, [binary()]} | {binary, none|integer(), none|integer()} |
     date_3339 |                      % From any format or epoch to rfc3339
+    {epoch, secs|msecs|usecs} |
     base64 | base64url |
     lower |
     upper |
@@ -685,31 +686,22 @@ spec(upper, Val) ->
 
 spec(date_3339, Val) ->
     % First, we try if is already a valid date in a speedy way
-    case to_bin(Val) of
-        <<
-            Y1, Y2, Y3, Y4, $- , M1, M2, $-, D1, D2, $T,
-            H1, H2, $: , Mi1, Mi2, $:, S1, S2 , Rest/binary
-        >> = Date when
-            Y1>=$0, Y1=<$9, Y2>=$0, Y2=<$9, Y3>=$0, Y3=<$9, Y4>=$0, Y4=<$9,
-            M1>=$0, M1=<$9, M2>=$0, M2=<$9, D1>=$0, D1=<$9, D2>=$0, D2=<$9,
-            H1>=$0, H1=<$9, H2>=$0, H2=<$9, Mi1>=$0, Mi1=<$9, Mi2>=$0, Mi2=<$9,
-            S1>=$0, S1=<$9, S2>=$0, S2=<$9 ->
-                case binary:split(Rest, <<"Z">>) of
-                    [<<>>, <<>>] ->
-                        {ok1, Date};
-                    [<<$., Dec/binary>>, <<>>] ->
-                        case catch binary_to_integer(Dec) of
-                            {'EXIT', _} ->
-                                {error1, Dec};
-                            _ ->
-                                {ok1, Date}
-                        end;
-                    _ ->
-                        error2
-                end;
-       _ ->
+    case nklib_date:quick_3339(Val) of
+        {ok, _} ->
+            {ok, to_bin(Val)};
+        error ->
         % It is not, let's try full parser
         nklib_date:to_3339(Val)
+    end;
+
+spec({epoch, P}, Val) ->
+    % First, we try if is already a valid date in a speedy way
+    case nklib_date:quick_epoch(Val, P) of
+        {ok, Epoch} ->
+            {ok, Epoch};
+        error ->
+            % It is not, let's try full parser
+            nklib_date:to_epoch(Val, P)
     end;
 
 spec(ip, Val) ->

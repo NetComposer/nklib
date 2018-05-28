@@ -21,7 +21,7 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--export([to_3339/1]).
+-export([to_3339/1, to_epoch/2, quick_3339/1, quick_epoch/2]).
 
 -include("nklib.hrl").
 
@@ -52,6 +52,91 @@ to_3339(Val) when is_binary(Val); is_list(Val) ->
         List ->
             D = jam:normalize(jam:compile(List)),
             {ok, list_to_binary(jam_iso8601:to_string(D))}
+    end.
+
+
+%% @doc Converts any value to epoch
+to_epoch(Val, Precision) ->
+    Precision2 = case Precision of
+        secs -> 0;
+        0 -> 0;
+        msecs -> 3;
+        3 -> 3;
+        usecs -> 6;
+        6 -> 6
+    end,
+    case catch jam_iso8601:parse(re_cache(), Val) of
+        undefined ->
+            error;
+        {'EXIT, _'} ->
+            error;
+        List ->
+            Date = jam:normalize(jam:compile(List)),
+            {ok, jam:to_epoch(Date, Precision2)}
+    end.
+
+
+%% @doc Quick 3339 parser (only for Z timezone)
+%% Can return invalid dates
+quick_3339(Val) ->
+    case to_bin(Val) of
+        <<
+            Y1, Y2, Y3, Y4, $- , M1, M2, $-, D1, D2, $T,
+            H1, H2, $:, Mi1, Mi2, $:, S1, S2, Rest/binary
+        >> when
+            Y1>=$0, Y1=<$9, Y2>=$0, Y2=<$9, Y3>=$0, Y3=<$9, Y4>=$0, Y4=<$9,
+            M1>=$0, M1=<$9, M2>=$0, M2=<$9, D1>=$0, D1=<$9, D2>=$0, D2=<$9,
+            H1>=$0, H1=<$9, H2>=$0, H2=<$9, Mi1>=$0, Mi1=<$9, Mi2>=$0, Mi2=<$9,
+            S1>=$0, S1=<$9, S2>=$0, S2=<$9 ->
+            Y = (Y1-$0)*1000 + (Y2-$0)*100 + (Y3-$0)*10 + (Y4-$0),
+            M = (M1-$0)*10 + (M2-$0),
+            D = (D1-$0)*10 + (D2-$0),
+            H = (H1-$0)*10 + (H2-$0),
+            Mi = (Mi1-$0)*10 + (Mi2-$0),
+            S = (S1-$0)*10 + (S2-$0),
+            case binary:split(Rest, <<"Z">>) of
+                [<<>>, <<>>] ->
+                    {ok, {Y, M, D, H, Mi, S, 0.0, 0}};
+                [<<$., Dec/binary>>, <<>>] ->
+                    case catch binary_to_float(<<"0.", Dec/binary>>) of
+                        {'EXIT', _} ->
+                            error;
+                        Dec2 ->
+                            Precision = byte_size(Dec),
+                            {ok, {Y, M, D, H, Mi, S, Dec2, Precision}}
+                    end;
+                _ ->
+                    error
+            end;
+        _ ->
+            error
+    end.
+
+
+
+%% @doc Quick 3339 to epoch, only for standard values
+quick_epoch(Val, Precision) ->
+    Precision2 = case Precision of
+        secs -> 0;
+        0 -> 0;
+        msecs -> 3;
+        3 -> 3;
+        usecs -> 6;
+        6 -> 6
+    end,
+    case quick_3339(Val) of
+        {ok, {Y, M, D, H, Mi, S, 0.0, 0}} ->
+            Date = {datetime,
+                {date, Y,M,D},
+                {time,H,Mi,S,undefined,{timezone,"Z",0,0}}
+            },
+            {ok, jam:to_epoch(Date, Precision2)};
+        {ok, {Y, M, D, H, Mi, S, Dec, P}} ->
+            Date = {datetime, {date, Y,M,D}, {time,H,Mi,S,{fraction,Dec, P},
+                {timezone,"Z",0,0}}},
+            {ok, jam:to_epoch(Date, Precision2)};
+        error ->
+            error
     end.
 
 
@@ -218,11 +303,16 @@ re_cache() ->
 
 
 
+%% @private
+to_bin(K) when is_binary(K) -> K;
+to_bin(K) -> nklib_util:to_binary(K).
+
+
 %% ===================================================================
 %% EUnit tests
 %% ===================================================================
 
-%-define(TEST, 1).
+-define(TEST, 1).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -252,6 +342,48 @@ dates_test() ->
     {ok, <<"1980-01-01T00:00:00Z">>} = to_3339("1980-01-01T00:00:00Z"),
     {ok, <<"1980-01-01T00:00:00.001Z">>} = to_3339("1980-01-01T00:00:00.001Z"),
     {ok, <<"1980-01-01T00:00:00.000001Z">>} = to_3339("1980-01-01T00:00:00.000001Z"),
+
+
+    {ok,{2015,6,30,23,59,10,0.0,0}} = quick_3339("2015-06-30T23:59:10Z"),
+    {ok,{2015,6,30,23,59,10,0.1,1}} = quick_3339("2015-06-30T23:59:10.1Z"),
+    {ok,{2015,6,30,23,59,10,0.01,2}} = quick_3339("2015-06-30T23:59:10.01Z"),
+    {ok,{2015,6,30,23,59,10,0.001,3}} = quick_3339("2015-06-30T23:59:10.001Z"),
+    {ok,{2015,6,30,23,59,10,0.0001,4}} = quick_3339("2015-06-30T23:59:10.0001Z"),
+
+    1435708750 = nklib_util:gmt_to_timestamp({{2015,6,30},{23,59,10}}),
+
+    {ok,1435708750} = to_epoch("2015-06-30T23:59:10Z", secs),
+    {ok,1435708750000} = to_epoch("2015-06-30T23:59:10Z", msecs),
+    {ok,1435708750000000} = to_epoch("2015-06-30T23:59:10Z", usecs),
+
+    {ok,1435708750} = to_epoch("2015-06-30T23:59:10.1Z", secs),
+    {ok,1435708750100} = to_epoch("2015-06-30T23:59:10.1Z", msecs),
+    {ok,1435708750100000} = to_epoch("2015-06-30T23:59:10.1Z", usecs),
+
+    {ok,1435708750} = to_epoch("2015-06-30T23:59:10.01Z", secs),
+    {ok,1435708750010} = to_epoch("2015-06-30T23:59:10.01Z", msecs),
+    {ok,1435708750010000} = to_epoch("2015-06-30T23:59:10.01Z", usecs),
+
+    {ok,1435708750} = quick_epoch("2015-06-30T23:59:10.001Z", secs),
+    {ok,1435708750001} = quick_epoch("2015-06-30T23:59:10.001Z", msecs),
+    {ok,1435708750001000} = quick_epoch("2015-06-30T23:59:10.001Z", usecs),
+
+    {ok,1435708750} = quick_epoch("2015-06-30T23:59:10Z", secs),
+    {ok,1435708750000} = quick_epoch("2015-06-30T23:59:10Z", msecs),
+    {ok,1435708750000000} = quick_epoch("2015-06-30T23:59:10Z", usecs),
+
+    {ok,1435708750} = quick_epoch("2015-06-30T23:59:10.1Z", secs),
+    {ok,1435708750100} = quick_epoch("2015-06-30T23:59:10.1Z", msecs),
+    {ok,1435708750100000} = quick_epoch("2015-06-30T23:59:10.1Z", usecs),
+
+    {ok,1435708750} = quick_epoch("2015-06-30T23:59:10.01Z", secs),
+    {ok,1435708750010} = quick_epoch("2015-06-30T23:59:10.01Z", msecs),
+    {ok,1435708750010000} = quick_epoch("2015-06-30T23:59:10.01Z", usecs),
+
+    {ok,1435708750} = quick_epoch("2015-06-30T23:59:10.001Z", secs),
+    {ok,1435708750001} = quick_epoch("2015-06-30T23:59:10.001Z", msecs),
+    {ok,1435708750001000} = quick_epoch("2015-06-30T23:59:10.001Z", usecs),
+
     ok.
 
 
