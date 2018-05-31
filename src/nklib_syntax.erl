@@ -119,7 +119,8 @@
 
 -type post_check_fun() ::
     fun(([{term(), term()}]) ->
-        ok | {error, {field, term()}} | {error, {missing_field, term()}} | {error, term()}).
+        ok | {ok, [{term(), term()}]} |
+        {error, {field, term()}} | {error, {missing_field, term()}} | {error, term()}).
 
 
 -type parse_opts() ::

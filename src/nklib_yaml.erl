@@ -79,20 +79,23 @@ parse_decoded2([{Key, [List1|_]=List2}|Rest], Acc) when is_list(List1) ->
         [],
         List2
     ),
-    parse_decoded2(Rest, [{list_to_binary(Key), Values}|Acc]);
+    parse_decoded2(Rest, [{to_bin(Key), Values}|Acc]);
 
 parse_decoded2([{Key, [{_, _}|_]=List}|Rest], Acc) ->
     Values = parse_decoded2(List, []),
-    parse_decoded2(Rest, [{list_to_binary(Key), Values}|Acc]);
+    parse_decoded2(Rest, [{to_bin(Key), Values}|Acc]);
 
 parse_decoded2([{Key, Val}|Rest], Acc) ->
     Val2 = case is_list(Val) of
         true ->
-            list_to_binary(Val);
+            to_bin(Val);
         false ->
             Val
     end,
-    parse_decoded2(Rest, [{list_to_binary(Key), Val2}|Acc]).
+    parse_decoded2(Rest, [{to_bin(Key), Val2}|Acc]).
 
 
+%% @private
+to_bin(List) ->
+    unicode:characters_to_binary(List).
 
