@@ -22,7 +22,7 @@
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([epoch/1]).
--export([to_3339/1, to_epoch/2, quick_3339/1, quick_epoch/2]).
+-export([to_3339/1, to_epoch/2, quick_3339/1, quick_epoch/2, parse_8601/1]).
 -export_type([epoch_unit/0, epoch/1]).
 
 -type epoch_unit() :: secs | msecs | usecs.
@@ -164,7 +164,7 @@ parse_8601(Val) ->
                 {datetime, Date, Time} ->
                     {datetime, norm_date(Date), norm_time(Time)};
                 {date, _, _, _} = Date ->
-                    {datetime, norm_date(Date), {time,0,0,0,undefined,undefined}};
+                    {datetime, norm_date(Date), norm_time({time,0,0,0,undefined,undefined})};
                 {time, _, _, _, _, _} ->
                     error
             end
