@@ -24,7 +24,7 @@
 
 -export([ensure_all_started/2, call/2, call/3, call2/2, call2/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash/3, hash36/1, sha/1]).
--export([get_hwaddr/0, timestamp/0, timestamp/1, m_timestamp/0,
+-export([get_hwaddr/0, timestamp/0, m_timestamp/0,
          l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
@@ -303,12 +303,6 @@ get_hwaddrs([]) ->
 timestamp() ->
     {MegaSeconds, Seconds, _} = os:timestamp(),
     MegaSeconds*1000000 + Seconds.
-
-
-%% @doc
-timestamp(secs) -> timestamp();
-timestamp(msecs) -> m_timestamp();
-timestamp(usecs) -> l_timestamp().
 
 
 %% @doc Gets an microsecond-resolution timestamp

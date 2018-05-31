@@ -691,7 +691,7 @@ spec(date_3339, Val) ->
             {ok, to_bin(Val)};
         error ->
         % It is not, let's try full parser
-        nklib_date:to_3339(Val)
+            nklib_date:to_3339(Val)
     end;
 
 spec({epoch, P}, Val) ->

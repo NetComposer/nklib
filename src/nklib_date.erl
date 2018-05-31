@@ -21,7 +21,12 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
+-export([epoch/1]).
 -export([to_3339/1, to_epoch/2, quick_3339/1, quick_epoch/2]).
+-export_type([epoch_unit/0, epoch/1]).
+
+-type epoch_unit() :: secs | msecs | usecs.
+-type epoch(_Unit) :: pos_integer().
 
 -include("nklib.hrl").
 
@@ -29,6 +34,19 @@
 %% ===================================================================
 %% Public
 %% ===================================================================
+
+
+%% @doc
+epoch(secs) ->
+    epoch(usecs) div 1000000;
+
+epoch(msecs) ->
+    epoch(usecs) div 1000;
+
+epoch(usecs) ->
+    {N1, N2, N3} = os:timestamp(),
+    (N1 * 1000000 + N2) * 1000000 + N3.
+
 
 %% @doc Normalizes any incoming value (see tests)
 to_3339(Val) when is_integer(Val) ->
@@ -44,14 +62,11 @@ to_3339(Val) when is_integer(Val) ->
     {ok, list_to_binary(jam_iso8601:to_string(D))};
 
 to_3339(Val) when is_binary(Val); is_list(Val) ->
-    case catch jam_iso8601:parse(re_cache(), Val) of
-        undefined ->
+    case parse_8601(Val) of
+        error ->
             error;
-        {'EXIT, _'} ->
-            error;
-        List ->
-            D = jam:normalize(jam:compile(List)),
-            {ok, list_to_binary(jam_iso8601:to_string(D))}
+        DateTime ->
+            {ok, list_to_binary(jam_iso8601:to_string(DateTime))}
     end.
 
 
@@ -65,14 +80,11 @@ to_epoch(Val, Precision) ->
         usecs -> 6;
         6 -> 6
     end,
-    case catch jam_iso8601:parse(re_cache(), Val) of
-        undefined ->
+    case parse_8601(Val) of
+        error ->
             error;
-        {'EXIT, _'} ->
-            error;
-        List ->
-            Date = jam:normalize(jam:compile(List)),
-            {ok, jam:to_epoch(Date, Precision2)}
+        DateTime ->
+            {ok, jam:to_epoch(DateTime, Precision2)}
     end.
 
 
@@ -138,6 +150,45 @@ quick_epoch(Val, Precision) ->
         error ->
             error
     end.
+
+
+%% @private
+parse_8601(Val) ->
+    case catch jam_iso8601:parse(re_cache(), Val) of
+        undefined ->
+            error;
+        {'EXIT, _'} ->
+            error;
+        Parsed ->
+            case jam:normalize(jam:compile(Parsed)) of
+                {datetime, Date, Time} ->
+                    {datetime, norm_date(Date), norm_time(Time)};
+                {date, _, _, _} = Date ->
+                    {datetime, norm_date(Date), {time,0,0,0,undefined,undefined}};
+                {time, _, _, _, _, _} ->
+                    error
+            end
+    end.
+
+
+%% @private
+norm_date({date, Year, undefined, undefined}) -> {date, Year, 1, 1};
+norm_date({date, Year, Month, undefined}) -> {date, Year, Month, 1};
+norm_date({date, Year, Month, Day}) -> {date, Year, Month, Day}.
+
+
+%% @private
+norm_time({time, Hour, undefined, undefined, Dec, Tz}) ->
+    {time, Hour, 0, 0, Dec, norm_tz(Tz)};
+norm_time({time, Hour, Min, undefined, Dec, Tz}) ->
+    {time, Hour, Min, 0, Dec, norm_tz(Tz)};
+norm_time({time, Hour, Min, Sec, Dec, Tz}) ->
+    {time, Hour, Min, Sec, Dec, norm_tz(Tz)}.
+
+
+%% @private
+norm_tz(undefined) -> {timezone, "Z", 0, 0};
+norm_tz({timezone, TZ, H, M}) -> {timezone, TZ, H, M}.
 
 
 
