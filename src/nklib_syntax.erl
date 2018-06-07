@@ -248,7 +248,7 @@ do_parse_key(Key, Val, #parse{allow_unknown=AllowUnknown}=Parse) ->
                  {error, unknown} ->
                      error({invalid_syntax, SyntaxOp});
                  {error, syntax} ->
-                     {error, syntax_error(Key, Parse)};
+                     {error, syntax_error(Key2, Parse)};
                  {error, Error} ->
                      {error, Error}
              end;
