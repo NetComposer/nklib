@@ -120,7 +120,7 @@
 -type post_check_fun() ::
     fun(([{term(), term()}]) ->
         ok | {ok, [{term(), term()}]} |
-        {error, {field, term()}} | {error, {missing_field, term()}} | {error, term()}).
+        {error, {field, term()}} | {error, {field_missing, term()}} | {error, term()}).
 
 
 -type parse_opts() ::
@@ -132,7 +132,7 @@
 
 -type error() ::
     {syntax_error, Path :: binary()} |
-    {missing_field, binary()} |
+    {field_missing, binary()} |
     term().                             % When syntax_fun() returns {error, term()}
 
 -type out() :: #{key() => term()}.
@@ -923,7 +923,7 @@ check_mandatory([Key | Rest], #parse{ok = Ok} = Parse) ->
         true ->
             check_mandatory(Rest, Parse);
         false ->
-            {error, {missing_field, path_key(Key, Parse)}}
+            {error, {field_missing, path_key(Key, Parse)}}
     end.
 
 
@@ -938,8 +938,8 @@ check_post_check(#parse{syntax = Syntax, ok = Ok} = Parse) ->
                     {ok, Parse#parse{ok=Ok2}};
                 {error, {field, Key}} ->
                     {error, {syntax_error, path_key(Key, Parse)}};
-                {error, {missing_field, Key}} ->
-                    {error, {missing_field, path_key(Key, Parse)}};
+                {error, {field_missing, Key}} ->
+                    {error, {field_missing, path_key(Key, Parse)}};
                 {error, Error} ->
                     {error, Error}
             end;
@@ -1171,15 +1171,15 @@ parse3_test() ->
     },
     Spec3 = nklib_util:map_merge(Spec, Mand),
 
-    {error, {missing_field, <<"field1">>}} = parse(#{}, Spec3),
-    {error, {missing_field, <<"field2">>}} = parse(#{field1=>1}, Spec3),
-    {error, {missing_field, <<"field2.field4">>}} = parse(#{field1=>1, field2=>#{}}, Spec3),
-    {error, {missing_field, <<"field2.field5">>}} = parse(#{field1=>1, field2=>#{field4=>22}}, Spec3),
-    {error, {missing_field, <<"field2.field5.field6">>}} = parse(#{field1=>1, field2=>#{field4=>22, field5=>#{}}}, Spec3),
+    {error, {field_missing, <<"field1">>}} = parse(#{}, Spec3),
+    {error, {field_missing, <<"field2">>}} = parse(#{field1=>1}, Spec3),
+    {error, {field_missing, <<"field2.field4">>}} = parse(#{field1=>1, field2=>#{}}, Spec3),
+    {error, {field_missing, <<"field2.field5">>}} = parse(#{field1=>1, field2=>#{field4=>22}}, Spec3),
+    {error, {field_missing, <<"field2.field5.field6">>}} = parse(#{field1=>1, field2=>#{field4=>22, field5=>#{}}}, Spec3),
     {ok, _, []} = parse(#{field1=>1, field2=>#{field4=>22, field5=>#{field6=>33}}}, Spec3),
 
     Spec4 = nklib_util:map_merge(Spec3, Def),
-    {error, {missing_field, <<"field2.field4">>}} = parse(#{}, Spec4),
+    {error, {field_missing, <<"field2.field4">>}} = parse(#{}, Spec4),
 
     {ok, _, _} = parse(#{field2=>#{field4=>22}}, Spec4),
     ok.
@@ -1250,12 +1250,12 @@ parse4_test() ->
         '__mandatory' => [<<"field2">>]
     },
 
-    {error, {missing_field, <<"field2">>}} = parse(#{}, Spec3),
-    {error, {missing_field, <<"field2.field4">>}} = parse(#{field2=>#{}}, Spec3),
-    {error, {missing_field, <<"field2.field4">>}} = parse(#{field2=>[#{field3=>a}]}, Spec3),
-    {error, {missing_field, <<"field2.field4">>}} = parse(#{field2=>[#{field4=>1}, #{}]}, Spec3),
+    {error, {field_missing, <<"field2">>}} = parse(#{}, Spec3),
+    {error, {field_missing, <<"field2.field4">>}} = parse(#{field2=>#{}}, Spec3),
+    {error, {field_missing, <<"field2.field4">>}} = parse(#{field2=>[#{field3=>a}]}, Spec3),
+    {error, {field_missing, <<"field2.field4">>}} = parse(#{field2=>[#{field4=>1}, #{}]}, Spec3),
     {ok, #{<<"field2">> := [#{<<"field4">> := 1}]}, []} = parse(#{field2=>[#{field4=>1}]}, Spec3),
-    {error, {missing_field, <<"base.field2.field4">>}} = parse(#{field2=>#{}}, Spec3, #{path=><<"base">>}),
+    {error, {field_missing, <<"base.field2.field4">>}} = parse(#{field2=>#{}}, Spec3, #{path=><<"base">>}),
 
     Spec4 = #{
         <<"field2">> =>
