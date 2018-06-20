@@ -34,7 +34,7 @@
 -export([filtermap/2]).
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1,
          to_float/1]).
--export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
+-export([to_atom/1, to_existing_atom/1, make_atom/2, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_capital/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2, find_duplicated/1]).
@@ -592,6 +592,23 @@ to_existing_atom(A) when is_atom(A) -> A;
 to_existing_atom(B) when is_binary(B) -> binary_to_existing_atom(B, utf8);
 to_existing_atom(L) when is_list(L) -> list_to_existing_atom(L);
 to_existing_atom(I) when is_integer(I) -> to_existing_atom(integer_to_list(I)).
+
+
+%% @doc Generates an atom with a warning if it is new
+-spec make_atom(term(), term()) ->
+    atom().
+
+make_atom(_Id, Atom) when is_atom(Atom) ->
+    Atom;
+make_atom(Id, Term) ->
+    Term2 = to_binary(Term),
+    case catch binary_to_existing_atom(Term2, utf8) of
+        {'EXIT', _} ->
+            lager:warning("NkLIB id '~p' created atom '~s'", [Id, Term2]),
+            binary_to_atom(Term2, utf8);
+        Atom ->
+            Atom
+    end.
 
 
 -spec to_map(list()|map()) -> 
