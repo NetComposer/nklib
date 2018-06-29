@@ -50,18 +50,20 @@ encode(Term) ->
                 jsx:encode(Term)
         end
     catch
-        error:Error -> 
-            lager:debug("Error encoding JSON: ~p", [Error]),
-            error;
+        error:Error ->
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
+            error({json_encode_error, Error});
         throw:Error ->
-            lager:debug("Error encoding JSON: ~p", [Error]),
-            error
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
+            error({json_encode_error, Error})
     end.
 
 
 %% @doc Encodes a term() to JSON
 -spec encode_pretty(term()) ->
-    binary() | error.
+    binary().
 
 encode_pretty(Term) ->
     try
@@ -72,18 +74,20 @@ encode_pretty(Term) ->
                 jsx:encode(Term, [space, {indent, 2}])
         end
     catch
-        error:Error -> 
-            lager:debug("Error encoding JSON: ~p", [Error]),
-            error;
+        error:Error ->
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
+            error({json_encode_error, Error});
         throw:Error ->
-            lager:debug("Error encoding JSON: ~p", [Error]),
-            error
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
+            error({json_encode_error, Error})
     end.
 
 
 %% @doc Decodes a JSON as a map
 -spec decode(binary()|iolist()) ->
-    term() | error.
+    term().
 
 decode(Term) ->
     try
@@ -94,12 +98,14 @@ decode(Term) ->
                 jsx:decode(Term, [return_maps])
         end
     catch
-        error:Error -> 
-            lager:debug("Error decoding JSON: ~p", [Error]),
-            error;
+        error:Error ->
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error decoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
+            error({json_decode_error, Error});
         throw:Error ->
-            lager:debug("Error decoding JSON: ~p", [Error]),
-            error
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error decoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
+            error({json_decode_error, Error})
     end.
     
 

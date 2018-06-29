@@ -39,7 +39,7 @@
 
 %% @doc Decodes a YAML as a maps and binaries
 -spec decode(binary()|iolist()) ->
-    [map()] | {error, {Txt::binary(), Line::integer(), Col::integer()}|undefined}.
+    [map()].
 
 decode(Term) ->
     try yamerl_constr:string(Term) of
@@ -47,16 +47,18 @@ decode(Term) ->
             parse_decoded_list(Objs, [])
     catch
         error:Error ->
-            lager:debug("Error decoding YAML: ~p", [Error]),
-            {error, undefined};
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error decoding YAML: ~p (~~) (~p)", [Error, Term, Trace]),
+            error({yaml_decode_error, Error});
         throw:
-        {yamerl_exception, [
-            {yamerl_parsing_error, error, Txt, Line, Col, _Code, _, _}
-            |_]} ->
-            {error, {list_to_binary(Txt), Line, Col}};
+            {yamerl_exception, [
+                {yamerl_parsing_error, error, Txt, Line, Col, _Code, _, _}
+                |_]} ->
+            error({yaml_decode_error, {list_to_binary(Txt), Line, Col}});
         throw:Error ->
-            lager:debug("Error decoding YAML: ~p", [Error]),
-            {error, undefined}
+            Trace = erlang:get_stacktrace(),
+            lager:debug("Error decoding YAML: ~p (~~) (~p)", [Error, Term, Trace]),
+            error({yaml_decode_error, Error})
     end.
 
 
