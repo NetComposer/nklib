@@ -89,6 +89,9 @@ encode_pretty(Term) ->
 -spec decode(binary()|iolist()) ->
     term().
 
+decode(<<>>) ->
+    <<>>;
+
 decode(Term) ->
     try
         case erlang:function_exported(jiffy, decode, 2) of
