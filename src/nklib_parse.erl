@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2017 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -296,6 +296,7 @@ parse_dates([Next|Rest], Acc) ->
 
 -type norm_opts() ::
     #{
+        not_to_lowecase => boolean(),
         space => allowed | skip | integer(),
         unrecognized => skip | keep | integer(),
         allowed => [integer()]
@@ -319,45 +320,40 @@ normalize(Text) ->
     binary().
 
 normalize(Text, Opts) ->
-    String = norm(nklib_util:to_list(Text), Opts, []),
+    NoLower = maps:get(not_to_lowercase, Opts, false),
+    String = norm(nklib_util:to_list(Text), Opts, NoLower, []),
     list_to_binary(String).
 
 
 %% @private
-norm([], _Opts, Acc) ->
+norm([], _Opts, _NoLower, Acc) ->
     lists:reverse(string:strip(Acc));
 
-norm([32|T], Opts, Acc) ->
+norm([32|T], Opts, NoLower, Acc) ->
     case maps:get(space, Opts, allowed) of
         allowed ->
-            norm(T, Opts, [32|Acc]);
+            norm(T, Opts, NoLower, [32|Acc]);
         skip ->
-            norm(T, Opts, Acc);
+            norm(T, Opts, NoLower, Acc);
         Char when is_integer(Char) ->
-            norm(T, Opts, [Char|Acc])
+            norm(T, Opts, NoLower, [Char|Acc])
     end;
 
-%%norm([$_|T], Opts, Acc) ->
-%%    case maps:get(underscore, Opts, $-) of
-%%        allowed ->
-%%            norm(T, Opts, [$_|Acc]);
-%%        skip ->
-%%            norm(T, Opts, Acc);
-%%        Char when is_integer(Char) ->
-%%            norm(T, Opts, [Char|Acc])
-%%    end;
+norm([H|T], Opts, NoLower, Acc) when H >= $0, H =< $9 ->
+    norm(T, Opts, NoLower, [H|Acc]);
 
-norm([H|T], Opts, Acc) when H >= $0, H =< $9 ->
-    norm(T, Opts, [H|Acc]);
+norm([H|T], Opts, NoLower, Acc) when H >= $a, H =< $z ->
+    norm(T, Opts, NoLower, [H|Acc]);
 
-norm([H|T], Opts, Acc) when H >= $a, H =< $z ->
-    norm(T, Opts, [H|Acc]);
+norm([H|T], Opts, false, Acc) when H >= $A, H =< $Z ->
+    norm(T, Opts, false, [H+32|Acc]);
 
-norm([H|T], Opts, Acc) when H >= $A, H =< $Z ->
-    norm(T, Opts, [H+32|Acc]);
+norm([H|T], Opts, true, Acc) when H >= $A, H =< $Z ->
+    norm(T, Opts, true, [H|Acc]);
 
 %% UTF-8
-norm([16#c3, U|T], Opts, Acc) when U >= 16#80, U =< 16#bc->
+% https://www.utf8-chartable.de/unicode-utf8-table.plnorm([16#c3, U|T], Opts, false, Acc) when U >= 16#80, U =< 16#bc->
+norm([16#c3, U|T], Opts, false, Acc) when U >= 16#80, U =< 16#bc->
     L = if
         U >= 16#80, U =< 16#86 -> $a;
         U == 16#87 -> $c;
@@ -385,16 +381,52 @@ norm([16#c3, U|T], Opts, Acc) when U >= 16#80, U =< 16#bc->
     end,
     case L of
         skip ->
-            norm(T, Opts, Acc);
+            norm(T, Opts, false, Acc);
         keep ->
-            norm(T, Opts, [U, 16#c3|Acc]);
+            norm(T, Opts, false, [U, 16#c3|Acc]);
         _ ->
-            norm(T, Opts, [L|Acc])
+            norm(T, Opts, false, [L|Acc])
     end;
+
+norm([16#c3, U|T], Opts, true, Acc) when U >= 16#80, U =< 16#bc->
+    L = if
+        U >= 16#80, U =< 16#86 -> $A;
+        U == 16#87 -> $C;
+        U >= 16#88, U =< 16#8b -> $E;
+        U >= 16#8c, U =< 16#8f -> $I;
+        U == 16#90 -> $D;
+        U == 16#91 -> $N;
+        U >= 16#92, U =< 16#96 -> $O;
+        U == 16#98 -> $O;
+        U >= 16#99, U =< 16#9c -> $U;
+        U == 16#9D -> $Y;
+        U == 16#9F -> $B;
+        U >= 16#a0, U =< 16#a6 -> $a;
+        U == 16#a7 -> $c;
+        U >= 16#a8, U =< 16#ab -> $e;
+        U >= 16#ac, U =< 16#af -> $i;
+        U == 16#b0 -> $d;
+        U == 16#b1 -> $n;
+        U >= 16#b2, U =< 16#b6 -> $o;
+        U == 16#b8 -> $o;
+        U >= 16#b9, U =< 16#bc -> $u;
+        U == 16#bd -> $y;
+        U == 16#bf -> $y;
+        true -> norm_unrecognized(Opts)
+    end,
+    case L of
+        skip ->
+            norm(T, Opts, true, Acc);
+        keep ->
+            norm(T, Opts, true, [U, 16#c3|Acc]);
+        _ ->
+            norm(T, Opts, true, [L|Acc])
+    end;
+
 
 %% Latin-1
 %% (16#c3 is Atilde in latin-1, it could be confused as such)
-norm([H|T], Opts, Acc) when H >= 16#c0 ->
+norm([H|T], Opts, false, Acc) when H >= 16#c0 ->
     L = if
         H >= 16#c0, H =< 16#c6 -> $a;
         H == 16#c7 -> $c;
@@ -422,26 +454,61 @@ norm([H|T], Opts, Acc) when H >= 16#c0 ->
     end,
     case L of
         skip ->
-            norm(T, Opts, Acc);
+            norm(T, Opts, false, Acc);
         keep ->
-            norm(T, Opts, [H|Acc]);
+            norm(T, Opts, false, [H|Acc]);
         _ ->
-            norm(T, Opts, [L|Acc])
+            norm(T, Opts, false, [L|Acc])
     end;
 
-norm([Char|T], Opts, Acc) ->
+norm([H|T], Opts, true, Acc) when H >= 16#c0 ->
+    L = if
+        H >= 16#c0, H =< 16#c6 -> $A;
+        H == 16#c7 -> $C;
+        H >= 16#c8, H =< 16#cb -> $E;
+        H >= 16#cc, H =< 16#cf -> $I;
+        H == 16#d0 -> $D;
+        H == 16#d1 -> $N;
+        H >= 16#d2, H =< 16#d6 -> $O;
+        H == 16#d8-> $O;
+        H >= 16#d9, H =< 16#dc -> $U;
+        H == 16#dd-> $Y;
+        H == 16#df-> $B;
+        H >= 16#e0, H =< 16#e6 -> $a;
+        H == 16#e7 -> $c;
+        H >= 16#e8, H =< 16#eb -> $e;
+        H >= 16#ec, H =< 16#ef -> $i;
+        H == 16#f0 -> $d;
+        H == 16#f1 -> $n;
+        H >= 16#f2, H =< 16#f6 -> $o;
+        H == 16#f8-> $o;
+        H >= 16#f9, H =< 16#fc -> $u;
+        H == 16#fd -> $y;
+        H == 16#ff -> $y;
+        true -> norm_unrecognized(Opts)
+    end,
+    case L of
+        skip ->
+            norm(T, Opts, true, Acc);
+        keep ->
+            norm(T, Opts, true, [H|Acc]);
+        _ ->
+            norm(T, Opts, true, [L|Acc])
+    end;
+
+norm([Char|T], Opts, NoLower, Acc) ->
     Allowed = maps:get(allowed, Opts, []),
     case lists:member(Char, Allowed) of
         true ->
-            norm(T, Opts, [Char|Acc]);
+            norm(T, Opts, NoLower, [Char|Acc]);
         false ->
             case norm_unrecognized(Opts) of
                 skip ->
-                    norm(T, Opts, Acc);
+                    norm(T, Opts, NoLower, Acc);
                 keep ->
-                    norm(T, Opts, [Char|Acc]);
+                    norm(T, Opts, NoLower, [Char|Acc]);
                 New ->
-                    norm(T, Opts, [New|Acc])
+                    norm(T, Opts, NoLower, [New|Acc])
             end
     end.
 
@@ -464,7 +531,7 @@ norm_unrecognized(Opts) ->
 
 %% @doc
 -spec normalize_words(string()|binary()) ->
-    binary().
+    [binary()].
 
 normalize_words(Text) ->
     normalize_words(Text, #{}).
@@ -472,14 +539,14 @@ normalize_words(Text) ->
 
 %% @doc
 -spec normalize_words(string()|binary(), norm_words_opts()) ->
-    binary().
+    [binary()].
 
 normalize_words(Text, Opts) ->
-    String = norm(nklib_util:to_list(Text), Opts, []),
+    NoLower = maps:get(not_to_lowercase, Opts, false),
+    String = norm(nklib_util:to_list(Text), Opts, NoLower, []),
     Chars = maps:get(split, Opts, [32, $., $/, $-, $_, $,, $;, $:]),
     norm_split(String, Chars, false, [], []).
 
--compile(export_all).
 norm_split([], _Chars, _Skipping, [], Acc2) ->
     lists:reverse(Acc2);
 
@@ -515,7 +582,7 @@ norm_split([Char|Rest], Chars, true, [], Acc2) ->
 %% EUnit tests
 %% ===================================================================
 
--define(TEST, true).
+%-define(TEST, true).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -537,13 +604,12 @@ norm_test() ->
     <<"-!">> = normalize(S4, #{allowed=>[$!], unrecognized=>keep}),
     <<"+!">> = normalize(S4, #{allowed=>[$!], unrecognized=>$+}),
 
+    <<"abcdef">> = normalize(<<"áBcdÉF">>, #{}),
+    <<"aBcdEF">> = normalize(<<"áBcdÉF">>, #{not_to_lowercase=>true}),
+
     [<<"a">>,<<"bcd">>,<<"ef">>] = normalize_words(".  á //   bcd e.f ;;"),
     [<<"a">>,<<"bcd">>,<<"e">>,<<"f">>] = normalize_words(".  á //   bcd e.f ;;", #{allowed=>[$.]}),
-
-
-
     ok.
-
 
 
 -endif.
