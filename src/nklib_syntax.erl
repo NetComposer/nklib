@@ -120,6 +120,9 @@
 -type post_check_fun() ::
     fun(([{term(), term()}]) ->
         ok | {ok, [{term(), term()}]} |
+        {error, {field, term()}} | {error, {field_missing, term()}} | {error, term()}) |
+    fun(([{term(), term()}], fun_ctx()) ->
+        ok | {ok, [{term(), term()}]} |
         {error, {field, term()}} | {error, {field_missing, term()}} | {error, term()}).
 
 
@@ -928,10 +931,23 @@ check_mandatory([Key | Rest], #parse{ok = Ok} = Parse) ->
 
 
 %% @private
-check_post_check(#parse{syntax = Syntax, ok = Ok} = Parse) ->
+check_post_check(#parse{syntax = Syntax, ok = Ok, opts=Opts} = Parse) ->
     case maps:get('__post_check', Syntax, none) of
         Fun when is_function(Fun, 1) ->
             case Fun(Ok) of
+                ok ->
+                    {ok, Parse};
+                {ok, Ok2} ->
+                    {ok, Parse#parse{ok=Ok2}};
+                {error, {field, Key}} ->
+                    {error, {syntax_error, path_key(Key, Parse)}};
+                {error, {field_missing, Key}} ->
+                    {error, {field_missing, path_key(Key, Parse)}};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        Fun when is_function(Fun, 2) ->
+            case Fun(Ok, Opts) of
                 ok ->
                     {ok, Parse};
                 {ok, Ok2} ->
