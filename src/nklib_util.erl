@@ -118,8 +118,8 @@ call(Dest, Msg, Timeout) ->
     try
         gen_server:call(Dest, Msg, Timeout)
     catch
-        Class:Error ->
-            {error, {Class, {Error, erlang:get_stacktrace()}}}
+        Class:Error:Trace ->
+            {error, {Class, {Error, Trace}}}
     end.
 
 
@@ -156,8 +156,8 @@ apply(Mod, Fun, Args) ->
                 erlang:apply(Mod, Fun, Args)
         end
     catch
-        Class:Error ->
-            {error, {Class, {Error, erlang:get_stacktrace()}}}
+        Class:Error:Trace ->
+            {error, {Class, {Error, Trace}}}
     end.
 
 
