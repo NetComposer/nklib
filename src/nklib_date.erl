@@ -21,7 +21,7 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--export([epoch/1]).
+-export([epoch/1, date3339/1]).
 -export([to_3339/2, to_epoch/2, is_3339/1]).
 -export_type([epoch_unit/0, epoch/1]).
 
@@ -34,7 +34,6 @@
 %% ===================================================================
 %% Public
 %% ===================================================================
-
 
 %% @doc Get current epoch time
 -spec epoch(epoch_unit()) ->
@@ -49,6 +48,15 @@ epoch(msecs) ->
 epoch(usecs) ->
     {N1, N2, N3} = os:timestamp(),
     (N1 * 1000000 + N2) * 1000000 + N3.
+
+
+%% @doc Get current epoch time
+-spec date3339(epoch_unit()) ->
+    binary().
+
+date3339(Unit) ->
+    {ok, Date} = to_3339(epoch(Unit), Unit),
+    Date.
 
 
 %% @doc Converts an incoming epoch or rfc3339 to normalized rfc3339
