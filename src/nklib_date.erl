@@ -21,7 +21,7 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--export([epoch/1, date3339/1]).
+-export([epoch/1, now_3339/1]).
 -export([to_3339/2, to_epoch/2, is_3339/1]).
 -export_type([epoch_unit/0, epoch/1]).
 
@@ -51,10 +51,10 @@ epoch(usecs) ->
 
 
 %% @doc Get current epoch time
--spec date3339(epoch_unit()) ->
+-spec now_3339(epoch_unit()) ->
     binary().
 
-date3339(Unit) ->
+now_3339(Unit) ->
     {ok, Date} = to_3339(epoch(Unit), Unit),
     Date.
 
@@ -105,7 +105,7 @@ to_epoch(Date, Unit) when is_binary(Date); is_list(Date) ->
 %% @doc Quick 3339 parser (only for Z timezone)
 %% Doesn't check on invalid dates
 -spec is_3339(binary()|string()) ->
-    {true, calendar:datetime(), float(), epoch_unit()} | false.
+    {true, {calendar:datetime(), float(), epoch_unit()}} | false.
 
 is_3339(Val) ->
     case to_bin(Val) of
@@ -125,7 +125,7 @@ is_3339(Val) ->
             S = (S1-$0)*10 + (S2-$0),
             case binary:split(Rest, <<"Z">>) of
                 [<<>>, <<>>] ->
-                    {true, {{Y, M, D}, {H, Mi, S}}, 0.0, secs};
+                    {true, {{{Y, M, D}, {H, Mi, S}}, 0.0, secs}};
                 [<<$., Dec/binary>>, <<>>] ->
                     case catch binary_to_float(<<"0.", Dec/binary>>) of
                         {'EXIT', _} ->
@@ -135,7 +135,7 @@ is_3339(Val) ->
                                 true -> msecs;
                                 false -> usecs
                             end,
-                            {true, {{Y, M, D}, {H, Mi, S}}, Dec2, Unit}
+                            {true, {{{Y, M, D}, {H, Mi, S}}, Dec2, Unit}}
                     end;
                 _ ->
                     false
@@ -172,7 +172,7 @@ norm_date(Val) ->
         <<_Y:4/binary>> ->
             <<Val/binary, "-01-01T00:00:00Z">>;
         <<_Y:4/binary, $-, _M:2/binary>> ->
-            <<Val/binary, "-01:00T00:00Z">>;
+            <<Val/binary, "-01T00:00:00Z">>;
         <<_Y:4/binary, $-, _M:2/binary, $-, _D:2/binary>> ->
             <<Val/binary, "T00:00:00Z">>;
         _ ->
@@ -218,16 +218,20 @@ dates_test() ->
     {ok, <<"2100-01-01T00:00:00.001000Z">>} = to_3339(G2100 * 1000 + 1, msecs),
     {ok, <<"2100-01-01T00:00:00.000001Z">>} = to_3339(G2100 * 1000 * 1000 + 1, usecs),
 
+    {ok, <<"1980-01-01T00:00:00Z">>} = to_3339("1980", secs),
+    {ok, <<"1980-02-01T00:00:00Z">>} = to_3339("1980-02", secs),
+    {ok, <<"1980-02-03T00:00:00Z">>} = to_3339("1980-02-03", secs),
+
     {ok, <<"1980-01-01T00:00:00Z">>} = to_3339("1980-01-01T00:00:00Z", secs),
     {ok, <<"1980-01-01T00:00:00.001000Z">>} = to_3339("1980-01-01T00:00:00.001Z", msecs),
     {ok, <<"1980-01-01T00:00:00.000001Z">>} = to_3339("1980-01-01T00:00:00.000001Z", usecs),
 
-    {true,{{2015,6,30},{23,59,10}},0.0,secs} = is_3339("2015-06-30T23:59:10Z"),
+    {true,{{{2015,6,30},{23,59,10}},0.0,secs}} = is_3339("2015-06-30T23:59:10Z"),
     false = is_3339("2015-06-30T23:59:10"),
-    {true,{{2015,6,30},{23,59,10}},0.1,msecs} = is_3339("2015-06-30T23:59:10.1Z"),
-    {true,{{2015,6,30},{23,59,10}},0.01,msecs} = is_3339("2015-06-30T23:59:10.01Z"),
-    {true,{{2015,6,30},{23,59,10}},0.001,msecs} = is_3339("2015-06-30T23:59:10.001Z"),
-    {true,{{2015,6,30},{23,59,10}},0.0001,usecs} = is_3339("2015-06-30T23:59:10.0001Z"),
+    {true,{{{2015,6,30},{23,59,10}},0.1,msecs}} = is_3339("2015-06-30T23:59:10.1Z"),
+    {true,{{{2015,6,30},{23,59,10}},0.01,msecs}} = is_3339("2015-06-30T23:59:10.01Z"),
+    {true,{{{2015,6,30},{23,59,10}},0.001,msecs}} = is_3339("2015-06-30T23:59:10.001Z"),
+    {true,{{{2015,6,30},{23,59,10}},0.0001,usecs}} = is_3339("2015-06-30T23:59:10.0001Z"),
 
     1435708750 = nklib_util:gmt_to_timestamp({{2015,6,30},{23,59,10}}),
 

@@ -690,22 +690,26 @@ spec(upper, Val) ->
 
 spec(date_3339, Val) ->
     % First, we try if is already a valid date in a speedy way
-    case 'nklib_date.erl':quick_3339(Val) of
-        {ok, _} ->
+    case nklib_date:is_3339(Val) of
+        {true, _} ->
             {ok, to_bin(Val)};
-        error ->
-        % It is not, let's try full parser
-            'nklib_date.erl':to_3339(Val)
+        false ->
+            % It is not, let's try full parser
+            case nklib_date:to_3339(Val, msecs) of
+                {ok, Val2} ->
+                    {ok, Val2};
+                {error, _Error} ->
+                    error
+            end
     end;
 
-spec({epoch, P}, Val) ->
+spec({epoch, Unit}, Val) ->
     % First, we try if is already a valid date in a speedy way
-    case 'nklib_date.erl':quick_epoch(Val, P) of
-        {ok, Epoch} ->
-            {ok, Epoch};
-        error ->
-            % It is not, let's try full parser
-            'nklib_date.erl':to_epoch(Val, P)
+    case nklib_date:to_epoch(Val, Unit) of
+        {ok, Val2} ->
+            {ok, Val2};
+        {error, _Error} ->
+            error
     end;
 
 spec(ip, Val) ->
