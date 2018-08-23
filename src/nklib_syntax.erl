@@ -30,7 +30,16 @@
 %% Types
 %% ===================================================================
 
--type syntax() :: #{key() => syntax_opt()}.
+-type syntax() ::
+    #{
+        key() => syntax_opt(),
+        '__defaults' => #{key() => term()}  ,       % Defaults for this level
+        '__mandatory' => [key()],                   % Mandatory fields for this level
+        '__unique_keys' => [key()],                 % Checks that keys are unique in a list
+        '__allow_unknown' => boolean(),             % Allow unknown fields
+        '__post_check' => post_check_fun()
+    }.
+
 
 -type syntax_opt() ::
     syntax_term() |
@@ -82,16 +91,12 @@
     map |
     log_level |
     {mfa, module(), atom(), [term()]} |
-    map() |                     % Allow for nested objects
+    syntax() |                     % Allow for nested objects
     list() |                    % First matching option is used
-    syntax_fun() |
-    '__defaults' |              % Defaults for this level #{atom() => term()}
-    '__mandatory' |             % Mandatory fields for this level [atom()]
-    '__allow_unknown' |         % Allow unknown fields (boolean)
-    '__post_check'.             % See post_check_fun()
+    syntax_fun().
 
 
--type key() :: atom().
+-type key() :: atom() | binary().
 -type val() :: term().
 
 
@@ -136,6 +141,7 @@
 -type error() ::
     {syntax_error, Path :: binary()} |
     {field_missing, binary()} |
+    {duplicated_key, binary()} |
     term().                             % When syntax_fun() returns {error, term()}
 
 -type out() :: #{key() => term()}.
@@ -418,14 +424,14 @@ parse_fun_res(Res, Key, Val, Parse) ->
 
 
 %% @private
-parse_opt_list(list, _SyntaxOp, Key, [], Parse, Acc) ->
-    {ok, Key, lists:reverse(Acc), Parse};
+parse_opt_list(list, SyntaxOp, Key, [], Parse, Acc) ->
+    check_unique_key(Key, lists:reverse(Acc), SyntaxOp, Parse);
 
-parse_opt_list(slist, _SyntaxOp, Key, [], Parse, Acc) ->
-    {ok, Key, lists:sort(Acc), Parse};
+parse_opt_list(slist, SyntaxOp, Key, [], Parse, Acc) ->
+    check_unique_key(Key, lists:sort(Acc), SyntaxOp, Parse);
 
-parse_opt_list(ulist, _SyntaxOp, Key, [], Parse, Acc) ->
-    {ok, Key, lists:usort(Acc), Parse};
+parse_opt_list(ulist, SyntaxOp, Key, [], Parse, Acc) ->
+    check_unique_key(Key, lists:usort(Acc), SyntaxOp, Parse);
 
 parse_opt_list(ListType, SyntaxOp, Key, [Term | Rest], Parse, Acc) ->
     case parse_opt(SyntaxOp, Key, Term, Parse) of
@@ -437,6 +443,34 @@ parse_opt_list(ListType, SyntaxOp, Key, [Term | Rest], Parse, Acc) ->
 
 parse_opt_list(_ListType, _Key, _Val, _Parse, _SyntaxOp, _Acc) ->
     {error, syntax}.
+
+
+%% @private
+check_unique_key(Key, List, #{'__check_unique_keys':=UniqueKeys}, Parse) ->
+    case do_check_unique_keys(UniqueKeys, List) of
+        ok ->
+            {ok, Key, List, Parse};
+        {error, UniqueKey} ->
+            UniqueKey2 = list_to_binary([to_bin(Key), $., to_bin(UniqueKey)]),
+            {error, duplicated_key_error(UniqueKey2, Parse)}
+    end;
+
+check_unique_key(Key, List, _SyntaxOp, Parse) ->
+    {ok, Key, List, Parse}.
+
+
+%% @private
+do_check_unique_keys([], _List) ->
+    ok;
+
+do_check_unique_keys([UniqueKey|Rest], List) ->
+    Values = [Value || #{UniqueKey:=Value} <- List],
+    case lists:usort(Values) of
+        Values ->
+            do_check_unique_keys(Rest, List);
+        _ ->
+            {error, UniqueKey}
+    end.
 
 
 
@@ -979,9 +1013,15 @@ to_existing_atom(Term) ->
         Atom -> {ok, Atom}
     end.
 
+
 %% @private
 syntax_error(Key, Parse) ->
     {syntax_error, path_key(Key, Parse)}.
+
+
+%% @private
+duplicated_key_error(Key, Parse) ->
+    {duplicated_key, path_key(Key, Parse)}.
 
 
 %% @private
