@@ -78,7 +78,11 @@ parse_decoded_list([Obj|Rest], Acc) ->
             parse_decoded_list(Rest, [Obj2|Acc]);
         [List|_] when is_list(List) ->
             Obj2 = parse_decoded_list(Obj, []),
-            parse_decoded_list(Rest, [Obj2|Acc])
+            parse_decoded_list(Rest, [Obj2|Acc]);
+        _ when is_list(Obj) ->
+            parse_decoded_list(Rest, [to_bin(Obj)|Acc]);
+        _ when is_integer(Obj); is_float(Obj); is_atom(Obj) ->
+            parse_decoded_list(Rest, [Obj|Acc])
     end.
 
 
@@ -116,6 +120,7 @@ test() ->
     test_1(),
     test_2(),
     test_3(),
+    test_4(),
     ok.
 
 
@@ -215,4 +220,17 @@ test_3() ->
     ] = decode(Body).
 
 
+test_4() ->
+    Body1 = <<"list: [a, b, 2, true, null]">>,
+    [#{<<"list">> := [<<"a">>,<<"b">>, 2, true, null]}] = Res1 = decode(Body1),
+    Body2 = <<"
+    list:
+        - a
+        - b
+        - 2
+        - true
+        - null
+    ">>,
+    Res1 = decode(Body2),
+    ok.
 
