@@ -22,7 +22,7 @@
 -module(nklib_json).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([encode/1, encode_pretty/1, decode/1]).
+-export([encode/1, encode_pretty/1, encode_sorted/1, decode/1]).
 
 
 %% ===================================================================
@@ -79,6 +79,24 @@ encode_pretty(Term) ->
             lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_encode_error, Error})
     end.
+
+%% @doc Encodes a term() to JSON sorting the keys
+-spec encode_sorted(term()) ->
+    binary().
+
+encode_sorted(Term) ->
+    encode_pretty(sort_json(Term)).
+
+
+%% @private
+sort_json(Map) when is_map(Map) ->
+    {[{Key, sort_json(Val)} || {Key, Val} <- lists:sort(maps:to_list(Map))]};
+
+sort_json(List) when is_list(List) ->
+    [sort_json(Term) || Term <- List];
+
+sort_json(Term) ->
+    Term.
 
 
 %% @doc Decodes a JSON as a map
