@@ -27,7 +27,7 @@
 
 %% hex(crypto:hash(sha256, <<>>))
 -define(EMPTY_HASH, <<"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855">>).
-
+-define(DEFAULT_REGION, 'eu-west-1').
 
 %% ===================================================================
 %% Types
@@ -43,7 +43,10 @@
     key => string()|binary(),
     secret => string()|binary(),
     path => string() | binary(),            %% Uri-encoded (except for S3)
-    headers => #{string()|binary()|atom() => string()|binary()},
+    scheme => http | https,                 %% Default https
+    host => string() | binary(),            %% AWS used if not specified
+    port => integer(),
+    headers => [{string()|binary()|atom(), string()|binary()}],
     params => #{string()|binary()|atom() => string()|binary()},
     meta => #{string()|binary()|atom() => string()|binary()},
     hash => binary,                         %% crypto:hash(sha256, Body)
@@ -60,12 +63,10 @@
 
 %% @doc AWS v4 signed request
 -spec request_v4(request_v4_config()) ->
-    {Uri::binary(), Headers::#{binary() => binary()}}.
+    {Uri::binary(), Headers::[{binary(), binary()}]}.
 
 request_v4(Config) ->
-    Region = to_bin(maps:get(region, Config)),
-    Service = to_bin(maps:get(service, Config)),
-    Host = <<Service/binary, $., Region/binary, ".amazonaws.com">>,
+    {Region, Service, Host, Url} = get_service(Config),
     Date = iso_8601_basic_time(),
     HexHash = case maps:find(hash, Config) of
         {ok, BodyHash} ->
@@ -73,18 +74,19 @@ request_v4(Config) ->
         error ->
             ?EMPTY_HASH
     end,
-    Headers1 = maps:get(headers, Config, #{}),
-    Headers2 = Headers1#{
-        <<"x-amz-date">> => Date,
-        <<"x-amz-content-sha256">> => HexHash,
-        <<"host">> => Host
-    },
+    Headers1 = maps:get(headers, Config, []),
+    Headers2 = [
+        {<<"x-amz-date">>, Date},
+        {<<"x-amz-content-sha256">>, HexHash},
+        {<<"host">>, Host}
+        | Headers1
+    ],
     Headers3 = case maps:find(meta, Config) of
         {ok, Meta} ->
             lists:foldl(
                 fun({Key, Val}, Acc) ->
                     HeaderKey = <<"x-amz-meta-", (nklib_util:to_lower(Key))/binary>>,
-                    Acc#{HeaderKey => to_bin(Val)}
+                    [{HeaderKey, to_bin(Val)} | Acc]
                 end,
                 Headers2,
                 maps:to_list(Meta));
@@ -93,7 +95,7 @@ request_v4(Config) ->
     end,
     NormHeaders = [
         {nklib_util:to_lower(Name), to_bin(Value)}
-        || {Name, Value} <- maps:to_list(Headers3)
+        || {Name, Value} <- Headers3
     ],
     SortedHeaders = lists:keysort(1, NormHeaders),
     CanonicalHeaders = [[Name, $:, Value, $\n] || {Name, Value} <- SortedHeaders],
@@ -135,8 +137,8 @@ request_v4(Config) ->
         <<" SignedHeaders=">>, SignedHeaders, $,,
         <<" Signature=">>, Signature
     ])),
-    ReqHeaders = maps:from_list([{<<"authorization">>, Auth} | NormHeaders]),
-    ReqUri1 = <<"https://", Host/binary, Path/binary>>,
+    ReqHeaders = [{<<"authorization">>, Auth} | NormHeaders],
+    ReqUri1 = <<Url/binary, Path/binary>>,
     ReqUri2 = case CanonicalQueryString of
         <<>> ->
             ReqUri1;
@@ -164,16 +166,30 @@ request_v4_tmp(#{ttl:=Secs}=Config) ->
         "&Signature=", url_encode(Enc),
         "&Expires=", Expires
     ]),
-    Region = to_bin(maps:get(region, Config)),
-    Service = to_bin(maps:get(service, Config)),
-    Host = <<Service/binary, $., Region/binary, ".amazonaws.com">>,
-    {Method, <<Host/binary, Path/binary, Qs/binary>>}.
+    {_Region, _Service, _Host, Url} = get_service(Config),
+    {Method, <<Url/binary, Path/binary, Qs/binary>>}.
 
 
 
 %% ===================================================================
 %% Internal
 %% ===================================================================
+
+get_service(Config) ->
+    Region = to_bin(maps:get(region, Config, ?DEFAULT_REGION)),
+    Service = to_bin(maps:get(service, Config, s3)),
+    Scheme = to_bin(maps:get(scheme, Config, <<"https">>)),
+    DefPort = case Scheme of <<"http">> -> 80; <<"https">> -> 443 end,
+    Port = to_bin(maps:get(port, Config, DefPort)),
+    Host = case maps:find(host, Config) of
+        {ok, ConfigHost} ->
+            to_bin(ConfigHost);
+        error ->
+            <<Service/binary, $., Region/binary, ".amazonaws.com">>
+    end,
+    FullHost = <<Host/binary, $:, Port/binary>>,
+    Url = <<Scheme/binary, "://", FullHost/binary>>,
+    {Region, Service, FullHost, Url}.
 
 
 %% @private
@@ -202,6 +218,9 @@ value_to_string(String) when is_list(String) ->
 url_encode(Binary) when is_binary(Binary) ->
     url_encode(unicode:characters_to_list(Binary));
 
+url_encode(Atom) when is_atom(Atom) ->
+    url_encode(atom_to_binary(Atom, utf8));
+
 url_encode(String) ->
     url_encode(String, []).
 
@@ -223,6 +242,9 @@ url_encode([Char|String], Acc) ->
 %% @private
 url_encode_loose(Binary) when is_binary(Binary) ->
     url_encode_loose(binary_to_list(Binary));
+
+url_encode_loose(Atom) when is_atom(Atom) ->
+    url_encode_loose(atom_to_binary(Atom, utf8));
 
 url_encode_loose(String) ->
     url_encode_loose(String, []).
