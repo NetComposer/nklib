@@ -922,7 +922,10 @@ do_parse_map([{Key, Val} | Rest]) ->
             do_parse_map(Rest);
         false ->
             error
-    end.
+    end;
+
+do_parse_map(_) ->
+    error.
 
 
 %% @private
