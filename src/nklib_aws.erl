@@ -23,7 +23,6 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([request_v4/1, request_v4_tmp/1]).
--export([url_encode/1, url_encode_loose/1]).
 
 %% hex(crypto:hash(sha256, <<>>))
 -define(EMPTY_HASH, <<"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855">>).
@@ -102,7 +101,7 @@ request_v4(Config) ->
     SignedHeaders = nklib_util:bjoin([Name || {Name, _} <- SortedHeaders], <<";">>),
     QueryParams = maps:get(params, Config, #{}),
     NormalizedQS = [
-        <<(url_encode(Name))/binary, $=, (url_encode(value_to_string(Value)))/binary>>
+        <<(nklib_url:encode_utf8(Name))/binary, $=, (nklib_url:encode_utf8(value_to_string(Value)))/binary>>
         || {Name, Value} <- maps:to_list(QueryParams)
     ],
     CanonicalQueryString = nklib_util:bjoin(lists:sort(NormalizedQS), <<"&">>),
@@ -154,7 +153,7 @@ request_v4(Config) ->
     {Method::binary(), Url::binary()}.
 
 request_v4_tmp(#{ttl:=Secs}=Config) ->
-    Expires = to_bin(nklib_util:timestamp() + Secs),
+    Expires = to_bin(nklib_date:epoch(secs) + Secs),
     Method = nklib_util:to_upper(maps:get(method, Config, <<"GET">>)),
     Path = maps:get(path, Config, <<"/">>),
     CT = maps:get(content_type, Config, <<>>),
@@ -162,8 +161,8 @@ request_v4_tmp(#{ttl:=Secs}=Config) ->
     #{key:=Key, secret:=Secret} = Config,
     Enc = base64:encode(crypto:hmac(sha, Secret, ToSign)),
     Qs = list_to_binary([
-        "?AWSAccessKeyId=", url_encode(Key),
-        "&Signature=", url_encode(Enc),
+        "?AWSAccessKeyId=", nklib_url:encode_utf8(Key),
+        "&Signature=", nklib_url:encode_utf8(Enc),
         "&Expires=", Expires
     ]),
     {_Region, _Service, _Host, Url} = get_service(Config),
@@ -212,86 +211,86 @@ value_to_string(Binary) when is_binary(Binary) ->
 
 value_to_string(String) when is_list(String) ->
     unicode:characters_to_binary(String).
-
-
-%% @private
-url_encode(Binary) when is_binary(Binary) ->
-    url_encode(unicode:characters_to_list(Binary));
-
-url_encode(Atom) when is_atom(Atom) ->
-    url_encode(atom_to_binary(Atom, utf8));
-
-url_encode(String) ->
-    url_encode(String, []).
-
-url_encode([], Acc) ->
-    list_to_binary(lists:reverse(Acc));
-
-url_encode([Char|String], Acc)
-    when Char >= $A, Char =< $Z;
-    Char >= $a, Char =< $z;
-    Char >= $0, Char =< $9;
-    Char =:= $-; Char =:= $_;
-    Char =:= $.; Char =:= $~ ->
-    url_encode(String, [Char|Acc]);
-
-url_encode([Char|String], Acc) ->
-    url_encode(String, utf8_encode_char(Char) ++ Acc).
-
-
-%% @private
-url_encode_loose(Binary) when is_binary(Binary) ->
-    url_encode_loose(binary_to_list(Binary));
-
-url_encode_loose(Atom) when is_atom(Atom) ->
-    url_encode_loose(atom_to_binary(Atom, utf8));
-
-url_encode_loose(String) ->
-    url_encode_loose(String, []).
-
-url_encode_loose([], Acc) ->
-    list_to_binary(lists:reverse(Acc));
-
-url_encode_loose([Char|String], Acc)
-    when Char >= $A, Char =< $Z;
-    Char >= $a, Char =< $z;
-    Char >= $0, Char =< $9;
-    Char =:= $-; Char =:= $_;
-    Char =:= $.; Char =:= $~;
-    Char =:= $/ ->
-    url_encode_loose(String, [Char|Acc]);
-
-url_encode_loose([Char|String], Acc)
-    when Char >=0, Char =< 255 ->
-    url_encode_loose(String, [hex_char(Char rem 16), hex_char(Char div 16), $% | Acc]).
-
-
-%% @private
-utf8_encode_char(Char) when Char > 16#FFFF, Char =< 16#10FFFF ->
-    encode_char(Char band 16#3F + 16#80)
-    ++ encode_char((16#3F band (Char bsr 6)) + 16#80)
-        ++ encode_char((16#3F band (Char bsr 12)) + 16#80)
-        ++ encode_char((Char bsr 18) + 16#F0);
-
-utf8_encode_char(Char) when Char > 16#7FF, Char =< 16#FFFF ->
-    encode_char(Char band 16#3F + 16#80)
-    ++ encode_char((16#3F band (Char bsr 6)) + 16#80)
-        ++ encode_char((Char bsr 12) + 16#E0);
-
-utf8_encode_char(Char) when Char > 16#7F, Char =< 16#7FF ->
-    encode_char(Char band 16#3F + 16#80)
-    ++ encode_char((Char bsr 6) + 16#C0);
-
-utf8_encode_char(Char) when Char =< 16#7F ->
-    encode_char(Char).
-
-encode_char(Char) ->
-    [hex_char(Char rem 16), hex_char(Char div 16), $%].
-
-
-%% @private
-hex_char(C) when C < 10 -> $0 + C;
-hex_char(C) when C < 16 -> $A + C - 10.
+%%
+%%
+%%%% @private
+%%url_encode(Binary) when is_binary(Binary) ->
+%%    url_encode(unicode:characters_to_list(Binary));
+%%
+%%url_encode(Atom) when is_atom(Atom) ->
+%%    url_encode(atom_to_binary(Atom, utf8));
+%%
+%%url_encode(String) ->
+%%    url_encode(String, []).
+%%
+%%url_encode([], Acc) ->
+%%    list_to_binary(lists:reverse(Acc));
+%%
+%%url_encode([Char|String], Acc)
+%%    when Char >= $A, Char =< $Z;
+%%    Char >= $a, Char =< $z;
+%%    Char >= $0, Char =< $9;
+%%    Char =:= $-; Char =:= $_;
+%%    Char =:= $.; Char =:= $~ ->
+%%    url_encode(String, [Char|Acc]);
+%%
+%%url_encode([Char|String], Acc) ->
+%%    url_encode(String, utf8_encode_char(Char) ++ Acc).
+%%
+%%
+%%%% @private
+%%url_encode_loose(Binary) when is_binary(Binary) ->
+%%    url_encode_loose(binary_to_list(Binary));
+%%
+%%url_encode_loose(Atom) when is_atom(Atom) ->
+%%    url_encode_loose(atom_to_binary(Atom, utf8));
+%%
+%%url_encode_loose(String) ->
+%%    url_encode_loose(String, []).
+%%
+%%url_encode_loose([], Acc) ->
+%%    list_to_binary(lists:reverse(Acc));
+%%
+%%url_encode_loose([Char|String], Acc)
+%%    when Char >= $A, Char =< $Z;
+%%    Char >= $a, Char =< $z;
+%%    Char >= $0, Char =< $9;
+%%    Char =:= $-; Char =:= $_;
+%%    Char =:= $.; Char =:= $~;
+%%    Char =:= $/ ->
+%%    url_encode_loose(String, [Char|Acc]);
+%%
+%%url_encode_loose([Char|String], Acc)
+%%    when Char >=0, Char =< 255 ->
+%%    url_encode_loose(String, [hex_char(Char rem 16), hex_char(Char div 16), $% | Acc]).
+%%
+%%
+%%%% @private
+%%utf8_encode_char(Char) when Char > 16#FFFF, Char =< 16#10FFFF ->
+%%    encode_char(Char band 16#3F + 16#80)
+%%    ++ encode_char((16#3F band (Char bsr 6)) + 16#80)
+%%        ++ encode_char((16#3F band (Char bsr 12)) + 16#80)
+%%        ++ encode_char((Char bsr 18) + 16#F0);
+%%
+%%utf8_encode_char(Char) when Char > 16#7FF, Char =< 16#FFFF ->
+%%    encode_char(Char band 16#3F + 16#80)
+%%    ++ encode_char((16#3F band (Char bsr 6)) + 16#80)
+%%        ++ encode_char((Char bsr 12) + 16#E0);
+%%
+%%utf8_encode_char(Char) when Char > 16#7F, Char =< 16#7FF ->
+%%    encode_char(Char band 16#3F + 16#80)
+%%    ++ encode_char((Char bsr 6) + 16#C0);
+%%
+%%utf8_encode_char(Char) when Char =< 16#7F ->
+%%    encode_char(Char).
+%%
+%%encode_char(Char) ->
+%%    [hex_char(Char rem 16), hex_char(Char div 16), $%].
+%%
+%%
+%%%% @private
+%%hex_char(C) when C < 10 -> $0 + C;
+%%hex_char(C) when C < 16 -> $A + C - 10.
 
 
 %% @private
