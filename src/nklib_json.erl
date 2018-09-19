@@ -22,7 +22,7 @@
 -module(nklib_json).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([encode/1, encode_pretty/1, encode_sorted/1, decode/1]).
+-export([encode/1, encode_pretty/1, encode_sorted/1, decode/1, json_ish/1]).
 
 
 %% ===================================================================
@@ -122,9 +122,30 @@ decode(Term) ->
             lager:debug("Error decoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_decode_error, Error})
     end.
-    
 
 
+
+%% @doc Makes a map json-ish (keys as binary, values as json)
+json_ish(Map) ->
+    maps:fold(
+        fun(K, V, Acc) ->
+            V2 = if
+                is_binary(V); is_integer(V); is_float(V); is_boolean(V) ->
+                    V;
+                V==null ->
+                    V;
+                true ->
+                    to_bin(V)
+            end,
+            Acc#{to_bin(K) => V2}
+        end,
+        #{},
+        Map).
+
+
+%% @private
+to_bin(T) when is_binary(T)-> T;
+to_bin(T) -> nklib_util:to_binary(T).
 
 
 
