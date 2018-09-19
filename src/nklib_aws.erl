@@ -74,9 +74,10 @@ request_v4(Config) ->
             ?EMPTY_HASH
     end,
     Headers1 = maps:get(headers, Config, []),
+    % Amazon aws-cli don't include x-amz-content-sha256 header (but it doesn't hurt)
     Headers2 = [
         {<<"x-amz-date">>, Date},
-        {<<"x-amz-content-sha256">>, HexHash},
+        % {<<"x-amz-content-sha256">>, HexHash},
         {<<"host">>, Host}
         | Headers1
     ],
@@ -186,7 +187,12 @@ get_service(Config) ->
         error ->
             <<Service/binary, $., Region/binary, ".amazonaws.com">>
     end,
-    FullHost = <<Host/binary, $:, Port/binary>>,
+    FullHost = case Port==<<"80">> orelse Port==<<"443">> of
+        true ->
+            Host;
+        false ->
+            <<Host/binary, $:, Port/binary>>
+    end,
     Url = <<Scheme/binary, "://", FullHost/binary>>,
     {Region, Service, FullHost, Url}.
 
