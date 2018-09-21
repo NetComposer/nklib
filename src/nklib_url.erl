@@ -22,7 +22,7 @@
 -module(nklib_url).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([encode_utf8/1, encode/1]).
+-export([encode_utf8/1, encode/1, norm/1]).
 
 
 %% @private
@@ -105,3 +105,15 @@ hex_char(C) when C < 10 -> $0 + C;
 hex_char(C) when C < 16 -> $A + C - 10.
 
 
+%% @doc Removes final / if present
+norm(Host) ->
+    Bin = nklib_util:to_binary(Host),
+    case byte_size(Bin)-1 of
+        Size when Size =< 1 ->
+            Bin;
+        Size ->
+            case Bin of
+                <<Base:Size/binary, "/">> -> Base;
+                _ -> Bin
+            end
+    end.
