@@ -695,4 +695,4 @@
 ext(Mime) -> maps:get(Mime, ?MIMES, undefined).
 mime(Ext) -> 
     {C1, C2, _} = cow_mimetypes:all(<<"a.", Ext/binary>>),
-    CT = list_to_binary([C1, "/", C2]).
+    list_to_binary([C1, "/", C2]).
