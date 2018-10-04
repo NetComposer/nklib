@@ -26,7 +26,7 @@
 
 %% hex(crypto:hash(sha256, <<>>))
 -define(EMPTY_HASH, <<"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855">>).
--define(DEFAULT_REGION, 'eu-west-1').
+-define(DEFAULT_REGION, <<"eu-west-1">>).
 
 %% ===================================================================
 %% Types
@@ -65,6 +65,18 @@
     {Uri::binary(), Headers::[{binary(), binary()}]}.
 
 request_v4(Config) ->
+    lager:error("NKLOG C ~p", [Config]),
+
+    case nklib_syntax:parse(Config, syntax()) of
+        {ok, Config2, _} ->
+            do_request_v4(Config2);
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+%% @private
+do_request_v4(Config) ->
     {Region, Service, Host, Url} = get_service(Config),
     Date = iso_8601_basic_time(),
     HexHash = case maps:find(hash, Config) of
@@ -107,7 +119,7 @@ request_v4(Config) ->
     ],
     CanonicalQueryString = nklib_util:bjoin(lists:sort(NormalizedQS), <<"&">>),
     Method = nklib_util:to_upper(maps:get(method, Config, <<"GET">>)),
-    Path = to_bin(maps:get(path, Config, <<"/">>)),
+    Path = maps:get(path, Config, <<"/">>),
     Request = [
         Method, $\n,
         Path, $\n,
@@ -124,8 +136,7 @@ request_v4(Config) ->
         CredentialScope, $\n,
         nklib_util:hex(crypto:hash(sha256, Request))
     ],
-    Key = to_bin(maps:get(key, Config)),
-    Secret = to_bin(maps:get(secret, Config)),
+    #{key:=Key, secret:=Secret} = Config,
     KDate = crypto:hmac(sha256, <<"AWS4", Secret/binary>>, Date2),
     KRegion = crypto:hmac(sha256, KDate, Region),
     KService = crypto:hmac(sha256, KRegion, Service),
@@ -153,7 +164,17 @@ request_v4(Config) ->
 -spec request_v4_tmp(request_v4_config()) ->
     {Method::binary(), Url::binary()}.
 
-request_v4_tmp(#{ttl:=Secs}=Config) ->
+request_v4_tmp(Config) ->
+    case nklib_syntax:parse(Config, syntax()) of
+        {ok, Config2, _} ->
+            do_request_v4_tmp(Config2);
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+%% @private
+do_request_v4_tmp(#{ttl:=Secs}=Config) ->
     Expires = to_bin(nklib_date:epoch(secs) + Secs),
     Method = nklib_util:to_upper(maps:get(method, Config, <<"GET">>)),
     Path = maps:get(path, Config, <<"/">>),
@@ -176,18 +197,17 @@ request_v4_tmp(#{ttl:=Secs}=Config) ->
 %% ===================================================================
 
 get_service(Config) ->
-    Region = to_bin(maps:get(region, Config, ?DEFAULT_REGION)),
-    Service = to_bin(maps:get(service, Config, s3)),
-    Scheme = to_bin(maps:get(scheme, Config, <<"https">>)),
+    #{service:=Service, scheme:=Scheme} = Config,
+    Region = maps:get(region, Config, ?DEFAULT_REGION),
     DefPort = case Scheme of <<"http">> -> 80; <<"https">> -> 443 end,
     Port = to_bin(maps:get(port, Config, DefPort)),
     Host = case maps:find(host, Config) of
         {ok, ConfigHost} ->
-            to_bin(ConfigHost);
+            ConfigHost;
         error ->
             <<Service/binary, $., Region/binary, ".amazonaws.com">>
     end,
-    FullHost = case Port==<<"80">> orelse Port==<<"443">> of
+    FullHost = case Port==80 orelse Port==443 of
         true ->
             Host;
         false ->
@@ -195,6 +215,30 @@ get_service(Config) ->
     end,
     Url = <<Scheme/binary, "://", FullHost/binary>>,
     {Region, Service, FullHost, Url}.
+
+
+%% @private
+syntax() ->
+    #{
+        method => upper,
+        service => binary,
+        region => binary,
+        key => binary,
+        secret => binary,
+        path => binary,
+        scheme => {binary, [<<"http">>, <<"https">>]},
+        host => binary,
+        port => integer,
+        headers => list,
+        params => map,
+        meta => map,
+        hash => binary,
+        ttl => pos_integer,
+        content_type => binary,
+        '__defaults' => #{method => <<"GET">>, scheme => <<"https">>},
+        '__mandatory' => [service, key, secret]
+    }.
+
 
 
 %% @private
@@ -217,86 +261,6 @@ value_to_string(Binary) when is_binary(Binary) ->
 
 value_to_string(String) when is_list(String) ->
     unicode:characters_to_binary(String).
-%%
-%%
-%%%% @private
-%%url_encode(Binary) when is_binary(Binary) ->
-%%    url_encode(unicode:characters_to_list(Binary));
-%%
-%%url_encode(Atom) when is_atom(Atom) ->
-%%    url_encode(atom_to_binary(Atom, utf8));
-%%
-%%url_encode(String) ->
-%%    url_encode(String, []).
-%%
-%%url_encode([], Acc) ->
-%%    list_to_binary(lists:reverse(Acc));
-%%
-%%url_encode([Char|String], Acc)
-%%    when Char >= $A, Char =< $Z;
-%%    Char >= $a, Char =< $z;
-%%    Char >= $0, Char =< $9;
-%%    Char =:= $-; Char =:= $_;
-%%    Char =:= $.; Char =:= $~ ->
-%%    url_encode(String, [Char|Acc]);
-%%
-%%url_encode([Char|String], Acc) ->
-%%    url_encode(String, utf8_encode_char(Char) ++ Acc).
-%%
-%%
-%%%% @private
-%%url_encode_loose(Binary) when is_binary(Binary) ->
-%%    url_encode_loose(binary_to_list(Binary));
-%%
-%%url_encode_loose(Atom) when is_atom(Atom) ->
-%%    url_encode_loose(atom_to_binary(Atom, utf8));
-%%
-%%url_encode_loose(String) ->
-%%    url_encode_loose(String, []).
-%%
-%%url_encode_loose([], Acc) ->
-%%    list_to_binary(lists:reverse(Acc));
-%%
-%%url_encode_loose([Char|String], Acc)
-%%    when Char >= $A, Char =< $Z;
-%%    Char >= $a, Char =< $z;
-%%    Char >= $0, Char =< $9;
-%%    Char =:= $-; Char =:= $_;
-%%    Char =:= $.; Char =:= $~;
-%%    Char =:= $/ ->
-%%    url_encode_loose(String, [Char|Acc]);
-%%
-%%url_encode_loose([Char|String], Acc)
-%%    when Char >=0, Char =< 255 ->
-%%    url_encode_loose(String, [hex_char(Char rem 16), hex_char(Char div 16), $% | Acc]).
-%%
-%%
-%%%% @private
-%%utf8_encode_char(Char) when Char > 16#FFFF, Char =< 16#10FFFF ->
-%%    encode_char(Char band 16#3F + 16#80)
-%%    ++ encode_char((16#3F band (Char bsr 6)) + 16#80)
-%%        ++ encode_char((16#3F band (Char bsr 12)) + 16#80)
-%%        ++ encode_char((Char bsr 18) + 16#F0);
-%%
-%%utf8_encode_char(Char) when Char > 16#7FF, Char =< 16#FFFF ->
-%%    encode_char(Char band 16#3F + 16#80)
-%%    ++ encode_char((16#3F band (Char bsr 6)) + 16#80)
-%%        ++ encode_char((Char bsr 12) + 16#E0);
-%%
-%%utf8_encode_char(Char) when Char > 16#7F, Char =< 16#7FF ->
-%%    encode_char(Char band 16#3F + 16#80)
-%%    ++ encode_char((Char bsr 6) + 16#C0);
-%%
-%%utf8_encode_char(Char) when Char =< 16#7F ->
-%%    encode_char(Char).
-%%
-%%encode_char(Char) ->
-%%    [hex_char(Char rem 16), hex_char(Char div 16), $%].
-%%
-%%
-%%%% @private
-%%hex_char(C) when C < 10 -> $0 + C;
-%%hex_char(C) when C < 16 -> $A + C - 10.
 
 
 %% @private
