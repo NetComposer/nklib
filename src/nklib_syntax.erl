@@ -909,6 +909,9 @@ spec(_Type, _Val) ->
 do_parse_map([]) ->
     ok;
 
+do_parse_map([{Key, Val} | Rest]) when is_list(Key) ->
+    do_parse_map([{list_to_binary(Key), Val} | Rest]);
+
 do_parse_map([{Key, Val} | Rest]) ->
     case is_binary(Key) orelse is_atom(Key) of
         true when is_map(Val) ->
