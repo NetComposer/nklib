@@ -22,7 +22,7 @@
 -module(nklib_url).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([encode_utf8/1, encode/1, norm/1]).
+-export([encode_utf8/1, encode/1, norm/1, form_urldecode/1]).
 
 
 %% @private
@@ -117,3 +117,20 @@ norm(Host) ->
                 _ -> Bin
             end
     end.
+
+
+%% @doc Decodes a www-form-urlencoded body
+form_urldecode(Binary) ->
+    form_urldecode(binary:split(Binary, <<$&>>, [global]), []).
+
+form_urldecode([], Acc) ->
+    Acc;
+
+form_urldecode([Term|Rest], Acc) ->
+    {Key, Val} = case binary:split(Term, <<$=>>) of
+        [Key0, Val0] ->
+            {http_uri:decode(Key0), http_uri:decode(Val0)};
+        [Key0] ->
+            {http_uri:decode(Key0), <<>>}
+    end,
+    form_urldecode(Rest, [{Key, Val}|Acc]).
