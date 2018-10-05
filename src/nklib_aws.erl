@@ -65,8 +65,6 @@
     {Uri::binary(), Headers::[{binary(), binary()}]}.
 
 request_v4(Config) ->
-    lager:error("NKLOG C ~p", [Config]),
-
     case nklib_syntax:parse(Config, syntax()) of
         {ok, Config2, _} ->
             do_request_v4(Config2);
