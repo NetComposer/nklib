@@ -22,7 +22,7 @@
 -module(nklib_url).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([encode_utf8/1, encode/1, norm/1, form_urldecode/1]).
+-export([encode_utf8/1, encode/1, norm/1, form_urldecode/1, form_urlencode/1]).
 
 
 %% @private
@@ -31,6 +31,9 @@ encode_utf8(Binary) when is_binary(Binary) ->
 
 encode_utf8(Atom) when is_atom(Atom) ->
     encode_utf8(atom_to_binary(Atom, utf8));
+
+encode_utf8(Int) when is_integer(Int) ->
+    encode_utf8(integer_to_binary(Int));
 
 encode_utf8(String) ->
     url_encode(String, []).
@@ -56,6 +59,9 @@ encode(Binary) when is_binary(Binary) ->
 
 encode(Atom) when is_atom(Atom) ->
     encode(atom_to_binary(Atom, utf8));
+
+encode(Int) when is_integer(Int) ->
+    encode(integer_to_binary(Int));
 
 encode(String) ->
     encode(String, []).
@@ -134,3 +140,25 @@ form_urldecode([Term|Rest], Acc) ->
             {http_uri:decode(Key0), <<>>}
     end,
     form_urldecode(Rest, [{Key, Val}|Acc]).
+
+
+%% @doc
+form_urlencode(Params) when is_map(Params) ->
+    form_urlencode(maps:to_list(Params));
+
+form_urlencode(List) when is_list(List) ->
+    Terms = form_urlencode(List, []),
+    nklib_util:bjoin(Terms, <<"&">>).
+
+
+%% @private
+form_urlencode([], Acc) ->
+    lists:reverse(Acc);
+
+form_urlencode([{Key, Values}|Rest], Acc) when is_list(Values) ->
+    Items = [{Key, Value} || Value<- Values],
+    form_urlencode(Items++Rest, Acc);
+
+form_urlencode([{Key, Value}|Rest], Acc) ->
+    Item = <<(encode_utf8(Key))/binary, $=, (encode_utf8((Value)))/binary>>,
+    form_urlencode(Rest, [Item|Acc]).
