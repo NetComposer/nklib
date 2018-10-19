@@ -155,8 +155,16 @@ form_urlencode(List) when is_list(List) ->
 form_urlencode([], Acc) ->
     lists:reverse(Acc);
 
+form_urlencode([{Key, [First|_]=Value}|Rest], Acc)
+        when is_integer(First), First >= $0, First =< $z ->
+    form_urlencode([{Key, list_to_binary(Value)}|Rest], Acc);
+
 form_urlencode([{Key, Values}|Rest], Acc) when is_list(Values) ->
-    Items = [{Key, Value} || Value<- Values],
+    Items = [{Key, Value} || Value <- Values],
+    form_urlencode(Items++Rest, Acc);
+
+form_urlencode([{Key, Values}|Rest], Acc) when is_list(Values) ->
+    Items = [{Key, Value} || Value <- Values],
     form_urlencode(Items++Rest, Acc);
 
 form_urlencode([{Key, Value}|Rest], Acc) ->
