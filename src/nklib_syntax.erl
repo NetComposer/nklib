@@ -116,7 +116,7 @@
 
 -type post_check_fun() ::
     fun(([{term(), term()}]) ->
-        ok | {error, {field, term()}} | {error, {missing_field, term()}} | {error, term()}).
+        ok | {ok, [{term(), term()}]} | {error, {field, term()}} | {error, {missing_field, term()}} | {error, term()}).
 
 
 -type parse_opts() ::
@@ -874,6 +874,8 @@ check_post_check(#parse{syntax = Syntax, ok = Ok} = Parse) ->
             case Fun(Ok) of
                 ok ->
                     {ok, Parse};
+                {ok, Ok2} ->
+                    {ok, Parse#parse{ok = Ok2}};
                 {error, {field, Key}} ->
                     {error, {syntax_error, path_key(Key, Parse)}};
                 {error, {missing_field, Key}} ->
