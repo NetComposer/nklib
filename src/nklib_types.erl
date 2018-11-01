@@ -24,12 +24,12 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -behaviour(gen_server).
 
--export([get_module/2, get_all_modules/1]).
+-export([get_module/2, get_all_modules/1, get_meta/2]).
 -export([get_type/2, get_all_types/1]).
--export([register_type/3, update_meta/3]).
+-export([register_type/3, register_type/4, update_meta/3]).
 -export([start_link/0]).
 -export([init/1, terminate/2, code_change/3, handle_call/3,
-         handle_cast/2, handle_info/2]).
+    handle_cast/2, handle_info/2]).
 
 
 %% ===================================================================
@@ -51,8 +51,7 @@
     module() | undefined.
 
 get_module(Class, Type) ->
-    Type2 = to_bin(Type),
-    lookup({type, Class, Type2}).
+    lookup({type, Class, to_bin(Type)}).
 
 
 %% @doc Gets all registered modules
@@ -79,14 +78,29 @@ get_all_types(Class) ->
     lookup({all_types, Class}, []).
 
 
-%% @doc Gets the obj module for a type
+%% @doc Finds a type's metadata
+-spec get_meta(class(), type()) ->
+    meta() | undefined.
+
+get_meta(Class, Type) ->
+    lookup({meta, Class, to_bin(Type)}).
+
+
+%% @doc Registers a type with a module
 -spec register_type(class(), type(), module()) ->
     ok.
 
-register_type(Class, Type, Module) when is_atom(Module) ->
+register_type(Class, Type, Module) ->
+    register_type(Class, Type, Module, #{}).
+
+
+%% @doc Registers a type with a module and some metadata
+-spec register_type(class(), type(), module(), meta()) ->
+    ok.
+
+register_type(Class, Type, Module, Meta) when is_atom(Module), is_map(Meta) ->
     code:ensure_loaded(Module),
-    Type2 = to_bin(Type),
-    gen_server:call(?MODULE, {register_type, Class, Type2, Module}).
+    gen_server:call(?MODULE, {register_type, Class, to_bin(Type), Module, Meta}).
 
 
 %% @doc Updates meta for a type
@@ -94,8 +108,7 @@ register_type(Class, Type, Module) when is_atom(Module) ->
     ok | {error, term()}.
 
 update_meta(Class, Type, Fun) when is_function(Fun, 1)->
-    Type2 = to_bin(Type),
-    gen_server:call(?MODULE, {update_meta, Class, Type2, Fun}).
+    gen_server:call(?MODULE, {update_meta, Class, to_bin(Type), Fun}).
 
 
 
@@ -125,16 +138,17 @@ init([]) ->
     {noreply, #state{}} | {reply, term(), #state{}} |
     {stop, Reason::term(), #state{}} | {stop, Reason::term(), Reply::term(), #state{}}.
 
-handle_call({register_type, Class, Type, Module}, _From, State) ->
+handle_call({register_type, Class, Type, Module, Meta}, _From, State) ->
     AllModules1 = get_all_modules(Class),
     AllModules2 = lists:usort([Module|AllModules1]),
     AllTypes1 = get_all_types(Class),
     AllTypes2 = lists:usort([Type|AllTypes1]),
     ets:insert(?MODULE, [
-        {{all_modules, Class}, AllModules2},
-        {{all_types, Class}, AllTypes2},
         {{type, Class, Type}, Module},
-        {{module, Class, Module}, Type}
+        {{module, Class, Module}, Type},
+        {{meta, Class, Type}, Meta},
+        {{all_modules, Class}, AllModules2},
+        {{all_types, Class}, AllTypes2}
     ]),
     {reply, ok, State};
 
@@ -149,8 +163,8 @@ handle_call({update_meta, Class, Type, Fun}, _From, State) ->
             {reply, {error, function_error, State}}
     catch
         error:Error ->
-        lager:warning("NkLIB Types: invalid meta respose (~p ~p): ~p", [Class, Type, Error]),
-        {reply, {error, function_error, State}}
+            lager:warning("NkLIB Types: invalid meta respose (~p ~p): ~p", [Class, Type, Error]),
+            {reply, {error, function_error, State}}
     end;
 
 handle_call(Msg, _From, State) ->
