@@ -40,6 +40,7 @@
 
 -export_type([optslist/0, timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
+-include("exceptions.hrl").
 
 
 %% ===================================================================
@@ -111,8 +112,8 @@ call(Dest, Msg, Timeout) ->
     try
         gen_server:call(Dest, Msg, Timeout)
     catch
-        Class:Error ->
-            {error, {Class, {Error, erlang:get_stacktrace()}}}
+        ?EXCEPTION(Class, Error, Stacktrace) ->
+            {error, {Class, {Error, ?GET_STACK(Stacktrace)}}}
     end.
 
 
@@ -129,8 +130,8 @@ apply(Mod, Fun, Args) ->
                 erlang:apply(Mod, Fun, Args)
         end
     catch
-        Class:Error ->
-            {error, {Class, {Error, erlang:get_stacktrace()}}}
+        ?EXCEPTION(Class, Error, Stacktrace) ->
+            {error, {Class, {Error, ?GET_STACK(Stacktrace)}}}
     end.
 
 
@@ -914,19 +915,19 @@ randomize([]) ->
 randomize([A]) ->
     [A];
 randomize([A, B]) ->
-    case crypto:rand_uniform(0, 2) of
+    case rand:uniform(2) of
         0 -> [A, B];
         1 -> [B, A]
     end;
 randomize([A, B, C]) ->
-    case crypto:rand_uniform(0, 3) of
+    case rand:uniform(3) of
         0 -> [A, B, C];
         1 -> [B, C, A];
         2 -> [C, A, B]
     end;
 randomize(List) when is_list(List) ->
     Size = length(List),
-    List1 = [{crypto:rand_uniform(0, Size), Term} || Term <- List],
+    List1 = [{rand:uniform(Size), Term} || Term <- List],
     [Term || {_, Term} <- lists:sort(List1)].
 
 
