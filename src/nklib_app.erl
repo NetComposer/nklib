@@ -51,7 +51,6 @@ start(_Type, _Args) ->
 	code:ensure_loaded(jiffy),     % We can work without it
     HwAddr = nklib_util:get_hwaddr(),
     application:set_env(?APP, hw_addr, HwAddr),
-    spawn(fun() -> maybe_start_reloader() end),
     nklib_sup:start_link().
 
 
@@ -60,12 +59,3 @@ stop(_) ->
     ok.
 
 
-%% @private
-maybe_start_reloader() ->
-    timer:sleep(1000),
-    case application:get_env(?APP, rebar_reloader_dirs) of
-        {ok, Dirs} when is_list(Dirs) ->
-            nklib_rebar_reloader:start(Dirs);
-        undefined ->
-            ok
-    end.
