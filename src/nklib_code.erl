@@ -23,8 +23,10 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([expression/1, getter/2, getter_args/4, fun_expr/4, call_expr/4, callback_expr/3]).
--export([case_expr/5, case_expr_ok/5, compile/2, write/3]).
+-export([case_expr/5, case_expr_ok/5, export_attr/1, compile/2, do_compile/3, write/3]).
 -export([get_funs/1]).
+-export([forms_find_attribute/2, forms_add_attributes/2, forms_get_attributes/1,
+         forms_find_exported/1, forms_get_funs/1, forms_add_funs/2, forms_print/1]).
 
 -include_lib("syntax_tools/include/merl.hrl").
 
@@ -117,7 +119,7 @@ fun_expr(Fun, Arity, Vers, Value) ->
 
 call_expr(Mod, Fun, Arity, Vers) ->
     erl_syntax:application(
-        erl_syntax:atom(Mod),
+        case Mod of none -> none; _ -> erl_syntax:atom(Mod) end,
         erl_syntax:atom(Fun),
         var_list(Arity, Vers)).
 
@@ -211,6 +213,18 @@ case_expr_ok(Mod, Fun, 2, Vers, NextCode) ->
         ]).
 
 
+%% @doc
+export_attr(List) ->
+    erl_syntax:attribute(
+        erl_syntax:atom(export),
+        [erl_syntax:list(
+            [
+                erl_syntax:arity_qualifier(
+                    erl_syntax:atom(Name), erl_syntax:integer(Arity))
+                || {Name, Arity} <- List
+            ]
+        )]).
+
 
 %% @doc Compiles a syntaxTree into a module
 -spec compile(atom(), [erl_syntax:syntaxTree()]) ->
@@ -229,20 +243,26 @@ compile(Mod, Tree) ->
             [erl_syntax:list([erl_syntax:atom(export_all)])])
         | Tree
     ],
+    do_compile(Mod, Tree1, [report_errors, report_warnings, return_errors]).
 
+
+
+%% @doc Compiles a syntaxTree into a module
+-spec do_compile(atom(), [erl_syntax:syntaxTree()], list()) ->
+    ok | {error, term()}.
+
+do_compile(Mod, Tree, Opts) ->
 %%    io:format("\nGenerated ~p:\n\n", [Mod]),
 %%    [io:format("~s\n\n", [erl_prettypr:format(S)]) || S<-Tree],
-   
-    Forms1 = [erl_syntax:revert(X) || X <- Tree1],
-    Options = [report_errors, report_warnings, return_errors],
-    case compile:forms(Forms1, Options) of
+    Forms1 = [erl_syntax:revert(X) || X <- Tree],
+    case compile:noenv_forms(Forms1, Opts) of
         {ok, Mod, Bin} ->
             code:purge(Mod),
             File = atom_to_list(Mod)++".erl",
             case code:load_binary(Mod, File, Bin) of
-                {module, Mod} -> 
-                    {ok, Tree1};
-                Error -> 
+                {module, Mod} ->
+                    {ok, Tree};
+                Error ->
                     {error, Error}
             end;
         Error ->
@@ -250,12 +270,14 @@ compile(Mod, Tree) ->
     end.
 
 
+
+
 %% @doc Writes a generated tree as a standard erlang file
 -spec write(atom(), [erl_syntax:syntaxTree()], string()) ->
     ok | {error, term()}.
 
 write(Mod, Tree, BasePath) ->
-    Path = filename:join(BasePath, atom_to_list(Mod)++".erl"),
+    Path = filename:join(BasePath, nklib_util:to_list(Mod)++".erl"),
     Content = list_to_binary(
         [io_lib:format("~s\n\n", [erl_prettypr:format(S)]) || S <-Tree]),
     file:write_file(Path, Content).
@@ -281,6 +303,107 @@ get_funs(Mod) ->
         _ ->
             error
     end.
+
+
+
+
+
+%% ===================================================================
+%% Forms utilities
+%% ===================================================================
+
+
+%% @doc Finds the module attribute
+forms_find_attribute(_Key, []) ->
+    undefined;
+
+forms_find_attribute(Key, [{attribute, _, Key, Value}|_]) ->
+    Value;
+
+forms_find_attribute(Key, [_|Rest]) ->
+    forms_find_attribute(Key, Rest).
+
+
+%% @private Adds an attribute at the end of the attribute list
+forms_add_attributes(Attrs, Forms) ->
+    forms_add_attributes(Forms, Attrs, []).
+
+
+%% @private
+forms_add_attributes([{attribute, _, _, _}=Attr|Rest], Attrs, Acc) ->
+    forms_add_attributes(Rest, Attrs, [Attr|Acc]);
+
+forms_add_attributes(Rest, Attrs, Acc) ->
+    lists:reverse(Acc) ++ Attrs ++ Rest.
+
+
+%% @private Gets all attributes
+forms_get_attributes(Forms) ->
+    forms_get_attributes(Forms, []).
+
+
+%% @private
+forms_get_attributes([], Acc) ->
+    lists:reverse(Acc);
+
+forms_get_attributes([{attribute, _, _, _}=Attr|Rest], Acc) ->
+    forms_get_attributes(Rest, [Attr|Acc]);
+
+forms_get_attributes([_|Rest], Acc) ->
+    forms_get_attributes(Rest, Acc).
+
+
+%% @private Finds all exported functions
+forms_find_exported(Forms) ->
+    forms_find_exported(Forms, []).
+
+
+forms_find_exported([], Acc) ->
+    Acc;
+
+forms_find_exported([{attribute, _, export, List}|Rest], Acc) ->
+    forms_find_exported(Rest, Acc++List);
+
+forms_find_exported([_|Rest], Acc) ->
+    forms_find_exported(Rest, Acc).
+
+
+
+%% @private Gets all defined funs
+forms_get_funs(Forms) ->
+    forms_get_funs(Forms, #{}).
+
+
+%% @private
+forms_get_funs([], Acc) ->
+    Acc;
+
+forms_get_funs([{function, _Line, Name, Arity, Spec}|Rest], Acc) ->
+    forms_get_funs(Rest, Acc#{{Name, Arity}=>Spec});
+
+forms_get_funs([_|Rest], Acc) ->
+    forms_get_funs(Rest, Acc).
+
+
+%% @private Adds a number of funs at the end of the module
+%% Funs must be [{function, ...}]
+forms_add_funs(Funs, Forms) ->
+    forms_add_funs(Forms, Funs, []).
+
+
+%% @private
+forms_add_funs([{eof, _}|_]=End, Funs, Acc) ->
+    lists:reverse(Acc) ++ Funs ++ End;
+
+forms_add_funs([Term|Rest], Funs, Acc) ->
+    forms_add_funs(Rest, Funs, [Term|Acc]).
+
+
+%% @private
+forms_print(Forms) ->
+    Content = list_to_binary([io_lib:format("~s\n\n", [erl_prettypr:format(S)]) || S <- Forms]),
+    io:format("Forms: \n~s\n", [Content]).
+
 
 
 %% ===================================================================
