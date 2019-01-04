@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -145,14 +145,14 @@ start_link(Cmd, Opts) ->
 
 -record(state, {
     cmd :: binary(),
-    user_pid :: pid(),
+    user_pid :: pid() | undefined,
     port :: port(),
-    os_pid :: integer(),
-    timeout_time :: integer(),
-    timeout_ref :: reference(),
+    os_pid :: integer() | undefined,
+    timeout_time :: integer() | undefined,
+    timeout_ref :: reference() | undefined, 
     refresh_fun :: function(),
-    parser :: function(),
-    kill_time :: integer(),
+    parser :: function() | undefined,
+    kill_time :: integer() | undefined,
     buffer = <<>> :: binary()
 }).
 

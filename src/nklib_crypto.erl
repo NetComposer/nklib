@@ -18,44 +18,38 @@
 %%
 %% -------------------------------------------------------------------
 
-%% @doc NkLIB OTP Application Module
--module(nklib_app).
+%% @doc Common library utility funcions
+-module(nklib_crypto).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--behaviour(application).
 
--export([start/0, start/2, stop/1]).
+-export([crypt_password/1, check_password/2]).
 
--define(APP, nklib).
+-define(SALT, <<"9nk1">>).
 
 %% ===================================================================
-%% Private
+%% Types
 %% ===================================================================
 
 
 
-%% @doc Starts NkLIB stand alone.
--spec start() -> 
-    ok | {error, Reason::term()}.
-
-start() ->
-    case nklib_util:ensure_all_started(?APP, permanent) of
-        {ok, _Started} ->
-            ok;
-        Error ->
-            Error
-    end.
-
-%% @private OTP standard start callback
-start(_Type, _Args) ->
-	code:ensure_loaded(jsx),
-	code:ensure_loaded(jiffy),     % We can work without it
-    HwAddr = nklib_util:get_hwaddr(),
-    application:set_env(?APP, hw_addr, HwAddr),
-    nklib_sup:start_link().
+%% ===================================================================
+%% Public
+%% =================================================================
 
 
-%% @private OTP standard stop callback
-stop(_) ->
-    ok.
+
+%% @doc
+crypt_password(#{password:=<<"!!", _/binary>>}=Obj) ->
+    Obj;
+crypt_password(#{password:=Plain}=Obj) ->
+    Pass = nklib_util:lhash(list_to_binary([?SALT, Plain])),
+    Obj#{password:=<<"!!", Pass/binary>>};
+crypt_password(Obj) ->
+    Obj.
 
 
+%% @doc
+check_password(Pass, #{password:=<<"!!", Hash/binary>>}) ->
+    Hash == nklib_util:lhash(list_to_binary([?SALT, Pass]));
+check_password(_Pass, _Obj) ->
+    false.

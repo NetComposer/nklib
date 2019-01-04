@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -34,6 +34,12 @@ start_link() ->
             5000,
             worker,
             [nklib_config]},
+        {nklib_i18n,
+            {nklib_i18n, start_link, []},
+            permanent,
+            5000,
+            worker,
+            [nklib_i18n]},
         {nklib_proc,
             {nklib_proc, start_link, []},
             permanent,
@@ -51,7 +57,13 @@ start_link() ->
             permanent,
             5000,
             worker,
-            [nklib_store]}
+            [nklib_store]},
+        {nklib_types,
+            {nklib_types, start_link, []},
+            permanent,
+            5000,
+            worker,
+            [nklib_types]}
      ],
     supervisor:start_link({local, ?MODULE}, ?MODULE, {{one_for_one, 10, 60}, ChildsSpec}).
 

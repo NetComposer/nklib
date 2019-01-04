@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([get_pid/1]).
 -export([new/0, add/2, add/3, add/4, get_value/2, update_value/3]).
--export([remove/2, down/2, iter/2, iter_values/2, fold/3, fold_values/3]).
+-export([remove/2, is_empty/1, down/2, iter/2, iter_values/2, fold/3, fold_values/3]).
 -export_type([links/0, data/0]).
 
 -include("nklib.hrl").
@@ -129,6 +129,14 @@ remove(Link, Links) ->
         false ->
             Links
     end.
+
+
+%% @doc Removes a link
+-spec is_empty(links()) ->
+    boolean().
+
+is_empty([]) -> true;
+is_empty(_) -> false.
 
 
 %% @doc Extracts a link with this pid

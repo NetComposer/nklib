@@ -5,8 +5,9 @@ NkLIB includes a serie of common utilities and services for NetComposer, but pro
 * [**nklib_code**](src/nklib_code.erl): Code-generation functions.
 * [**nklib_config**](src/nklib_config.erl): Configuration and syntax management functions.
 * [**nklib_counters**](src/nklib_counters.erl): ETS-based process couters. Any process can register and update any number of counters, and they can be shared with other processes. When the process exists, all updates made from that process are reverted.
+* [**nklib_crypto**](src/nklib_crypto.erl): Crypto utilities.
 * [**nklib_exec**](src/nklib_exec.erl): Allows to start and manage external OS processes.
-* [**nklib_headers**](src/nklib_headers.erl): General header (HTTP, SIP, etc.) manipulation functions.
+* [**nklib_i18n**](src/nklib_i18n.erl): i18n utilities.
 * [**nklib_json**](src/nklib_json.erl): JSON manipulation.
 * [**nklib_links**](src/nklib_links.erl): Generic process extended links.
 * [**nklib_log**](src/nklib_log.erl): Generic log processing.
@@ -16,4 +17,6 @@ NkLIB includes a serie of common utilities and services for NetComposer, but pro
 * [**nklib_reglist**](src/nklib_reglist.erl): Datatype and related functions useful for managing lists of processes registering for events.
 * [**nklib_sort**](src/nklib_sort.erl): Sorting functions.
 * [**nklib_store**](src/nklib_store.erl): ETS-based database, with auto expiring of records, server-side update funs and calling an user fun on record expire.
+* [**nklib_syntax**](src/nklib_syntax.erl): Syntax and schema processing.
+* [**nklib_throttle**](src/nklib_throttle.erl): Throttle management utilities.
 * [**nklib_util**](src/nklib_util.erl): Over 50 generic functions for UIDs, type conversions, dates, hashes, timers, etc.

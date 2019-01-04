@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -110,12 +110,17 @@ reg(Name, Value) -> reg(Name, Value, self()).
 %% has already registered this name.
 -spec reg(term(), term(), pid()) -> true | {false, pid()} | timeout.
 reg(Name, Value, Pid) when is_pid(Pid) -> 
-    case ets:insert_new(nklib_proc_store,  {Name, [{val, Value, Pid}]}) of
-        true -> 
-            put(Name, Value, Pid),
+    case whereis_name(Name) of
+        Pid ->
             true;
-        false ->
-            timed_call({reg, Name, Value, Pid}, 5000)
+        _ ->
+            case ets:insert_new(nklib_proc_store,  {Name, [{val, Value, Pid}]}) of
+                true ->
+                    put(Name, Value, Pid),
+                    true;
+                false ->
+                    timed_call({reg, Name, Value, Pid}, 5000)
+            end
     end.
 
 
@@ -124,9 +129,14 @@ reg(Name, Value, Pid) when is_pid(Pid) ->
 %% registered. 
 -spec reg(term(), term(), pid(), integer()|infinity) -> true | timeout.
 reg(Name, Value, Pid, Timeout) when is_pid(Pid) ->
-    case timed_call({wait_reg, Name, Value, Pid}, Timeout) of
-        ok -> true;
-        timeout -> timeout
+    case whereis_name(Name) of
+        Pid ->
+            true;
+        _ ->
+            case timed_call({wait_reg, Name, Value, Pid}, Timeout) of
+                ok -> true;
+                timeout -> timeout
+            end
     end.
 
     
@@ -599,10 +609,10 @@ do_start(Type, Name, Module, Args, Pid, Ref) ->
                     gen_server:enter_loop(Module, [], StateData, Timeout);
                 {ok, StateName, StateData} when Type==fsm->
                     Pid ! {Ref, {ok, self()}},
-                    gen_fsm:enter_loop(Module, [], StateName, StateData);
+                    gen_statem:enter_loop(Module, [], StateName, StateData);
                 {ok, StateName, StateData, Timeout} when Type==fsm->
                     Pid ! {Ref, {ok, self()}},
-                    gen_fsm:enter_loop(Module, [], StateName, StateData, Timeout);
+                    gen_statem:enter_loop(Module, [], StateName, StateData, Timeout);
                 {stop, Reason} ->
                     Pid ! {Ref, {error, Reason}};
                 ignore ->

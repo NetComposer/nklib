@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -143,7 +143,7 @@ user([$:|Rest], Acc, Block, Uri) ->
         true ->
             {error, user, ?LINE};
         false -> 
-            Uri1 = Uri#uri{user=list_to_binary(lists:reverse(Acc))},
+            Uri1 = Uri#uri{user=filter_user(Acc)},
             pass(strip(Rest), [], Block, Uri1)
     end;
 
@@ -152,7 +152,7 @@ user([$@|Rest], Acc, Block, Uri) ->
         true ->
             {error, user, ?LINE};
         false ->
-            Uri1 = Uri#uri{user=list_to_binary(lists:reverse(Acc))},
+            Uri1 = Uri#uri{user=filter_user(Acc)},
             domain(strip(Rest), [], false, Block, Uri1)
     end;
 
@@ -570,6 +570,17 @@ strip([13|Rest]) -> strip(Rest);
 strip([10|Rest]) -> strip(Rest);
 strip([9|Rest]) -> strip(Rest);
 strip(Rest) -> Rest.
+
+
+%% @private
+filter_user(Acc) ->
+    case list_to_binary(lists:reverse(Acc)) of
+        <<"//", Rest/binary>> -> Rest;
+        <<"/", Rest/binary>> -> Rest;
+        Rest -> Rest
+    end.
+
+
 
 
 %% ===================================================================

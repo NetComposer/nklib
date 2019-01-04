@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2016 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -18,27 +18,32 @@
 %%
 %% -------------------------------------------------------------------
 
-%% @doc Common library utility funcions
+%% @doc Common library utility functions
 -module(nklib_util).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([ensure_all_started/2, call/2, call/3, apply/3, safe_call/3]).
--export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash36/1, sha/1]).
--export([get_hwaddr/0, timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
+-export([ensure_all_started/2, call/2, call/3, call2/2, call2/3, apply/3, safe_call/3]).
+-export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash/3, hash36/1, sha/1]).
+-export([get_hwaddr/0, timestamp/0, m_timestamp/0,
+         l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
 -export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
 -export([filtermap/2]).
--export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1]).
--export([to_atom/1, to_existing_atom/1, to_ip/1, to_host/1, to_host/2]).
--export([to_lower/1, to_upper/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
+-export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1,
+         to_float/1]).
+-export([to_atom/1, to_existing_atom/1, make_atom/2, to_ip/1, to_host/1, to_host/2]).
+-export([to_lower/1, to_upper/1, to_capital/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
--export([hex/1, extract/2, delete/2, defaults/2, bin_last/2]).
+-export([hex/1, extract/2, delete/2, defaults/2, bin_last/2, find_duplicated/1]).
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
+-export([add_id/2, add_id/3]).
+-export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
+-export([map_merge/2, prefix/2, rand/2, consistent_reorder/2, floor/1, ceiling/1]).
 
--export_type([optslist/0, timestamp/0, l_timestamp/0]).
+-export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
 
 
@@ -53,6 +58,8 @@
 -type timestamp() :: non_neg_integer().
 
 -type l_timestamp() :: non_neg_integer().
+
+-type m_timestamp() :: non_neg_integer().
 
 
 %% ===================================================================
@@ -111,8 +118,28 @@ call(Dest, Msg, Timeout) ->
     try
         gen_server:call(Dest, Msg, Timeout)
     catch
-        Class:Error ->
-            {error, {Class, {Error, erlang:get_stacktrace()}}}
+        Class:Error:Trace ->
+            {error, {Class, {Error, Trace}}}
+    end.
+
+
+
+%% @doc Safe call (no exceptions)
+call2(Dest, Msg) ->
+    call2(Dest, Msg, 5000).
+
+
+%% @doc Safe call (no exceptions)
+call2(Dest, Msg, Timeout) ->
+    case call(Dest, Msg, Timeout) of
+        {error, {exit, {{timeout, _Fun}, _Stack}}} ->
+            {error, timeout};
+        {error, {exit, {{noproc, _Fun}, _Stack}}} ->
+            {error, process_not_found};
+        {error, {exit, {{normal, _Fun}, _Stack}}} ->
+            {error, process_not_found};
+        Other ->
+            Other
     end.
 
 
@@ -129,8 +156,8 @@ apply(Mod, Fun, Args) ->
                 erlang:apply(Mod, Fun, Args)
         end
     catch
-        Class:Error ->
-            {error, {Class, {Error, erlang:get_stacktrace()}}}
+        Class:Error:Trace ->
+            {error, {Class, {Error, Trace}}}
     end.
 
 
@@ -144,7 +171,7 @@ safe_call(Dest, Msg, Timeout) ->
     Master = self(),
     Slave = spawn(
         fun() ->
-            Reply = try
+            Reply = try  
                 {ok, gen_server:call(Dest, Msg, Timeout)}
             catch
                 error:E -> {error, E};
@@ -153,7 +180,7 @@ safe_call(Dest, Msg, Timeout) ->
             Master ! {self(), Reply}
         end
     ),
-    receive
+    receive 
         {Slave, {ok, Msg}} -> Msg;
         {Slave, {error, Error}} -> error(Error);
         {Slave, {exit, Exit}} -> exit(Exit)
@@ -174,10 +201,10 @@ luid() ->
 
 uuid_4122() ->
     Rand = hex(crypto:strong_rand_bytes(4)),
-    <<A:16/bitstring, B:16/bitstring, C:16/bitstring>> =
+    <<A:16/bitstring, B:16/bitstring, C:16/bitstring>> = 
         <<(nklib_util:l_timestamp()):48>>,
     {ok, Hw} = application:get_env(nklib, hw_addr),
-    <<Rand/binary, $-, (hex(A))/binary, $-, (hex(B))/binary, $-,
+    <<Rand/binary, $-, (hex(A))/binary, $-, (hex(B))/binary, $-, 
       (hex(C))/binary, $-, Hw/binary>>.
 
 
@@ -194,11 +221,7 @@ lhash(Base) ->
 
 
 %% @private
--ifdef(old_crypto_hash).
-sha(Term) -> crypto:sha(Term).
--else.
 sha(Term) -> crypto:hash(sha, Term).
--endif.
 
 
 %% @doc Generates a new random tag of 6 chars
@@ -217,6 +240,15 @@ hash(Base) ->
         Hash when byte_size(Hash)==6 -> Hash;
         Hash -> <<(binary:copy(<<"a">>, 6-byte_size(Hash)))/binary, Hash/binary>>
     end.
+
+
+%% @doc Generates an integer hash Start =< X <= Stop
+-spec hash(term(), integer(), integer()) ->
+    integer().
+
+hash(Base, Start, Stop) when Start >= 0, Stop > Start ->
+    Hash = erlang:phash2([Base]),
+    Hash rem (Stop - Start + 1) + Start.
 
 
 %% @doc Generates a new tag based on a value (only numbers and uppercase) of 7 chars
@@ -259,7 +291,7 @@ get_hwaddrs([{_Name, Data}|Rest]) ->
 
 get_hwaddrs([]) ->
     false.
-
+    
 
 % calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}).
 -define(SECONDS_FROM_GREGORIAN_BASE_TO_EPOCH, (1970*365+478)*24*60*60).
@@ -279,6 +311,17 @@ timestamp() ->
 l_timestamp() ->
     {N1, N2, N3} = os:timestamp(),
     (N1 * 1000000 + N2) * 1000000 + N3.
+
+
+%% @doc Gets an milisecond-resolution timestamp
+-spec m_timestamp() -> m_timestamp().
+
+m_timestamp() ->
+    l_timestamp() div 1000.
+
+
+
+
 
 
 %% @doc Converts a `timestamp()' to a local `datetime()'.
@@ -325,7 +368,6 @@ local_to_timestamp(DateTime) ->
         [Time] -> gmt_to_timestamp(Time);
         [] -> 0
     end.
-
 
 
 %% @doc Equivalent to `proplists:get_value/2' but faster.
@@ -382,10 +424,10 @@ get_list(Key, List, Default) ->
     to_list(get_value(Key, List, Default)).
 
 
-%% @doc Similar to `get_value(Key, List, 0)' but converting the result into
+%% @doc Similar to `get_value(Key, List, 0)' but converting the result into 
 %% an `integer()' or `error'.
 -spec get_integer(term(), list()) ->
-    integer() | error.
+    integer() | error. 
 
 get_integer(Key, List) ->
     to_integer(get_value(Key, List, 0)).
@@ -400,7 +442,7 @@ get_integer(Key, List, Default) ->
     to_integer(get_value(Key, List, Default)).
 
 
-%% @doc Get the keys of a map or list (the first element of any tuple,
+%% @doc Get the keys of a map or list (the first element of any tuple, 
 %% or the element itself)
 -spec keys(map()|list()) ->
     [term()].
@@ -422,18 +464,18 @@ keys(List) when is_list(List) ->
 %% @doc Stores a value in a list
 -spec store_value(term(), list()) ->
     list().
-
+ 
 store_value(Term, List) ->
     case lists:member(Term, List) of
         true -> List;
         false -> [Term|List]
     end.
 
-
+    
 %% @doc Stores a value in a proplist
 -spec store_value(term(), term(), nklib:optslist()) ->
     nklib:optslist().
-
+ 
 store_value(Key, Val, List) ->
     lists:keystore(Key, 1, List, {Key, Val}).
 
@@ -441,7 +483,7 @@ store_value(Key, Val, List) ->
 %% @doc Stores a set of values in a proplist
 -spec store_values(list(), nklib:optslist()) ->
     nklib:optslist().
-
+ 
 store_values([{Key, Val}|Rest], List) ->
     store_values(Rest, store_value(Key, Val, List));
 store_values([Val|Rest], List) ->
@@ -505,7 +547,12 @@ filtermap(F, []) when is_function(F, 1) ->
     binary().
 
 to_binary(B) when is_binary(B) -> B;
-to_binary(L) when is_list(L) -> list_to_binary(L);
+to_binary([]) -> <<>>;
+to_binary([Int|_]=L) when is_integer(Int) ->
+    case catch list_to_binary(L) of
+        {'EXIT', _} -> msg("~p", [L]);
+        Bin -> Bin
+    end;
 to_binary(undefined) -> <<>>;
 to_binary(A) when is_atom(A) -> atom_to_binary(A, latin1);
 to_binary(I) when is_integer(I) -> list_to_binary(erlang:integer_to_list(I));
@@ -547,6 +594,23 @@ to_existing_atom(L) when is_list(L) -> list_to_existing_atom(L);
 to_existing_atom(I) when is_integer(I) -> to_existing_atom(integer_to_list(I)).
 
 
+%% @doc Generates an atom with a warning if it is new
+-spec make_atom(term(), term()) ->
+    atom().
+
+make_atom(_Id, Atom) when is_atom(Atom) ->
+    Atom;
+make_atom(Id, Term) ->
+    Term2 = to_binary(Term),
+    case catch binary_to_existing_atom(Term2, utf8) of
+        {'EXIT', _} ->
+            lager:warning("NkLIB id '~p' created atom '~s'", [Id, Term2]),
+            binary_to_atom(Term2, utf8);
+        Atom ->
+            Atom
+    end.
+
+
 -spec to_map(list()|map()) ->
     map().
 
@@ -570,6 +634,8 @@ to_map(L) when is_list(L) ->
 
 to_integer(I) when is_integer(I) ->
     I;
+to_integer(F) when is_float(F) ->
+    round(F);
 to_integer(B) when is_binary(B) ->
     to_integer(binary_to_list(B));
 to_integer(L) when is_list(L) ->
@@ -578,6 +644,30 @@ to_integer(L) when is_list(L) ->
         _ -> error
     end;
 to_integer(_) ->
+    error.
+
+
+%% @doc Converts anything into a `integer()' or `error'.
+-spec to_float(integer()|binary()|string()|float()) ->
+    integer() | error.
+
+to_float(F) when is_float(F) ->
+    F;
+to_float(I) when is_integer(I) ->
+    I * 1.0;
+to_float(L) when is_list(L) ->
+    case catch list_to_float(L) of
+        F when is_float(F) ->
+            F;
+        _ ->
+            case to_integer(L) of
+                I when is_integer(I) -> I * 1.0;
+                error -> error
+            end
+    end;
+to_float(B) when is_binary(B) ->
+    to_float(binary_to_list(B));
+to_float(_) ->
     error.
 
 
@@ -605,7 +695,7 @@ to_boolean(Term) ->
 to_ip({A, B, C, D}) when is_integer(A), is_integer(B), is_integer(C), is_integer(D) ->
     {ok, {A, B, C, D}};
 
-to_ip({A, B, C, D, E, F, G, H}) when is_integer(A), is_integer(B), is_integer(C),
+to_ip({A, B, C, D, E, F, G, H}) when is_integer(A), is_integer(B), is_integer(C), 
                                      is_integer(D), is_integer(E), is_integer(F),
                                      is_integer(G), is_integer(H) ->
     {ok, {A, B, C, D, E, F, G, H}};
@@ -624,7 +714,10 @@ to_ip(Address) when is_list(Address) ->
     case inet_parse:address(Address) of
         {ok, Ip} -> {ok, Ip};
         _ -> error
-    end.
+    end;
+
+to_ip(_) ->
+    error.
 
 
 %% @doc Converts an IP or host to a binary host value
@@ -635,15 +728,15 @@ to_host(IpOrHost) ->
     to_host(IpOrHost, false).
 
 
-%% @doc Converts an IP or host to a binary host value.
+%% @doc Converts an IP or host to a binary host value. 
 % If `IsUri' and it is an IPv6 address, it will be enclosed in `[' and `]'
 -spec to_host(inet:ip_address() | string() | binary(), boolean()) ->
     binary().
 
-to_host({A,B,C,D}=Address, _IsUri)
+to_host({A,B,C,D}=Address, _IsUri) 
     when is_integer(A), is_integer(B), is_integer(C), is_integer(D) ->
     list_to_binary(inet_parse:ntoa(Address));
-to_host({A,B,C,D,E,F,G,H}=Address, IsUri)
+to_host({A,B,C,D,E,F,G,H}=Address, IsUri) 
     when is_integer(A), is_integer(B), is_integer(C), is_integer(D),
     is_integer(E), is_integer(F), is_integer(G), is_integer(H) ->
     case IsUri of
@@ -667,11 +760,25 @@ to_lower(Other) ->
 %% @doc converts a `string()' or `binary()' to an upper `binary()'.
 -spec to_upper(string()|binary()|atom()) ->
     binary().
-
+    
 to_upper(List) when is_list(List) ->
     list_to_binary(string:to_upper(List));
 to_upper(Other) ->
     to_upper(to_list(Other)).
+
+
+%% @doc converts a `string()' or `binary()' to an upper `binary()'.
+-spec to_capital(string()|binary()|atom()) ->
+    binary().
+
+to_capital(Text) ->
+    case to_binary(Text) of
+        <<First, Rest/binary>> when First >= $a, First =< $z ->
+            <<(First-32), Rest/binary>>;
+        Bin ->
+            Bin
+    end.
+
 
 
 %% @doc Converts a binary(), string() or list() to a list of binaries
@@ -741,18 +848,18 @@ encode_integer_36(Int) ->
 integer_to_list(I0, Base, R0) ->
     D = I0 rem Base,
     I1 = I0 div Base,
-    R1 = if
+    R1 = if 
         D >= 36 -> [D-36+$a|R0];
         D >= 10 -> [D-10+$A|R0];
         true -> [D+$0|R0]
     end,
-    if
+    if 
         I1 == 0 -> R1;
        true -> integer_to_list(I1, Base, R1)
     end.
 
 
-%% @doc Extracts all elements in `Proplist' having key `KeyOrKeys' or having key in
+%% @doc Extracts all elements in `Proplist' having key `KeyOrKeys' or having key in 
 %% `KeyOrKeys' if `KeyOrKeys' is a list.
 -spec extract([term()], term() | [term()]) ->
     [term()].
@@ -775,7 +882,7 @@ extract(PropList, KeyOrKeys) ->
     lists:filter(Fun, PropList).
 
 
-%% @doc Deletes all elements in `Proplist' having key `KeyOrKeys' or having key in
+%% @doc Deletes all elements in `Proplist' having key `KeyOrKeys' or having key in 
 %% `KeyOrKeys' if `KeyOrKeys' is a list.
 -spec delete([term()], term() | [term()]) ->
     [term()].
@@ -831,6 +938,8 @@ bjoin(List) ->
 -spec bjoin(List::[term()], Separator::binary()) ->
     binary().
 
+bjoin(List, Sep) when is_integer(Sep) ->
+    bjoin(List, <<Sep>>);
 bjoin([], _J) ->
     <<>>;
 bjoin([Term], _J) ->
@@ -875,10 +984,10 @@ words([Ch|Rest], Chs, Tokens) ->
 
 % @dod
 capitalize(Name) ->
-    capitalize(nklib_util:to_binary(Name), true, <<>>).
+    capitalize(to_binary(Name), true, <<>>).
 
 
-% @private
+% @private 
 capitalize(<<>>, _, Acc) ->
     Acc;
 
@@ -905,6 +1014,14 @@ append_max(Term, [_|Rest], _) ->
     Rest ++ [Term].
 
 
+%% @doc Find if list has a duplicated value
+-spec find_duplicated(list()) ->
+    list().
+
+find_duplicated(List) ->
+    List -- lists:usort(List).
+
+
 %% @private
 -spec randomize(list()) ->
     list().
@@ -914,19 +1031,19 @@ randomize([]) ->
 randomize([A]) ->
     [A];
 randomize([A, B]) ->
-    case crypto:rand_uniform(0, 2) of
-        0 -> [A, B];
-        1 -> [B, A]
+    case rand:uniform(2) of
+        1 -> [A, B];
+        2 -> [B, A]
     end;
 randomize([A, B, C]) ->
-    case crypto:rand_uniform(0, 3) of
-        0 -> [A, B, C];
-        1 -> [B, C, A];
-        2 -> [C, A, B]
+    case rand:uniform(3) of
+        1 -> [A, B, C];
+        2 -> [B, C, A];
+        3 -> [C, A, B]
     end;
 randomize(List) when is_list(List) ->
     Size = length(List),
-    List1 = [{crypto:rand_uniform(0, Size), Term} || Term <- List],
+    List1 = [{rand:uniform(Size), Term} || Term <- List],
     [Term || {_, Term} <- lists:sort(List1)].
 
 
@@ -968,7 +1085,7 @@ cancel_timer(Ref) when is_reference(Ref) ->
     case erlang:cancel_timer(Ref) of
         false ->
             receive {timeout, Ref, _} -> 0
-            after 0 -> false
+            after 0 -> false 
             end;
         RemainingTime ->
             RemainingTime
@@ -1013,6 +1130,174 @@ msg(Msg, Vars) ->
             Result
     end.
 
+%% Adds and ID to a map if not already present
+-spec add_id(atom(), map()) ->
+    {binary(), map()}.
+
+add_id(Key, Config) ->
+    add_id(Key, Config, <<>>).
+
+
+%% Adds and ID to a map if not already present, with a prefix
+-spec add_id(atom(), map(), binary()) ->
+    {binary(), map()}.
+
+add_id(Key, Config, Prefix) ->
+    case maps:find(Key, Config) of
+        {ok, Id} when is_binary(Id) ->
+            {Id, Config};
+        {ok, Id} ->
+            Id2 = to_binary(Id),
+            {Id2, maps:put(Key, Id2, Config)};
+        _ when Prefix == <<>> ->
+            Id = nklib_util:luid(),
+            {Id, maps:put(Key, Id, Config)};
+        _ ->
+            Id1 = nklib_util:luid(),
+            Id2 = <<(to_binary(Prefix))/binary, $-, Id1/binary>>,
+            {Id2, maps:put(Key, Id2, Config)}
+    end.
+
+
+%% @doc
+base64_decode(Bin) when is_binary(Bin) ->
+    Bin2 = case byte_size(Bin) rem 4 of
+        2 -> << Bin/binary, "==" >>;
+        3 -> << Bin/binary, "=" >>;
+    _ -> Bin
+    end,
+    base64:decode(Bin2);
+
+base64_decode(List) ->
+    Bin = to_binary(List),
+    true = is_binary(Bin),
+    base64_decode(Bin).
+
+
+%% @doc URL safe base64-compatible codec (removing final = or ==)
+%%
+%% Based on https://github.com/dvv/base64url/blob/master/src/base64url.erl
+-spec base64url_encode(binary() | iolist()) ->
+    binary().
+
+base64url_encode(Bin) when is_binary(Bin) ->
+    << << (urlencode_digit(D)) >> || <<D>> <= base64:encode(Bin), D =/= $= >>;
+base64url_encode(L) when is_list(L) ->
+    base64url_encode(iolist_to_binary(L)).
+
+%% @doc Encodes with the final '=' or '=='
+-spec base64url_encode_mime(  binary() | iolist()) ->
+    binary().
+
+base64url_encode_mime(Bin) when is_binary(Bin) ->
+    << << (urlencode_digit(D)) >> || <<D>> <= base64:encode(Bin) >>;
+base64url_encode_mime(L) when is_list(L) ->
+    base64url_encode_mime(iolist_to_binary(L)).
+
+
+%% @doc
+-spec base64url_decode(binary() | iolist()) ->
+    binary().
+
+base64url_decode(Bin) when is_binary(Bin) ->
+  Bin2 = case byte_size(Bin) rem 4 of
+    2 -> << Bin/binary, "==" >>;
+    3 -> << Bin/binary, "=" >>;
+    _ -> Bin
+  end,
+  base64:decode(<< << (urldecode_digit(D)) >> || <<D>> <= Bin2 >>);
+
+base64url_decode(L) when is_list(L) ->
+  base64url_decode(iolist_to_binary(L)).
+
+
+%% @private
+urlencode_digit($/) -> $_;
+urlencode_digit($+) -> $-;
+urlencode_digit(D)  -> D.
+
+%% @private
+urldecode_digit($_) -> $/;
+urldecode_digit($-) -> $+;
+urldecode_digit(D)  -> D.
+
+
+%% @doc Deep merge of two dictionaries
+-spec map_merge(map(), map()) ->
+    map().
+
+map_merge(Update, Map) ->
+    do_map_merge(maps:to_list(Update), Map).
+
+
+%% @private
+do_map_merge([], Map) ->
+    Map;
+
+do_map_merge([{Key, Val} | Rest], Map) when is_map(Val) ->
+    Val2 = maps:get(Key, Map, #{}),
+    Map2 = map_merge(Val, Val2),
+    do_map_merge(Rest, Map#{Key=>Map2});
+
+do_map_merge([{Key, Val} | Rest], Map) ->
+    do_map_merge(Rest, Map#{Key=>Val}).
+
+
+
+%% @doc Finds a binary prefix in a list of binaries
+prefix(_Bin, []) ->
+    error;
+
+prefix(Bin, [Head|Rest]) when is_binary(Bin) ->
+    Size = byte_size(Bin),
+    case Head of
+        <<Bin:Size/binary, Data/binary>> ->
+            {ok, Data};
+        _ ->
+            prefix(Bin, Rest)
+    end;
+
+prefix(Bin, List) when is_list(List) ->
+    prefix(to_binary(Bin), List).
+
+
+%% @doc Gets a random number First >= N >= Last
+rand(Single, Single) ->
+    Single;
+rand(First, Last) when First >=0, Last > First ->
+    rand:uniform(Last-First+1) + First - 1.
+
+
+%% @doc Reorders a list consistently after the id
+consistent_reorder(_Id, []) ->
+    [];
+
+consistent_reorder(Id, List) ->
+    Hash = erlang:phash2(Id),
+    Len = length(List),
+    Start = Hash rem Len,   % 0 <= Start < Len
+    List2 = lists:sort(List),
+    lists:sublist(List2++List2, Start+1, Len).
+
+
+%% @doc Goes to the previous integer (-1.1 -> -2)
+floor(X) ->
+    T = erlang:trunc(X),
+    case (X - T) of
+        Neg when Neg < 0 -> T - 1;
+        Pos when Pos > 0 -> T;
+        _ -> T
+    end.
+
+
+%% @doc Goes to the next integer (1.1 -> 2)
+ceiling(X) ->
+    T = erlang:trunc(X),
+    case (X - T) of
+        Neg when Neg < 0 -> T;
+        Pos when Pos > 0 -> T + 1;
+        _ -> T
+    end.
 
 %% ===================================================================
 %% EUnit tests
