@@ -22,7 +22,7 @@
 -module(nklib_syntax).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
--export([parse/2, parse/3, spec/2]).
+-export([parse/2, parse/3, parse_all/2, spec/2]).
 -export_type([syntax/0, post_check_fun/0]).
 
 
@@ -203,6 +203,21 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
 
 parse(Terms, Syntax, Opts) when is_map(Terms) ->
     parse(maps:to_list(Terms), Syntax, Opts).
+
+
+%% @doc Parses with option allow_unknown=true
+-spec parse_all(map()|list(), syntax()) ->
+    {ok, out()} | {error, error()}.
+
+parse_all(Terms, Spec) ->
+    case parse(Terms, Spec, #{allow_unknown=>true}) of
+        {ok, Parsed, _} ->
+            {ok, Parsed};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
 
 
 %% ===================================================================
