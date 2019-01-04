@@ -152,7 +152,7 @@ call2(Dest, Msg, Timeout) ->
     term() | not_exported | {error, {exit|error|throw, {term(), list()}}}.
 
 apply(Mod, Fun, Args) ->
-    Fun = fun() ->
+    TryFun = fun() ->
         case erlang:function_exported(Mod, Fun, length(Args)) of
             false ->
                 not_exported;
@@ -160,7 +160,7 @@ apply(Mod, Fun, Args) ->
                 erlang:apply(Mod, Fun, Args)
         end
     end,
-    case nklib_util:do_try(Fun) of
+    case nklib_util:do_try(TryFun) of
         {exception, {Class, {Error, Trace}}} ->
             {error, {Class, {Error, Trace}}};
         Other ->
