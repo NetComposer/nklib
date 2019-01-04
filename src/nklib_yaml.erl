@@ -42,19 +42,20 @@
     [map()].
 
 decode(Term) ->
-    try yamerl_constr:string(Term) of
-        Objs ->
-            parse_decoded_list(Objs, [])
-    catch
-        error:Error:Trace ->
+    Fun = fun() ->
+        Objs = yamerl_constr:string(Term),
+        parse_decoded_list(Objs, [])
+    end,
+    case nklib_util:do_try(Fun) of
+        {exception, {error, {Error, Trace}}} ->
            lager:debug("Error decoding YAML: ~p (~~) (~p)", [Error, Term, Trace]),
             error({yaml_decode_error, Error});
-        throw:
+        {exception, {throw,
             {yamerl_exception, [
                 {yamerl_parsing_error, error, Txt, Line, Col, _Code, _, _}
-                |_]} ->
+                |_]}}} ->
             error({yaml_decode_error, {list_to_binary(Txt), Line, Col}});
-        throw:Error:Trace ->
+        {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error decoding YAML: ~p (~~) (~p)", [Error, Term, Trace]),
             error({yaml_decode_error, Error})
     end.

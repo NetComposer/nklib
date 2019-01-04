@@ -26,7 +26,8 @@
 -export([case_expr/5, case_expr_ok/5, export_attr/1, compile/2, do_compile/3, write/3]).
 -export([get_funs/1]).
 -export([forms_find_attribute/2, forms_add_attributes/2, forms_get_attributes/1,
-         forms_find_exported/1, forms_get_funs/1, forms_add_funs/2, forms_print/1]).
+         forms_find_exported/1, forms_get_funs/1, forms_add_funs/2,
+         forms_replace_fun/4, forms_print/1]).
 
 -include_lib("syntax_tools/include/merl.hrl").
 
@@ -397,6 +398,22 @@ forms_add_funs([{eof, _}|_]=End, Funs, Acc) ->
 
 forms_add_funs([Term|Rest], Funs, Acc) ->
     forms_add_funs(Rest, Funs, [Term|Acc]).
+
+
+%% @private
+forms_replace_fun(Name, Arity, Spec, Forms) ->
+    forms_replace_fun(Forms, Name, Arity, Spec, []).
+
+
+%% @private
+forms_replace_fun([], _Name, _Arity, _Spec, Acc) ->
+    lists:reverse(Acc);
+
+forms_replace_fun([{function, _Line, Name, Arity, _}|Rest], Name, Arity, Spec, Acc) ->
+    forms_replace_fun(Rest, Name, Arity, Spec, [Spec|Acc]);
+
+forms_replace_fun([Other|Rest], Name, Arity, Spec, Acc) ->
+    forms_replace_fun(Rest, Name, Arity, Spec,  [Other|Acc]).
 
 
 %% @private

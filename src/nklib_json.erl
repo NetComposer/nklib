@@ -42,18 +42,19 @@
     binary() | error.
 
 encode(Term) ->
-    try 
+    Fun = fun() ->
         case erlang:function_exported(jiffy, encode, 1) of
             true ->
                 jiffy:encode(Term);
             false ->
                 jsx:encode(Term)
         end
-    catch
-        error:Error:Trace ->
+    end,
+    case nklib_util:do_try(Fun) of
+        {exception, {error, {Error, Trace}}} ->
             lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_encode_error, Error});
-        throw:Error:Trace ->
+        {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_encode_error, Error})
     end.
@@ -64,21 +65,23 @@ encode(Term) ->
     binary().
 
 encode_pretty(Term) ->
-    try
+    Fun = fun() ->
         case erlang:function_exported(jiffy, encode, 2) of
             true ->
                 jiffy:encode(Term, [pretty]);
             false ->
                 jsx:encode(Term, [space, {indent, 2}])
         end
-    catch
-        error:Error:Trace ->
+    end,
+    case nklib_util:do_try(Fun) of
+        {exception, {error, {Error, Trace}}} ->
             lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_encode_error, Error});
-        throw:Error:Trace ->
+        {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_encode_error, Error})
     end.
+
 
 %% @doc Encodes a term() to JSON sorting the keys
 -spec encode_sorted(term()) ->
@@ -107,18 +110,19 @@ decode(<<>>) ->
     <<>>;
 
 decode(Term) ->
-    try
+    Fun = fun() ->
         case erlang:function_exported(jiffy, decode, 2) of
             true ->
                 jiffy:decode(Term, [return_maps]);
             false ->
                 jsx:decode(Term, [return_maps])
         end
-    catch
-        error:Error:Trace ->
+    end,
+    case nklib_util:do_try(Fun) of
+        {exception, {error, {Error, Trace}}} ->
             lager:debug("Error decoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_decode_error, Error});
-        throw:Error:Trace ->
+        {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error decoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
             error({json_decode_error, Error})
     end.

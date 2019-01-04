@@ -42,9 +42,12 @@
 -export([add_id/2, add_id/3]).
 -export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
 -export([map_merge/2, prefix/2, rand/2, consistent_reorder/2, floor/1, ceiling/1]).
+-export([do_try/1, do_config_get/1, do_config_put/2]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
+
+-compile({parse_transform, nklib_parse_trans_vsn}).
 
 
 %% ===================================================================
@@ -115,11 +118,12 @@ call(Dest, Msg) ->
     term() | {error, {exit|error|throw, {term(), list()}}}.
 
 call(Dest, Msg, Timeout) ->
-    try
-        gen_server:call(Dest, Msg, Timeout)
-    catch
-        Class:Error:Trace ->
-            {error, {Class, {Error, Trace}}}
+    Fun = fun() -> gen_server:call(Dest, Msg, Timeout) end,
+    case nklib_util:do_try(Fun) of
+        {exception, {Class, {Error, Trace}}} ->
+            {error, {Class, {Error, Trace}}};
+        Other ->
+            Other
     end.
 
 
@@ -148,18 +152,20 @@ call2(Dest, Msg, Timeout) ->
     term() | not_exported | {error, {exit|error|throw, {term(), list()}}}.
 
 apply(Mod, Fun, Args) ->
-    try
+    Fun = fun() ->
         case erlang:function_exported(Mod, Fun, length(Args)) of
             false ->
                 not_exported;
             true ->
                 erlang:apply(Mod, Fun, Args)
         end
-    catch
-        Class:Error:Trace ->
-            {error, {Class, {Error, Trace}}}
+    end,
+    case nklib_util:do_try(Fun) of
+        {exception, {Class, {Error, Trace}}} ->
+            {error, {Class, {Error, Trace}}};
+        Other ->
+            Other
     end.
-
 
 
 %% @doc Safe gen_server:call/3
@@ -1298,6 +1304,31 @@ ceiling(X) ->
         Pos when Pos > 0 -> T + 1;
         _ -> T
     end.
+
+
+%% @doc Implemented in parse transform
+-spec do_try(fun()) ->
+    {exception, {Class::term(), {Error::term(), Trace::list()}}} | term().
+
+do_try(_Fun) ->
+    error(not_implemented).
+
+
+%% @doc Implemented in parse transform
+-spec do_config_get(term()) ->
+    term().
+
+do_config_get(_Key) ->
+    error(not_implemented).
+
+
+%% @doc Implemented in parse transform
+-spec do_config_put(term(), term()) ->
+    ok.
+
+do_config_put(_Key, _Val) ->
+    error(not_implemented).
+
 
 %% ===================================================================
 %% EUnit tests
