@@ -26,18 +26,13 @@
 
 
 %% ===================================================================
-%% Types
-%% ===================================================================
-
-
-
-
-%% ===================================================================
 %% Public
 %% ===================================================================
 
 
 %% @doc Encodes a term() to JSON
+%% To use jiffy instead of jsone, include it as a dependency in you
+%% application and it will be used automatically
 -spec encode(term()) ->
     binary() | error.
 
@@ -47,7 +42,7 @@ encode(Term) ->
             true ->
                 jiffy:encode(Term);
             false ->
-                jsx:encode(Term)
+                jsone:encode(Term)
         end
     end,
     case nklib_util:do_try(Fun) of
@@ -56,7 +51,9 @@ encode(Term) ->
             error({json_encode_error, Error});
         {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
-            error({json_encode_error, Error})
+            error({json_encode_error, Error});
+        Other ->
+            Other
     end.
 
 
@@ -70,7 +67,7 @@ encode_pretty(Term) ->
             true ->
                 jiffy:encode(Term, [pretty]);
             false ->
-                jsx:encode(Term, [space, {indent, 2}])
+                jsone:encode(Term, [space, {indent, 2}])
         end
     end,
     case nklib_util:do_try(Fun) of
@@ -79,7 +76,9 @@ encode_pretty(Term) ->
             error({json_encode_error, Error});
         {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error encoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
-            error({json_encode_error, Error})
+            error({json_encode_error, Error});
+        Other ->
+            Other
     end.
 
 
@@ -115,7 +114,7 @@ decode(Term) ->
             true ->
                 jiffy:decode(Term, [return_maps]);
             false ->
-                jsx:decode(Term, [return_maps])
+                jsone:decode(Term)
         end
     end,
     case nklib_util:do_try(Fun) of
@@ -124,7 +123,9 @@ decode(Term) ->
             error({json_decode_error, Error});
         {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error decoding JSON: ~p (~p) (~p)", [Error, Term, Trace]),
-            error({json_decode_error, Error})
+            error({json_decode_error, Error});
+        Other ->
+            Other
     end.
 
 

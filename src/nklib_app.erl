@@ -47,8 +47,7 @@ start() ->
 
 %% @private OTP standard start callback
 start(_Type, _Args) ->
-	code:ensure_loaded(jsx),
-	code:ensure_loaded(jiffy),     % We can work without it
+	code:ensure_loaded(jiffy),     % We can work without it, but if available, load it
     HwAddr = nklib_util:get_hwaddr(),
     application:set_env(?APP, hw_addr, HwAddr),
     nklib_sup:start_link().
