@@ -38,7 +38,6 @@
             handle_cast/2, handle_info/2]).
 -export([dump/0]).
 
-
 -type regtype() :: val|put|del|reg.
 
 
@@ -106,12 +105,12 @@ reg(Name, Value) -> reg(Name, Value, self()).
 
 
 %% @doc Similar to `put(Name, Value, Pid)' but only allows for one single registration.
-%% Returns `true' if this registration has succeded, or `false' if another process
+%% Returns `true' if this registration has succeeded, or `false' if another process
 %% has already registered this name.
 -spec reg(term(), term(), pid()) -> true | {false, pid()} | timeout.
 reg(Name, Value, Pid) when is_pid(Pid) -> 
-    case whereis_name(Name) of
-        Pid ->
+    case values(Name) of
+        [{Value, Pid}] ->
             true;
         _ ->
             case ets:insert_new(nklib_proc_store,  {Name, [{val, Value, Pid}]}) of
@@ -633,7 +632,7 @@ do_start(Type, Name, Module, Args, Pid, Ref) ->
 %% ===================================================================
 
 
-% -define(TEST, 1).
+%-define(TEST, 1).
 -ifdef(TEST).
 -compile({no_auto_import, [put/2]}).
 -include_lib("eunit/include/eunit.hrl").
