@@ -4,7 +4,6 @@
 erl_crash.dump
 _build
 rebar3.crashdump
-rebar.lock
 .DS_Store
 rel
 ebin
@@ -14,5 +13,3 @@ log
 deps
 nklib.version
 /.rebar3
-/include/nklib_version.hrl
-/rebar3
