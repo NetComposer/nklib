@@ -188,7 +188,7 @@ safe_call(Dest, Msg, Timeout) ->
 
 
 %% @doc Generates a new printable random UUID.
--spec luid() -> 
+-spec luid() ->
     binary().
 
 luid() ->
@@ -209,10 +209,10 @@ uuid_4122() ->
 
 
 %% @doc Generates a new printable SHA hash binary over `Base' (using 160 bits, 27 chars).
--spec lhash(term()) -> 
+-spec lhash(term()) ->
     binary().
 
-lhash(Base) -> 
+lhash(Base) ->
     <<I:160/integer>> = sha(term_to_binary(Base)),
     case encode_integer(I) of
         Hash when byte_size(Hash) == 27 -> Hash;
@@ -225,14 +225,14 @@ sha(Term) -> crypto:hash(sha, Term).
 
 
 %% @doc Generates a new random tag of 6 chars
--spec uid() -> 
+-spec uid() ->
     binary().
 
 uid() ->
     hash({make_ref(), os:timestamp()}).
 
 %% @doc Generates a new tag of 6 chars based on a value.
--spec hash(term()) -> 
+-spec hash(term()) ->
     binary().
 
 hash(Base) ->
@@ -252,7 +252,7 @@ hash(Base, Start, Stop) when Start >= 0, Stop > Start ->
 
 
 %% @doc Generates a new tag based on a value (only numbers and uppercase) of 7 chars
--spec hash36(term()) -> 
+-spec hash36(term()) ->
     binary().
 
 hash36(Base) ->
@@ -325,7 +325,7 @@ m_timestamp() ->
 
 
 %% @doc Converts a `timestamp()' to a local `datetime()'.
--spec timestamp_to_local(timestamp()) -> 
+-spec timestamp_to_local(timestamp()) ->
     calendar:datetime().
 
 timestamp_to_local(Secs) ->
@@ -333,14 +333,14 @@ timestamp_to_local(Secs) ->
 
 
 %% @doc Converts a `timestamp()' to a gmt `datetime()'.
--spec timestamp_to_gmt(timestamp()) -> 
+-spec timestamp_to_gmt(timestamp()) ->
     calendar:datetime().
 
 timestamp_to_gmt(Secs) ->
     calendar:now_to_universal_time({0, Secs, 0}).
 
 %% @doc Generates a float representing `HHMMSS.MicroSecs' for a high resolution timer.
--spec l_timestamp_to_float(l_timestamp()) -> 
+-spec l_timestamp_to_float(l_timestamp()) ->
     float().
 
 l_timestamp_to_float(LStamp) ->
@@ -351,7 +351,7 @@ l_timestamp_to_float(LStamp) ->
 
 
 %% @doc Converts a local `datetime()' to a `timestamp()',
--spec gmt_to_timestamp(calendar:datetime()) -> 
+-spec gmt_to_timestamp(calendar:datetime()) ->
     timestamp().
 
 gmt_to_timestamp(DateTime) ->
@@ -359,7 +359,7 @@ gmt_to_timestamp(DateTime) ->
 
 
 %% @doc Converts a gmt `datetime()' to a `timestamp()'.
--spec local_to_timestamp(calendar:datetime()) -> 
+-spec local_to_timestamp(calendar:datetime()) ->
     timestamp().
 
 local_to_timestamp(DateTime) ->
@@ -371,7 +371,7 @@ local_to_timestamp(DateTime) ->
 
 
 %% @doc Equivalent to `proplists:get_value/2' but faster.
--spec get_value(term(), list()) -> 
+-spec get_value(term(), list()) ->
     term().
 
 get_value(Key, List) ->
@@ -379,7 +379,7 @@ get_value(Key, List) ->
 
 
 %% @doc Requivalent to `proplists:get_value/3' but faster.
--spec get_value(term(), list(), term()) -> 
+-spec get_value(term(), list(), term()) ->
     term().
 
 get_value(Key, List, Default) ->
@@ -391,7 +391,7 @@ get_value(Key, List, Default) ->
 
 %% @doc Similar to `get_value(Key, List, <<>>)' but converting the result into
 %% a `binary()'.
--spec get_binary(term(), list()) -> 
+-spec get_binary(term(), list()) ->
     binary().
 
 get_binary(Key, List) ->
@@ -400,7 +400,7 @@ get_binary(Key, List) ->
 
 %% @doc Similar to `get_value(Key, List, Default)' but converting the result into
 %% a `binary()'.
--spec get_binary(term(), list(), term()) -> 
+-spec get_binary(term(), list(), term()) ->
     binary().
 
 get_binary(Key, List, Default) ->
@@ -408,7 +408,7 @@ get_binary(Key, List, Default) ->
 
 
 %% @doc Similar to `get_value(Key, List, [])' but converting the result into a `list()'.
--spec get_list(term(), list()) -> 
+-spec get_list(term(), list()) ->
     list().
 
 get_list(Key, List) ->
@@ -417,7 +417,7 @@ get_list(Key, List) ->
 
 %% @doc Similar to `get_value(Key, List, Default)' but converting the result
 %% into a `list()'.
--spec get_list(term(), list(), term()) -> 
+-spec get_list(term(), list(), term()) ->
     list().
 
 get_list(Key, List, Default) ->
@@ -426,7 +426,7 @@ get_list(Key, List, Default) ->
 
 %% @doc Similar to `get_value(Key, List, 0)' but converting the result into 
 %% an `integer()' or `error'.
--spec get_integer(term(), list()) -> 
+-spec get_integer(term(), list()) ->
     integer() | error. 
 
 get_integer(Key, List) ->
@@ -435,7 +435,7 @@ get_integer(Key, List) ->
 
 %% @doc Similar to `get_value(Key, List, Default)' but converting the result into
 %% a `integer()' or `error'.
--spec get_integer(term(), list(), term()) -> 
+-spec get_integer(term(), list(), term()) ->
     integer() | error.
 
 get_integer(Key, List, Default) ->
@@ -538,12 +538,12 @@ filtermap(F, [Hd|Tail]) ->
         false ->
             filtermap(F, Tail)
     end;
-filtermap(F, []) when is_function(F, 1) -> 
+filtermap(F, []) when is_function(F, 1) ->
     [].
 
 
 %% @doc Converts anything into a `binary()'. Can convert ip addresses also.
--spec to_binary(term()) -> 
+-spec to_binary(term()) ->
     binary().
 
 to_binary(B) when is_binary(B) -> B;
@@ -562,7 +562,7 @@ to_binary(N) -> msg("~p", [N]).
 
 
 %% @doc Converts anything into a `string()'.
--spec to_list(string()|binary()|atom()|integer()|pid()) -> 
+-spec to_list(string()|binary()|atom()|integer()|pid()) ->
     string().
 
 to_list(L) when is_list(L) -> L;
@@ -575,7 +575,7 @@ to_list(P) when is_pid(P) -> pid_to_list(P).
 
 %% @doc Converts anything into a `atom()'.
 %% WARNING: Can create new atoms
--spec to_atom(string()|binary()|atom()|integer()) -> 
+-spec to_atom(string()|binary()|atom()|integer()) ->
     atom().
 
 to_atom(A) when is_atom(A) -> A;
@@ -585,7 +585,7 @@ to_atom(I) when is_integer(I) -> list_to_atom(integer_to_list(I)).
 
 
 %% @doc Converts anything into an existing atom or throws an error
--spec to_existing_atom(string()|binary()|atom()|integer()) -> 
+-spec to_existing_atom(string()|binary()|atom()|integer()) ->
     atom().
 
 to_existing_atom(A) when is_atom(A) -> A;
@@ -611,12 +611,12 @@ make_atom(Id, Term) ->
     end.
 
 
--spec to_map(list()|map()) -> 
+-spec to_map(list()|map()) ->
     map().
 
-to_map(M) when is_map(M) -> 
+to_map(M) when is_map(M) ->
     M;
-to_map(L) when is_list(L) -> 
+to_map(L) when is_list(L) ->
     L1 = lists:map(
         fun(T) ->
             case T of
@@ -632,13 +632,13 @@ to_map(L) when is_list(L) ->
 -spec to_integer(integer()|binary()|string()) ->
     integer() | error.
 
-to_integer(I) when is_integer(I) -> 
+to_integer(I) when is_integer(I) ->
     I;
 to_integer(F) when is_float(F) ->
     round(F);
 to_integer(B) when is_binary(B) ->
     to_integer(binary_to_list(B));
-to_integer(L) when is_list(L) -> 
+to_integer(L) when is_list(L) ->
     case catch list_to_integer(L) of
         I when is_integer(I) -> I;
         _ -> error
@@ -651,21 +651,21 @@ to_integer(_) ->
 -spec to_float(integer()|binary()|string()|float()) ->
     integer() | error.
 
-to_float(F) when is_float(F) -> 
+to_float(F) when is_float(F) ->
     F;
-to_float(I) when is_integer(I) -> 
+to_float(I) when is_integer(I) ->
     I * 1.0;
-to_float(L) when is_list(L) -> 
+to_float(L) when is_list(L) ->
     case catch list_to_float(L) of
-        F when is_float(F) -> 
+        F when is_float(F) ->
             F;
-        _ -> 
+        _ ->
             case to_integer(L) of
                 I when is_integer(I) -> I * 1.0;
                 error -> error
             end
     end;
-to_float(B) when is_binary(B) -> 
+to_float(B) when is_binary(B) ->
     to_float(binary_to_list(B));
 to_float(_) ->
     error.
@@ -751,9 +751,9 @@ to_host(Host, _IsUri) ->
 -spec to_lower(string()|binary()|atom()) ->
     binary().
 
-to_lower(List) when is_list(List) -> 
+to_lower(List) when is_list(List) ->
     list_to_binary(string:to_lower(List));
-to_lower(Other) -> 
+to_lower(Other) ->
     to_lower(to_list(Other)).
 
 
@@ -761,9 +761,9 @@ to_lower(Other) ->
 -spec to_upper(string()|binary()|atom()) ->
     binary().
     
-to_upper(List) when is_list(List) -> 
+to_upper(List) when is_list(List) ->
     list_to_binary(string:to_upper(List));
-to_upper(Other) -> 
+to_upper(Other) ->
     to_upper(to_list(Other)).
 
 
@@ -807,17 +807,17 @@ strip(Rest) -> Rest.
 -spec unquote(list()|binary()) ->
     list().
 
-unquote(Bin) when is_binary(Bin) -> 
+unquote(Bin) when is_binary(Bin) ->
     unquote(binary_to_list(Bin));
 
-unquote(List) -> 
+unquote(List) ->
     case strip(List) of
-        [$"|Rest] -> 
+        [$"|Rest] ->
             case strip(lists:reverse(Rest)) of
                 [$"|Rest1] -> strip(lists:reverse(Rest1));
                 _ -> []
             end;
-        Other -> 
+        Other ->
             Other
     end.
 
@@ -842,7 +842,7 @@ encode_integer_36(Int) ->
 
 
 %% @private
--spec integer_to_list(integer(), integer(), string()) -> 
+-spec integer_to_list(integer(), integer(), string()) ->
     string().
 
 integer_to_list(I0, Base, R0) ->
@@ -867,11 +867,11 @@ integer_to_list(I0, Base, R0) ->
 extract(PropList, KeyOrKeys) ->
     Fun = fun(Term) ->
         if
-            is_tuple(Term), is_list(KeyOrKeys) -> 
+            is_tuple(Term), is_list(KeyOrKeys) ->
                 lists:member(element(1, Term), KeyOrKeys);
             is_tuple(Term) ->
                 element(1, Term) == KeyOrKeys;
-            is_list(KeyOrKeys) -> 
+            is_list(KeyOrKeys) ->
                 lists:member(Term, KeyOrKeys);
             Term == KeyOrKeys ->
                 true;
@@ -890,11 +890,11 @@ extract(PropList, KeyOrKeys) ->
 delete(PropList, KeyOrKeys) ->
     Fun = fun(Term) ->
         if
-            is_tuple(Term), is_list(KeyOrKeys) -> 
+            is_tuple(Term), is_list(KeyOrKeys) ->
                 not lists:member(element(1, Term), KeyOrKeys);
             is_tuple(Term) ->
                 element(1, Term) /= KeyOrKeys;
-            is_list(KeyOrKeys) -> 
+            is_list(KeyOrKeys) ->
                 not lists:member(Term, KeyOrKeys);
             Term /= KeyOrKeys ->
                 true;
@@ -919,7 +919,7 @@ defaults(List, [{Key, Val}|Rest]) ->
 
 
 %% @doc Checks if `Term' is a `string()' or `[]'.
--spec is_string(Term::term()) -> 
+-spec is_string(Term::term()) ->
     boolean().
 
 is_string([]) -> true;
@@ -935,7 +935,7 @@ bjoin(List) ->
     bjoin(List, <<",">>).
 
 %% @doc Join each element in `List' into a `binary()', using the indicated `Separator'.
--spec bjoin(List::[term()], Separator::binary()) -> 
+-spec bjoin(List::[term()], Separator::binary()) ->
     binary().
 
 bjoin(List, Sep) when is_integer(Sep) ->
@@ -1048,7 +1048,7 @@ randomize(List) when is_list(List) ->
 
 
 %% @private
--spec hex(binary()|string()) -> 
+-spec hex(binary()|string()) ->
     binary().
 
 hex(B) when is_binary(B) -> hex(binary_to_list(B), []);
@@ -1118,15 +1118,15 @@ demonitor(_) ->
 
 
 %% @private
--spec msg(string(), [term()]) -> 
+-spec msg(string(), [term()]) ->
     binary().
 
 msg(Msg, Vars) ->
     case catch list_to_binary(io_lib:format(Msg, Vars)) of
-        {'EXIT', _} -> 
+        {'EXIT', _} ->
             lager:warning("MSG PARSE ERROR: ~p, ~p", [Msg, Vars]),
             <<"Msg parser error">>;
-        Result -> 
+        Result ->
             Result
     end.
 
