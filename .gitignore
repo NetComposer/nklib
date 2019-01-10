@@ -13,3 +13,5 @@ log
 deps
 nklib.version
 /.rebar3
+rebar.lock
+/include/nklib_version.hrl
