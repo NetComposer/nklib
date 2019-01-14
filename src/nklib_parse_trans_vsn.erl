@@ -31,9 +31,9 @@
 
 %% @doc Replaces do_fun/1 for a version compatible with erlang pre and post 21
 parse_transform(Forms, _Opts) ->
-    Forms2 = nklib_code:forms_replace_fun(do_try, 1,  make_try_fun(), Forms),
-    Forms3 = nklib_code:forms_replace_fun(do_config_get, 1,  make_get_fun(), Forms2),
-    Forms4 = nklib_code:forms_replace_fun(do_config_put, 2,  make_put_fun(), Forms3),
+    Forms2 = forms_replace_fun(do_try, 1,  make_try_fun(), Forms),
+    Forms3 = forms_replace_fun(do_config_get, 1,  make_get_fun(), Forms2),
+    Forms4 = forms_replace_fun(do_config_put, 2,  make_put_fun(), Forms3),
     Forms4.
 
 
@@ -77,8 +77,7 @@ make_get_fun() ->
                     nklib_config:get(nklib_trans_comp, Key).
             "
     end,
-    {ok, Form} = nklib_code:expression(Exp),
-    Form.
+    forms_expression(Exp).
 
 
 %% @private
@@ -95,10 +94,32 @@ make_put_fun() ->
                     nklib_config:put(nklib_trans_comp, Key, Value).
             "
     end,
-    {ok, Form} = nklib_code:expression(Exp),
-    Form.
+    forms_expression(Exp).
 
 
 %% @private
 is_21() ->
     erlang:system_info(otp_release) >= "21".
+
+
+%% @private
+forms_replace_fun(Name, Arity, Spec, Forms) ->
+    forms_replace_fun(Forms, Name, Arity, Spec, []).
+
+
+%% @private
+forms_replace_fun([], _Name, _Arity, _Spec, Acc) ->
+    lists:reverse(Acc);
+
+forms_replace_fun([{function, _Line, Name, Arity, _}|Rest], Name, Arity, Spec, Acc) ->
+    forms_replace_fun(Rest, Name, Arity, Spec, [Spec|Acc]);
+
+forms_replace_fun([Other|Rest], Name, Arity, Spec, Acc) ->
+    forms_replace_fun(Rest, Name, Arity, Spec,  [Other|Acc]).
+
+
+%% @private
+forms_expression(Expr) ->
+    {ok, Tokens, _} = erl_scan:string(Expr),
+    {ok, Forms} = erl_parse:parse_form(Tokens),
+    Forms.
