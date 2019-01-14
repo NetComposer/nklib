@@ -85,7 +85,7 @@ make_put_fun() ->
         true ->
             "
                 do_config_put(Key, Value) ->
-                    persistent_term:get(Key, Value).
+                    persistent_term:put(Key, Value).
             ";
         false ->
             "
