@@ -59,8 +59,7 @@ make_try_fun() ->
                 end.
             "
     end,
-    {ok, Form} = nklib_code:expression(Exp),
-    Form.
+    forms_expression(Exp).
 
 
 %% @private
