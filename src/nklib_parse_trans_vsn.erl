@@ -68,7 +68,7 @@ make_get_fun() ->
         true ->
             "
                 do_config_get(Key) ->
-                    permanent_term:get(Key).
+                    persistent_term:get(Key).
             ";
         false ->
             "
@@ -85,7 +85,7 @@ make_put_fun() ->
         true ->
             "
                 do_config_put(Key, Value) ->
-                    permanent_term:get(Key, Value).
+                    persistent_term:get(Key, Value).
             ";
         false ->
             "
