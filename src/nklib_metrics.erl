@@ -63,13 +63,19 @@ define_ws_count(Name) ->
     define_gauge(Name, "Active Websocket connections").
 
 record_http_duration(Name, Method, Status, Value) ->
-    prometheus_histogram:observe(Name, [nklib_parse:normalize(Method), Status], Value).
+    spawn(fun() ->
+        prometheus_histogram:observe(Name, [nklib_parse:normalize(Method), Status], Value)
+    end).
 
 record_duration(Name, Reason, Value) ->
-    prometheus_histogram:observe(Name, [Reason], Value).
+    spawn(fun() ->
+        prometheus_histogram:observe(Name, [Reason], Value)
+    end).
 
 record_ws_duration(Name, Reason, Value) ->
-    prometheus_histogram:observe(Name, [Reason], Value).
+    spawn(fun() ->
+        prometheus_histogram:observe(Name, [Reason], Value)
+    end).
 
 set(Name, Value) ->
     prometheus_gauge:set(Name, Value).
