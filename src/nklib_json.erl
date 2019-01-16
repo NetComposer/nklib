@@ -108,6 +108,9 @@ sort_json(Term) ->
 decode(<<>>) ->
     <<>>;
 
+decode([]) ->
+    <<>>;
+
 decode(Term) ->
     Fun = fun() ->
         case erlang:function_exported(jiffy, decode, 2) of
