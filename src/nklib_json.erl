@@ -67,7 +67,7 @@ encode_pretty(Term) ->
             true ->
                 jiffy:encode(Term, [pretty]);
             false ->
-                jsone:encode(Term, [space, {indent, 2}])
+                jsone:encode(Term, [{indent, 1}, {space, 2}])
         end
     end,
     case nklib_util:do_try(Fun) of
@@ -116,8 +116,10 @@ decode(Term) ->
         case erlang:function_exported(jiffy, decode, 2) of
             true ->
                 jiffy:decode(Term, [return_maps]);
-            false ->
-                jsone:decode(Term)
+            false when is_binary(Term) ->
+                jsone:decode(Term);
+            false when is_list(Term) ->
+                jsone:decode(list_to_binary(Term))
         end
     end,
     case nklib_util:do_try(Fun) of

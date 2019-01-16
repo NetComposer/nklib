@@ -57,7 +57,9 @@ decode(Term) ->
             error({yaml_decode_error, {list_to_binary(Txt), Line, Col}});
         {exception, {throw, {Error, Trace}}} ->
             lager:debug("Error decoding YAML: ~p (~~) (~p)", [Error, Term, Trace]),
-            error({yaml_decode_error, Error})
+            error({yaml_decode_error, Error});
+        Other ->
+            Other
     end.
 
 
