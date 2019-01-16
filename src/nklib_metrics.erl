@@ -5,6 +5,8 @@
          define_duration/3,
          define_http_duration/1, 
          define_http_duration/2,
+         define_typed_http_duration/1, 
+         define_typed_http_duration/2,
          define_http_count/1, 
          define_ws_duration/1, 
          define_ws_count/1, 
@@ -17,6 +19,7 @@
          increment_ws_count/1,
          decrement_ws_count/1,
          record_http_duration/4,
+         record_http_duration/5,
          record_ws_duration/3,
          record_duration/3
         ]).
@@ -47,8 +50,14 @@ define_duration(Name, Help, Buckets) ->
 define_http_duration(Name, Buckets) ->
     define_histogram(Name, [method, status], Buckets, "Http Request execution time in milliseconds").
 
+define_typed_http_duration(Name, Buckets) ->
+    define_histogram(Name, [type, method, status], Buckets, "Http Request execution time in milliseconds").
+
 define_http_duration(Name) ->
     define_http_duration(Name, http_duration_groups(internal)).
+
+define_typed_http_duration(Name) ->
+    define_typed_http_duration(Name, http_duration_groups(internal)).
 
 define_ws_duration(Name, Buckets) ->
     define_histogram(Name, [termination], Buckets, "Websocket lifetime in seconds").
@@ -65,6 +74,11 @@ define_ws_count(Name) ->
 record_http_duration(Name, Method, Status, Value) ->
     spawn(fun() ->
         prometheus_histogram:observe(Name, [nklib_parse:normalize(Method), Status], Value)
+    end).
+
+record_http_duration(Name, Type, Method, Status, Value) ->
+    spawn(fun() ->
+        prometheus_histogram:observe(Name, [Type, nklib_parse:normalize(Method), Status], Value)
     end).
 
 record_duration(Name, Reason, Value) ->
