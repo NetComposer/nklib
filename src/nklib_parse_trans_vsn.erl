@@ -64,7 +64,7 @@ make_try_fun() ->
 
 %% @private
 make_get_fun() ->
-    Exp = case is_21() of
+    Exp = case is_21_2() of
         true ->
             "
                 do_config_get(Key) ->
@@ -81,7 +81,7 @@ make_get_fun() ->
 
 %% @private
 make_put_fun() ->
-    Exp = case is_21() of
+    Exp = case is_21_2() of
         true ->
             "
                 do_config_put(Key, Value) ->
@@ -96,9 +96,18 @@ make_put_fun() ->
     forms_expression(Exp).
 
 
+
 %% @private
 is_21() ->
     erlang:system_info(otp_release) >= "21".
+
+
+%% @private
+is_21_2() ->
+    % Erlang 21.0: 10.0.8
+    % Erlang 21.1: 10.1.8
+    % Erlang 21.2: 10.2.1
+    is_21() andalso erlang:system_info(version) >= "10.2.1".
 
 
 %% @private
