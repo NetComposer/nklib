@@ -23,8 +23,8 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -behaviour(gen_server).
 
--export([get/2, get/3, put/3, del/2, increment/3]).
--export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4]).
+-export([get/2, get/3, put/3, del/2, increment/3, update/3]).
+-export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4, update_domain/4]).
 -export([load_env/2, load_env/3, get_env/1]).
 -export([make_cache/5]).
 -export([parse_config/2, parse_config/3]).
@@ -86,6 +86,15 @@ increment(Mod, Key, Count) ->
     increment_domain(Mod, none, Key, Count).
 
 
+%% @doc Sets a config value.
+-spec update(term(), term(), fun((term()) -> term())) ->
+    ok.
+
+update(Mod, Key, Fun) ->
+    update_domain(Mod, none, Key, Fun).
+
+
+
 %% @private
 -spec get_domain(term(), nklib:domain(), term()) -> 
     Value :: term().
@@ -129,6 +138,15 @@ del_domain(Mod, Domain, Key) ->
 
 increment_domain(Mod, Domain, Key, Count) ->
     ets:update_counter(?MODULE, {Mod, Domain, Key}, Count).
+
+
+
+%% @doc Sets a config value.
+-spec update_domain(term(), nklib:domain(), term(), fun((term()) -> term())) ->
+    ok.
+
+update_domain(Mod, Domain, Key, Fun) ->
+    gen_server:call(?MODULE, {update, Mod, Domain, Key, Fun}).
 
 
 %% @doc Loads parsed application environment
@@ -224,7 +242,17 @@ init([]) ->
 -spec handle_call(term(), {pid(), term()}, #state{}) ->
     {noreply, #state{}}.
 
-handle_call(Msg, _From, State) -> 
+handle_call({update, Mod, Domain, Key, Fun}, _From, State) ->
+    Old = get_domain(Mod, Domain, Key),
+    case catch Fun(Old) of
+        {'EXIT', Error} ->
+            {reply, {error, Error}, State};
+        New ->
+            put_domain(Mod, Domain, Key, New),
+            {reply, ok, State}
+    end;
+
+handle_call(Msg, _From, State) ->
     lager:error("Module ~p received unexpected call ~p", [?MODULE, Msg]),
     {noreply, State}.
 
