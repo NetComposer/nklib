@@ -23,8 +23,9 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -behaviour(gen_server).
 
--export([get/2, get/3, put/3, del/2, increment/3, update/3]).
--export([get_domain/3, get_domain/4, put_domain/4, del_domain/3, increment_domain/4, update_domain/4]).
+-export([get/2, get/3, put/3, del/2, increment/3, update/3, add/3]).
+-export([get_domain/3, get_domain/4, put_domain/4, del_domain/3,
+         increment_domain/4, update_domain/4, add_domain/4]).
 -export([load_env/2, load_env/3, get_env/1]).
 -export([make_cache/5]).
 -export([parse_config/2, parse_config/3]).
@@ -86,13 +87,20 @@ increment(Mod, Key, Count) ->
     increment_domain(Mod, none, Key, Count).
 
 
-%% @doc Sets a config value.
+%% @doc Updates a key value applying a function
 -spec update(term(), term(), fun((term()) -> term())) ->
-    ok.
+    ok | {error, term()}.
 
 update(Mod, Key, Fun) ->
     update_domain(Mod, none, Key, Fun).
 
+
+%% @doc Adds a value to a list
+-spec add(term(), term(), term()) ->
+    ok | {error, term()}.
+
+add(Mod, Key, Val) ->
+    add_domain(Mod, none, Key, Val).
 
 
 %% @private
@@ -140,13 +148,20 @@ increment_domain(Mod, Domain, Key, Count) ->
     ets:update_counter(?MODULE, {Mod, Domain, Key}, Count).
 
 
-
-%% @doc Sets a config value.
+%% @doc Updates a config key applying a function
 -spec update_domain(term(), nklib:domain(), term(), fun((term()) -> term())) ->
     ok.
 
 update_domain(Mod, Domain, Key, Fun) ->
     gen_server:call(?MODULE, {update, Mod, Domain, Key, Fun}).
+
+
+%% @doc Adds a value to a config, that must be a list
+-spec add_domain(term(), nklib:domain(), term(), term()) ->
+    ok | {error, term()}.
+
+add_domain(Mod, Domain, Key, Val) ->
+    gen_server:call(?MODULE, {add, Mod, Domain, Key, Val}).
 
 
 %% @doc Loads parsed application environment
@@ -251,6 +266,23 @@ handle_call({update, Mod, Domain, Key, Fun}, _From, State) ->
             put_domain(Mod, Domain, Key, New),
             {reply, ok, State}
     end;
+
+handle_call({add, Mod, Domain, Key, Val}, _From, State) ->
+    Reply = case get_domain(Mod, Domain, Key) of
+        undefined ->
+            put_domain(Mod, Domain, Key, [Val]),
+            ok;
+        List when is_list(List) ->
+            case lists:member(Val, List) of
+                true ->
+                    ok;
+                false ->
+                    put_domain(Mod, Domain, Key, [Val|List])
+            end;
+        _ ->
+            {error, invalid_value}
+    end,
+    {reply, Reply, State};
 
 handle_call(Msg, _From, State) ->
     lager:error("Module ~p received unexpected call ~p", [?MODULE, Msg]),
