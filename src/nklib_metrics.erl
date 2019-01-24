@@ -9,6 +9,7 @@
          define_typed_http_duration/2,
          define_http_count/1, 
          define_ws_duration/1, 
+         define_command_ws_duration/1,
          define_ws_count/1, 
          http_duration_groups/1,
          ws_duration_groups/1,
@@ -21,6 +22,7 @@
          record_http_duration/4,
          record_http_duration/5,
          record_ws_duration/3,
+         record_ws_duration/4,
          record_duration/3
         ]).
 
@@ -65,6 +67,9 @@ define_ws_duration(Name, Buckets) ->
 define_ws_duration(Name) ->
     define_ws_duration(Name, ws_duration_groups(internal)).
 
+define_command_ws_duration(Name) ->
+    define_histogram(Name, [command, status], ws_duration_groups(internal), "Websocket command execution time in milliseconds").
+
 define_http_count(Name) ->
     define_gauge(Name, "Active Http requests").
 
@@ -89,6 +94,11 @@ record_duration(Name, Reason, Value) ->
 record_ws_duration(Name, Reason, Value) ->
     spawn(fun() ->
         prometheus_histogram:observe(Name, [Reason], Value)
+    end).
+
+record_ws_duration(Name, Command, Status, Value) ->
+    spawn(fun() ->
+        prometheus_histogram:observe(Name, [nklib_parse:normalize(Command, #{allowed => [$_,$.,$/]}), Status], Value)
     end).
 
 set(Name, Value) ->
