@@ -91,12 +91,15 @@
     map |
     log_level |
     {mfa, module(), atom(), [term()]} |
-    syntax() |                     % Allow for nested objects
-    list() |                    % First matching option is used
+    {key, Key::atom()|binary()} |                   % Copies with different key
+    {key, Key::atom()|binary(), syntax_opt()} |     % Changes key and goes on
+    syntax() |                                      % Allow for nested objects
+    list() |                                        % First matching option is used
     syntax_fun().
 
 
--type key() :: atom() | binary().
+% Opts '__key_..' accept any key and converts to this format
+-type key() :: atom() | binary() | '__key_atom' | '__key_binary'.
 -type val() :: term().
 
 
@@ -256,7 +259,7 @@ do_parse([Key | Rest], Parse) ->
 
 %% @private
 do_parse_key(Key, Val, #parse{allow_unknown=AllowUnknown}=Parse) ->
-     case find_config(Key, Parse) of
+     case find_syntax(Key, Parse) of
          {ok, _Key2, ignore} ->
              {ok, Parse};
          {ok, Key2, SyntaxOp} ->
@@ -291,7 +294,13 @@ do_parse_key(Key, Val, #parse{allow_unknown=AllowUnknown}=Parse) ->
 
 
 %% @private
-find_config(Key, #parse{syntax = Syntax}) when is_atom(Key) ->
+find_syntax(Key, #parse{syntax = #{'__key_binary':=Syntax2}}) ->
+    {ok, to_bin(Key), Syntax2};
+
+find_syntax(Key, #parse{syntax = #{'__key_atom':=Syntax2}}) ->
+    {ok, nklib_util:to_atom(Key), Syntax2};
+
+find_syntax(Key, #parse{syntax = Syntax}) when is_atom(Key) ->
     case maps:get(Key, Syntax, not_found) of
         not_found ->
             Key2 = to_bin(Key),
@@ -305,7 +314,7 @@ find_config(Key, #parse{syntax = Syntax}) when is_atom(Key) ->
             {ok, Key, SyntaxOp}
     end;
 
-find_config(Key, #parse{syntax = Syntax}) ->
+find_syntax(Key, #parse{syntax = Syntax}) ->
     Key2 = to_bin(Key),
     case maps:get(Key2, Syntax, not_found) of
         not_found ->
@@ -328,6 +337,12 @@ find_config(Key, #parse{syntax = Syntax}) ->
 %% @private
 -spec parse_opt(syntax_opt(), term(), term(), #parse{}) ->
     {ok, key(), val(), #parse{}} | {error, term()}.
+
+parse_opt({key, NewKey}, Key, Val, Parse) ->
+    parse_opt({key, NewKey, any}, Key, Val, Parse);
+
+parse_opt({key, NewKey, SyntaxOp}, _Key, Val, Parse) ->
+    parse_opt(SyntaxOp, NewKey, Val, Parse);
 
 parse_opt({mfa, Mod, Fun, Args}, Key, Val, Parse) ->
     FunRes = case erlang:function_exported(Mod, Fun, length(Args)+1) of
