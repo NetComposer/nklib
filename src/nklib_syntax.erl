@@ -91,8 +91,8 @@
     map |
     log_level |
     {mfa, module(), atom(), [term()]} |
-    {key, Key::atom()|binary()} |                   % Copies with different key
-    {key, Key::atom()|binary(), syntax_opt()} |     % Changes key and goes on
+    {'__key', Key::atom()|binary()} |                   % Copies with different key
+    {'__key', Key::atom()|binary(), syntax_opt()} |     % Changes key and goes on
     syntax() |                                      % Allow for nested objects
     list() |                                        % First matching option is used
     syntax_fun().
@@ -338,10 +338,10 @@ find_syntax(Key, #parse{syntax = Syntax}) ->
 -spec parse_opt(syntax_opt(), term(), term(), #parse{}) ->
     {ok, key(), val(), #parse{}} | {error, term()}.
 
-parse_opt({key, NewKey}, Key, Val, Parse) ->
-    parse_opt({key, NewKey, any}, Key, Val, Parse);
+parse_opt({'__key', NewKey}, Key, Val, Parse) ->
+    parse_opt({'__key', NewKey, any}, Key, Val, Parse);
 
-parse_opt({key, NewKey, SyntaxOp}, _Key, Val, Parse) ->
+parse_opt({'__key', NewKey, SyntaxOp}, _Key, Val, Parse) ->
     parse_opt(SyntaxOp, NewKey, Val, Parse);
 
 parse_opt({mfa, Mod, Fun, Args}, Key, Val, Parse) ->
