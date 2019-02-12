@@ -987,7 +987,10 @@ parse_defaults([{Key, Val} | Rest], #parse{ok = Ok} = Parse) ->
 
 %% @private
 check_mandatory(#parse{syntax = Syntax} = Parse) ->
-    SynMand = maps:get('__mandatory', Syntax, []),
+    SynMand = case maps:get('__mandatory', Syntax, []) of
+        List when is_list(List) -> List;
+        Term -> [Term]
+    end,
     check_mandatory(SynMand, Parse).
 
 
