@@ -34,7 +34,8 @@ parse_transform(Forms, _Opts) ->
     Forms2 = forms_replace_fun(do_try, 1,  make_try_fun(), Forms),
     Forms3 = forms_replace_fun(do_config_get, 1,  make_get_fun(), Forms2),
     Forms4 = forms_replace_fun(do_config_put, 2,  make_put_fun(), Forms3),
-    Forms4.
+    Forms5 = forms_replace_fun(do_config_del, 1,  make_del_fun(), Forms4),
+    Forms5.
 
 
 %% @private
@@ -95,6 +96,22 @@ make_put_fun() ->
     end,
     forms_expression(Exp).
 
+
+%% @private
+make_del_fun() ->
+    Exp = case is_21_2() of
+        true ->
+            "
+                do_config_del(Key) ->
+                    persistent_term:erase(Key).
+            ";
+        false ->
+            "
+                do_config_del(Key) ->
+                    nklib_config:del(nklib_trans_comp, Key).
+            "
+    end,
+    forms_expression(Exp).
 
 
 %% @private
