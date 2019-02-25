@@ -686,7 +686,7 @@ to_boolean(true) ->
 to_boolean(false) ->
     false;
 to_boolean(Term) ->
-    case to_lower(Term) of
+    case catch to_lower(Term) of
         <<"true">> -> true;
         <<"false">> -> false;
         _ -> error
