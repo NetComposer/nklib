@@ -370,7 +370,7 @@ opts_key([$=|Rest], Acc, Block, Uri) ->
         [] -> 
             {error, opts_key, ?LINE};
         _ ->
-            opts_value(strip(Rest), lists:reverse(Acc), [], false, Block, Uri)
+            opts_value(strip(Rest), lists:reverse(Acc), [], false, false, Block, Uri)
     end;
 
 opts_key([Ch|_]=Rest, Acc, Block, Uri) when Ch==32; Ch==9; Ch==13 ->
@@ -388,7 +388,7 @@ opts_key([Ch|Rest], Acc, Block, Uri) ->
 
 
 %% @private URI Opts Values
-opts_value([], Key, Acc, Quoted, Block, Uri) ->
+opts_value([], Key, Acc, Quoted, _InnerQuoted, Block, Uri) ->
     case Acc==[] orelse Quoted of
         true ->
             {error, opts_value, ?LINE};
@@ -401,13 +401,16 @@ opts_value([], Key, Acc, Quoted, Block, Uri) ->
             opts([], Block, Uri1)
     end;
 
-opts_value([92, $"|Rest], Key, Acc, true, Block, Uri) ->
-    opts_value(Rest, Key, [$", 92|Acc], true, Block, Uri);
+opts_value([92, $"|_Rest], _Key, _Acc, false, _InnerQuoted, _Block, _Uri) ->
+    {error, opts_value, ?LINE};
 
-opts_value([$"|Rest], Key, Acc, Quoted, Block, Uri) ->
-    opts_value(Rest, Key, [$"|Acc], not Quoted, Block, Uri);
+opts_value([92, $"|Rest], Key, Acc, true, InnerQuoted, Block, Uri) ->
+    opts_value(Rest, Key, [$", 92|Acc], true, not InnerQuoted, Block, Uri);
 
-opts_value([Ch|_]=Rest, Key, Acc, false, Block, Uri) 
+opts_value([$"|Rest], Key, Acc, Quoted, false, Block, Uri) ->
+    opts_value(Rest, Key, Acc, not Quoted, false, Block, Uri);
+
+opts_value([Ch|_]=Rest, Key, Acc, false, _InnerQuoted, Block, Uri)
             when Ch==$;; Ch==$?; Ch==$>; Ch==$, ->
     case Acc of
         [] ->
@@ -421,18 +424,18 @@ opts_value([Ch|_]=Rest, Key, Acc, false, Block, Uri)
             opts(Rest, Block, Uri1)
     end;
 
-opts_value([Ch|_]=Rest, Key, Acc, false, Block, Uri) when Ch==32; Ch==9; Ch==13 ->
+opts_value([Ch|_]=Rest, Key, Acc, false, InnerQuoted, Block, Uri) when Ch==32; Ch==9; Ch==13 ->
     case strip(Rest) of
         [] ->
-            opts_value([], Key, Acc, false, Block, Uri);
+            opts_value([], Key, Acc, false, InnerQuoted, Block, Uri);
         [Ch1|_]=Rest1 when Ch1==$;; Ch1==$?; Ch1==$>; Ch1==$, ->
-            opts_value(Rest1, Key, Acc, false, Block, Uri);
+            opts_value(Rest1, Key, Acc, false, InnerQuoted, Block, Uri);
         _ ->
             {error, opts_value, ?LINE}
     end;
 
-opts_value([Ch|Rest], Key, Acc, Quoted, Block, Uri) ->
-    opts_value(Rest, Key, [Ch|Acc], Quoted, Block, Uri).
+opts_value([Ch|Rest], Key, Acc, Quoted, InnerQuoted, Block, Uri) ->
+    opts_value(Rest, Key, [Ch|Acc], Quoted, InnerQuoted, Block, Uri).
 
 
 %% @private URI Header Keys
@@ -652,7 +655,7 @@ uri3_test() ->
     [#uri{
         disp=(<<"\"My name\" ">>), user=(<<"user">>), pass=(<<"pass">>), 
         domain= <<"host">>, port=5061, opts=[{<<"transport">>,<<"tcp">>}],
-        headers=[<<"head1">>], ext_opts=[{<<"op1">>,<<"\"1\"">>}]
+        headers=[<<"head1">>], ext_opts=[{<<"op1">>,<<"1">>}]
     }] = uris(" \"My name\" <sip:user:pass@host:5061;transport=tcp?head1> ; op1=\"1\""),
     [#uri{
         disp=(<<"Name   ">>), domain= <<"host">>, port=5061,
@@ -676,13 +679,12 @@ uri3_test() ->
         ext_opts = [
             {<<"reg-id">>,<<"1">>},
             {<<"+sip.instance">>,
-                <<"\"<urn:uuid:00000000-0000-0000-0000-000097ee887e>\"">>}]
+                <<"<urn:uuid:00000000-0000-0000-0000-000097ee887e>">>}]
     }] =
         uris("<sip:xxxx@192.168.1.2:5060;transport=TCP;ob>;reg-id=1;"
              "+sip.instance=\"<urn:uuid:00000000-0000-0000-0000-000097ee887e>\""),
     [#uri{
-        domain = <<"host">>, opts = [{<<"key">>,<<"\"my \\\"\"">>}],
-        headers = [{<<"hd">>,<<"\"your \\\"\"">>}]
+        domain = <<"host">>, opts = [{<<"key">>,<<"my \\\"\"?hd=\"your \\\"">>}]
     }] = uris("<sip:host;key=\"my \\\"\"?hd=\"your \\\"\">").
 
 
