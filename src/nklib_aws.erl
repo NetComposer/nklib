@@ -87,7 +87,7 @@ do_request_v4(Config) ->
     % Amazon aws-cli don't include x-amz-content-sha256 header (but it doesn't hurt)
     Headers2 = [
         {<<"x-amz-date">>, Date},
-        % {<<"x-amz-content-sha256">>, HexHash},
+        {<<"x-amz-content-sha256">>, HexHash},
         {<<"host">>, Host}
         | Headers1
     ],
@@ -227,7 +227,7 @@ syntax() ->
         scheme => {binary, [<<"http">>, <<"https">>]},
         host => binary,
         port => integer,
-        headers => list,
+        headers => any,
         params => map,
         meta => map,
         hash => binary,
