@@ -42,7 +42,7 @@
 -export([add_id/2, add_id/3]).
 -export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
 -export([map_merge/2, prefix/2, rand/2, consistent_reorder/2, floor/1, ceiling/1]).
--export([do_try/1, do_config_get/1, do_config_put/2, do_config_del/1]).
+-export([do_try/1, do_config_get/1, do_config_get/2, do_config_put/2, do_config_del/1]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
 -include("nklib.hrl").
@@ -1316,10 +1316,21 @@ do_try(_Fun) ->
 
 %% @doc Implemented in parse transform
 -spec do_config_get(term()) ->
-    term().
+    term() | undefined.
 
 do_config_get(_Key) ->
     error(not_implemented).
+
+
+%% @doc Implemented in parse transform
+-spec do_config_get(term(), term()) ->
+    term().
+
+do_config_get(Key, Default) ->
+    case do_config_get(Key) of
+        undefined -> Default;
+        Other -> Other
+    end.
 
 
 %% @doc Implemented in parse transform
