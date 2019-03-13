@@ -550,7 +550,7 @@ spec(boolean, Val) ->
         error -> error
     end;
 
-spec({atom, List}, Val) ->
+spec({atom, List}, Val) when is_list(List) ->
     case to_existing_atom(Val) of
         {ok, Atom} ->
             case lists:member(Atom, List) of
@@ -561,7 +561,10 @@ spec({atom, List}, Val) ->
             error
     end;
 
-spec({atom_or_binary, List}, Val) ->
+spec({atom, Atom}, Val) when is_atom(Atom) ->
+    to_existing_atom(Val);
+
+spec({atom_or_binary, List}, Val) when is_list(List) ->
     case to_existing_atom(Val) of
         {ok, Atom} ->
             case lists:member(Atom, List) of
@@ -572,7 +575,8 @@ spec({atom_or_binary, List}, Val) ->
             {ok, to_bin(Val)}
     end;
 
-%%% Luerl-style lists
+
+%% Luerl-style lists
 %%spec(list, [{1, _}|_]=Val) ->
 %%    lager:error("NKLOG VV0 ~p", [Val]),
 %%    spec(list, [V || {_, V} <- Val]);
