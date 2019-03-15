@@ -49,9 +49,9 @@
 -type start_opts() :: 
     #{
         timeout => integer(),
-        refresh_fun => refresh_fun(),
-        parser => parser_fun(),
-        kill_time => integer()
+        refresh_fun => refresh_fun() | undefined,
+        parser => parser_fun() | undefined,
+        kill_time => integer() | undefined
     }.
 
 

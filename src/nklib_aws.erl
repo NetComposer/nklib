@@ -62,7 +62,8 @@
 
 %% @doc AWS v4 signed request
 -spec request_v4(request_v4_config()) ->
-    {Uri::binary(), Headers::[{binary(), binary()}]}.
+    {Uri::binary(), Headers::[{binary(), binary()}]} |
+    {error, term()}.
 
 request_v4(Config) ->
     case nklib_syntax:parse(Config, syntax()) of
@@ -205,7 +206,7 @@ get_service(Config) ->
         error ->
             <<Service/binary, $., Region/binary, ".amazonaws.com">>
     end,
-    FullHost = case Port==80 orelse Port==443 of
+    FullHost = case Port==<<"80">> orelse Port==<<"443">> of
         true ->
             Host;
         false ->
