@@ -569,7 +569,7 @@ to_binary(N) -> msg("~p", [N]).
 
 
 %% @doc Converts anything into a `string()'.
--spec to_list(string()|binary()|atom()|integer()|pid()) ->
+-spec to_list(string()|binary()|atom()|integer()|pid()|list()|map()) -> 
     string().
 
 to_list(L) when is_list(L) -> L;
