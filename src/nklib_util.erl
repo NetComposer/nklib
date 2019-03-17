@@ -48,6 +48,7 @@
 -include("nklib.hrl").
 
 -compile({parse_transform, nklib_parse_trans_vsn}).
+-compile(inline).
 
 
 %% ===================================================================

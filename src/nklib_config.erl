@@ -34,7 +34,7 @@
          handle_info/2]).
 
 -compile({no_auto_import, [get/1, put/2]}).
-
+-compile(inline).
 
 -type syntax() :: nklib_syntax:syntax().
 

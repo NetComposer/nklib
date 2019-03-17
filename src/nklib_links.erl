@@ -27,6 +27,7 @@
 -export_type([links/0, data/0]).
 
 -include("nklib.hrl").
+-compile(inline).
 
 %% ===================================================================
 %% Types

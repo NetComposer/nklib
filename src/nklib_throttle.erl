@@ -29,6 +29,7 @@
 -export([wait_slot/1, test1/0, test2/0]).
 -export_type([time_key/0, counters/0]).
 
+-compile(inline).
 
 %% ===================================================================
 %% Types
