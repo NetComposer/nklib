@@ -296,7 +296,7 @@ parse_dates([Next|Rest], Acc) ->
 
 -type norm_opts() ::
     #{
-        not_to_lowecase => boolean(),
+        not_to_lowercase => boolean(),
         space => allowed | skip | integer(),
         unrecognized => skip | keep | integer(),
         allowed => [integer()]

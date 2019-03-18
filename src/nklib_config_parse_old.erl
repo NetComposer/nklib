@@ -610,6 +610,7 @@ do_parse_config_map([{Key, Val}|Rest]) ->
 % -define(TEST, 1).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-dialyzer({[no_match, no_return], parse1_test/0}).
 
 
 parse1_test() ->

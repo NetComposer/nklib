@@ -220,6 +220,15 @@ make_cache(KeyList, Mod, Domain, Module, Path) ->
 
 
 %% @doc Temporary old version
+-spec parse_config(map()|list(), syntax()) ->
+    {ok, [{atom(), term()}], [{atom(), term()}]} | 
+    {ok, #{atom()=>term()}, #{binary()=>term()}} |
+    {error, Error}
+    when Error :: 
+        {syntax_error, binary()} | 
+        {missing_mandatory_field, binary()} |
+        term().
+
 parse_config(Terms, Spec) ->
     parse_config(Terms, Spec, #{}).
 
