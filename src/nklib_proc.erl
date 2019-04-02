@@ -242,10 +242,7 @@ start_link(Type, Name, Module, Args) ->
 -spec try_call(function(), term(), pos_integer(), pos_integer()) ->
     term().
 
-try_call(_Fun, _Ref, _Time, 0) ->
-    error(max_tries);
-
-try_call(Fun, Ref, Time, Tries) ->
+try_call(Fun, Ref, Time, Tries) when Tries > 0 ->
     case reg({nklib_proc_try_call, Ref}) of
         true ->
             try 
@@ -256,8 +253,10 @@ try_call(Fun, Ref, Time, Tries) ->
         {false, _} ->
             timer:sleep(Time),
             try_call(Fun, Ref, Time, Tries-1)
-    end.
+    end;
 
+try_call(_Fun, _Ref, _Time, _Tries) ->
+    error(max_tries).
 
 
 %% ===================================================================
