@@ -24,16 +24,14 @@
 
 -export([ensure_all_started/2, call/2, call/3, call2/2, call2/3, apply/3, safe_call/3]).
 -export([luid/0, lhash/1, uid/0, uuid_4122/0, hash/1, hash/3, hash36/1, sha/1]).
--export([get_hwaddr/0, timestamp/0, m_timestamp/0,
-         l_timestamp/0, l_timestamp_to_float/1]).
+-export([get_hwaddr/0, timestamp/0, m_timestamp/0, l_timestamp/0, l_timestamp_to_float/1]).
 -export([timestamp_to_local/1, timestamp_to_gmt/1]).
 -export([local_to_timestamp/1, gmt_to_timestamp/1]).
 -export([get_value/2, get_value/3, get_binary/2, get_binary/3, get_list/2, get_list/3]).
 -export([get_integer/2, get_integer/3, keys/1]).
 -export([store_value/2, store_value/3, store_values/2, filter_values/2, remove_values/2]).
 -export([filtermap/2]).
--export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1,
-         to_float/1]).
+-export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1, to_float/1]).
 -export([to_atom/1, to_existing_atom/1, make_atom/2, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_capital/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
 -export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
@@ -41,7 +39,7 @@
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
 -export([base64_decode/1, base64url_encode/1,  base64url_encode_mime/1, base64url_decode/1]).
--export([map_merge/2, prefix/2, rand/2, consistent_reorder/2, floor/1, ceiling/1]).
+-export([map_merge/2, prefix/2, rand/2, consistent_reorder/2, floor/1, ceiling/1, lpad/3]).
 -export([do_try/1, do_config_get/1, do_config_get/2, do_config_put/2, do_config_del/1]).
 
 -export_type([optslist/0, timestamp/0, m_timestamp/0, l_timestamp/0]).
@@ -129,20 +127,20 @@ call(Dest, Msg, Timeout) ->
 
 
 
-%% @doc Safe call (no exceptions)
+%% @doc Safe call, only for noproc and normal exited processes
 call2(Dest, Msg) ->
     call2(Dest, Msg, 5000).
 
 
-%% @doc Safe call (no exceptions)
+%% @doc Safe call, only for noproc and normal exited processes
 call2(Dest, Msg, Timeout) ->
     case call(Dest, Msg, Timeout) of
-        {error, {exit, {{timeout, _Fun}, _Stack}}} ->
-            {error, timeout};
         {error, {exit, {{noproc, _Fun}, _Stack}}} ->
-            {error, process_not_found};
+            process_not_found;
         {error, {exit, {{normal, _Fun}, _Stack}}} ->
-            {error, process_not_found};
+            process_not_found;
+        {error, {Class, {Reason, Stack}}} ->
+            erlang:raise(Class, Reason, Stack);
         Other ->
             Other
     end.
@@ -1285,6 +1283,20 @@ consistent_reorder(Id, List) ->
     Start = Hash rem Len,   % 0 <= Start < Len
     List2 = lists:sort(List),
     lists:sublist(List2++List2, Start+1, Len).
+
+
+%% Pads on the left
+%% Example: lpad(123, 5, $0)
+%% It will fail if Size < size(Term)
+%% Similar to io_lib:format("~4..0B", [...]) but failing instead of using '*'
+-spec lpad(term(), pos_integer, char()) ->
+    binary().
+
+lpad(Term, Size, Pad) ->
+    Bin = to_binary(Term),
+    BinSize = byte_size(Bin),
+    true = Size >= BinSize,
+    <<(binary:copy(<<Pad>>, Size-BinSize))/binary, Bin/binary>>.
 
 
 %% @doc Goes to the previous integer (-1.1 -> -2)
