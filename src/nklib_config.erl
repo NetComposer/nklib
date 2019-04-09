@@ -259,6 +259,7 @@ start_link() ->
 
 init([]) ->
     ets:new(?MODULE, [named_table, public, {read_concurrency, true}]),
+    ets:new(nklib_date, [named_table, public, {read_concurrency, true}]),
     {ok, #state{}}.
     
 
@@ -310,7 +311,7 @@ handle_cast(Msg, State) ->
 -spec handle_info(term(), #state{}) ->
     {noreply, #state{}}.
 
-handle_info(Info, State) -> 
+handle_info(Info, State) ->
     lager:warning("Module ~p received unexpected info: ~p", [?MODULE, Info]),
     {noreply, State}.
 

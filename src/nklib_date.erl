@@ -61,13 +61,54 @@ now(Unit) ->
 
 
 
-%% @doc Get current epoch time
+%% @doc Get current epoch time, using the cached pattern
+%% The normal approach get_date + convert_to_3339 takes about 100K-140K/s (usecs-secs)
+%% This approach taking a second-resolution cache takes about 1M-2M/s (usecs-secs)
 -spec now_3339(epoch_unit()) ->
     binary().
 
-now_3339(Unit) ->
-    {ok, Date} = to_3339(epoch(Unit), Unit),
-    Date.
+now_3339(secs) ->
+    Secs = epoch(secs),
+    case ets:lookup(nklib_date, date) of
+        [{date, Secs, Secs3339}] ->
+            <<Secs3339/binary, $Z>>;
+        _ ->
+            {ok, Date} = to_3339(Secs, secs),
+            <<Date2:19/binary, _/binary>> = Date,
+            ets:insert(nklib_date, {date, Secs, Date2}),
+            Date
+    end;
+
+now_3339(msecs) ->
+    Now = epoch(msecs),
+    Secs = Now div 1000,
+    case ets:lookup(nklib_date, date) of
+        [{date, Secs, Secs3339}] ->
+            Rem1 = Now rem 1000,
+            Rem2 = nklib_util:lpad(Rem1, 3, $0),
+            <<Secs3339/binary, $., Rem2/binary, "000Z">>;
+        _ ->
+            {ok, Date} = to_3339(Now, msecs),
+            <<Date2:19/binary, _/binary>> = Date,
+            ets:insert(nklib_date, {date, Secs, Date2}),
+            Date
+    end;
+
+now_3339(usecs) ->
+    Now = epoch(usecs),
+    Secs = Now div 1000000,
+    case ets:lookup(nklib_date, date) of
+        [{date, Secs, Secs3339}] ->
+            Rem1 = Now rem 1000000,
+            Rem2 = nklib_util:lpad(Rem1, 6, $0),
+            <<Secs3339/binary, $., Rem2/binary, $Z>>;
+        _ ->
+            {ok, Date} = to_3339(Now, usecs),
+            <<Date2:19/binary, _/binary>> = Date,
+            ets:insert(nklib_date, {date, Secs, Date2}),
+            Date
+    end.
+
 
 
 %% @doc Converts an incoming epoch or rfc3339 to normalized rfc3339
