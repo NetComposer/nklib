@@ -70,6 +70,7 @@ start_link() ->
 
 %% @private
 init(ChildSpecs) ->
+    nklib_trace:create(),
     {ok, ChildSpecs}.
 
 
