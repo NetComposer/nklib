@@ -1339,11 +1339,8 @@ do_config_get(_Key) ->
 -spec do_config_get(term(), term()) ->
     term().
 
-do_config_get(Key, Default) ->
-    case do_config_get(Key) of
-        undefined -> Default;
-        Other -> Other
-    end.
+do_config_get(_Key, _Default) ->
+    error(not_implemented).
 
 
 %% @doc Implemented in parse transform

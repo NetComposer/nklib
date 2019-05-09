@@ -32,10 +32,11 @@
 %% @doc Replaces do_fun/1 for a version compatible with erlang pre and post 21
 parse_transform(Forms, _Opts) ->
     Forms2 = forms_replace_fun(do_try, 1,  make_try_fun(), Forms),
-    Forms3 = forms_replace_fun(do_config_get, 1,  make_get_fun(), Forms2),
-    Forms4 = forms_replace_fun(do_config_put, 2,  make_put_fun(), Forms3),
-    Forms5 = forms_replace_fun(do_config_del, 1,  make_del_fun(), Forms4),
-    Forms5.
+    Forms3 = forms_replace_fun(do_config_get, 1,  make_get_fun1(), Forms2),
+    Forms4 = forms_replace_fun(do_config_get, 2,  make_get_fun2(), Forms3),
+    Forms5 = forms_replace_fun(do_config_put, 2,  make_put_fun2(), Forms4),
+    Forms6 = forms_replace_fun(do_config_del, 1,  make_del_fun1(), Forms5),
+    Forms6.
 
 
 %% @private
@@ -64,7 +65,7 @@ make_try_fun() ->
 
 
 %% @private
-make_get_fun() ->
+make_get_fun1() ->
     Exp = case is_21_2() of
         true ->
             "
@@ -81,7 +82,24 @@ make_get_fun() ->
 
 
 %% @private
-make_put_fun() ->
+make_get_fun2() ->
+    Exp = case is_21_2() of
+        true ->
+            "
+                do_config_get(Key, Default) ->
+                    persistent_term:get(Key, Default).
+            ";
+        false ->
+            "
+                do_config_get(Key, Default) ->
+                    nklib_config:get(nklib_trans_comp, Key, Default).
+            "
+    end,
+    forms_expression(Exp).
+
+
+%% @private
+make_put_fun2() ->
     Exp = case is_21_2() of
         true ->
             "
@@ -98,7 +116,7 @@ make_put_fun() ->
 
 
 %% @private
-make_del_fun() ->
+make_del_fun1() ->
     Exp = case is_21_2() of
         true ->
             "
