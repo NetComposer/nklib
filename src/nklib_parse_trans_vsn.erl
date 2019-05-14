@@ -31,11 +31,11 @@
 
 %% @doc Replaces do_fun/1 for a version compatible with erlang pre and post 21
 parse_transform(Forms, _Opts) ->
-    Forms2 = forms_replace_fun(do_try, 1,  make_try_fun(), Forms),
-    Forms3 = forms_replace_fun(do_config_get, 1,  make_get_fun1(), Forms2),
-    Forms4 = forms_replace_fun(do_config_get, 2,  make_get_fun2(), Forms3),
-    Forms5 = forms_replace_fun(do_config_put, 2,  make_put_fun2(), Forms4),
-    Forms6 = forms_replace_fun(do_config_del, 1,  make_del_fun1(), Forms5),
+    Forms2 = forms_replace_fun(do_try, 1, make_try_fun(), Forms),
+    Forms3 = forms_replace_fun(do_config_get, 1, make_get_fun1(), Forms2),
+    Forms4 = forms_replace_fun(do_config_get, 2, make_get_fun2(), Forms3),
+    Forms5 = forms_replace_fun(do_config_put, 2, make_put_fun2(), Forms4),
+    Forms6 = forms_replace_fun(do_config_del, 1, make_del_fun1(), Forms5),
     Forms6.
 
 

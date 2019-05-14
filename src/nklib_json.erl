@@ -38,11 +38,14 @@
 
 encode(Term) ->
     Fun = fun() ->
-        case erlang:function_exported(jiffy, encode, 1) of
-            true ->
-                jiffy:encode(Term);
-            false ->
-                jsone:encode(Term)
+        case nklib_util:do_config_get(nklib_json_encoder) of
+            jsone ->
+                jsone:encode(Term);
+            jiffy ->
+                case jiffy:encode(Term) of
+                    Json when is_binary(Json) -> Json;
+                    List when is_list(List) -> list_to_binary(List)
+                end
         end
     end,
     case nklib_util:do_try(Fun) of
@@ -63,11 +66,14 @@ encode(Term) ->
 
 encode_pretty(Term) ->
     Fun = fun() ->
-        case erlang:function_exported(jiffy, encode, 2) of
-            true ->
-                jiffy:encode(Term, [pretty]);
-            false ->
-                jsone:encode(Term, [{indent, 1}, {space, 2}])
+        case nklib_util:do_config_get(nklib_json_encoder) of
+            jsone ->
+                jsone:encode(Term, [{indent, 1}, {space, 2}]);
+            jiffy ->
+                case jiffy:encode(Term, [pretty]) of
+                    Json when is_binary(Json) -> Json;
+                    List when is_list(List) -> list_to_binary(List)
+                end
         end
     end,
     case nklib_util:do_try(Fun) of
@@ -113,13 +119,13 @@ decode([]) ->
 
 decode(Term) ->
     Fun = fun() ->
-        case erlang:function_exported(jiffy, decode, 2) of
-            true ->
-                jiffy:decode(Term, [return_maps]);
-            false when is_binary(Term) ->
+        case nklib_util:do_config_get(nklib_json_encoder) of
+            jsone when is_binary(Term)->
                 jsone:decode(Term);
-            false when is_list(Term) ->
-                jsone:decode(list_to_binary(Term))
+            jsone when is_list(Term)->
+                jsone:decode(list_to_binary(Term));
+            jiffy ->
+                jiffy:decode(Term, [return_maps])
         end
     end,
     case nklib_util:do_try(Fun) of
