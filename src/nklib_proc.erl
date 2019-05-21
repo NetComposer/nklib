@@ -252,7 +252,9 @@ try_call(Fun, Ref, Time, Tries) when Tries > 0 ->
             end;
         {false, _} ->
             timer:sleep(Time),
-            try_call(Fun, Ref, Time, Tries-1)
+            try_call(Fun, Ref, Time, Tries-1);
+	timeout ->
+	     error(network_timeout)  
     end;
 
 try_call(_Fun, _Ref, _Time, _Tries) ->
