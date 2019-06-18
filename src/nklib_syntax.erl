@@ -74,6 +74,7 @@
     {record, atom()} |
     string |
     binary | {binary, [binary()]} | {binary, none|integer(), none|integer()} |
+    binary_text |
     date_3339 |                      % From any format or epoch to rfc3339
     {epoch, secs|msecs|usecs} |
     base64 | base64url |
@@ -722,6 +723,47 @@ spec({binary, Min, Max}, Val) ->
         true ->
             {ok, Bin};
         _ ->
+            error
+    end;
+
+spec(binary_text, Val) ->
+    if
+        is_binary(Val) ->
+            List = nklib_util:to_list(Val),
+            case io_lib:printable_unicode_list(List) of
+                true ->
+                    {ok, Val};
+                false ->
+                    error
+            end;
+        Val == [] ->
+            {ok, <<>>};
+        is_list(Val), is_integer(hd(Val)) ->
+            case io_lib:printable_unicode_list(Val) of
+                true ->
+                    case catch list_to_binary(Val) of
+                        {'EXIT', _} -> error;
+                        Bin -> {ok, Bin}
+                    end;
+                false ->
+                    error
+            end;
+        is_list(Val) ->
+            Val2 = [nklib_util:to_binary(Term) || Term <- Val],
+            case catch list_to_binary(Val2) of
+                {'EXIT', _} -> error;
+                Bin ->
+                    List = nklib_util:to_list(Bin),
+                    case io_lib:printable_unicode_list(List) of
+                        true ->
+                            {ok, Bin};
+                        false ->
+                            error
+                    end
+            end;
+        is_atom(Val); is_integer(Val) ->
+            {ok, nklib_util:to_binary(Val)};
+        true ->
             error
     end;
 
