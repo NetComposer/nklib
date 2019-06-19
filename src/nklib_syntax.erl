@@ -725,6 +725,23 @@ spec({binary, Min, Max}, Val) ->
             error
     end;
 
+spec(binary_text, []) ->
+    {ok, <<>>};
+
+spec(binary_text, Val) when is_binary(Val); is_integer(Val); is_atom(Val) ->
+    spec(binary_text, nklib_util:to_list(Val));
+
+spec(binary_text, [Int|_]=List) when is_integer(Int) ->
+    case io_lib:printable_unicode_list(List) of
+        true ->
+            {ok, list_to_binary(List)};
+        false ->
+            error
+    end;
+
+spec(binary_text, _Val) ->
+    error;
+
 spec(urltoken, Val) ->
     to_urltoken(nklib_util:to_list(Val), []);
 
