@@ -92,7 +92,7 @@
     log_level |
     {mfa, module(), atom(), [term()]} |
     {'__key', Key::atom()|binary()} |                   % Copies with different key
-    {'__key', Key::atom()|binary(), syntax_opt()} |     % Changes key and goes on
+    {'__key', Key::atom()|binary(), syntax_opt()} |     % Changes key and checks syntax
     syntax() |                                      % Allow for nested objects
     list() |                                        % First matching option is used
     syntax_fun().
@@ -396,8 +396,8 @@ parse_opt({ListType, SyntaxOp}, Key, Val, Parse)
     end;
 
 parse_opt(Syntax, Key, Val, #parse{opts=Opts}=Parse) when is_map(Syntax) ->
-    case is_list(Val) orelse is_map(Val) of
-        true ->
+    if
+        is_map(Val) ->
             Path2 = path_key(Key, Parse),
             case parse(Val, Syntax, Opts#{path=>Path2}) of
                 {ok, Parsed, NoOk2} ->
@@ -407,7 +407,7 @@ parse_opt(Syntax, Key, Val, #parse{opts=Opts}=Parse) when is_map(Syntax) ->
                 {error, Error} ->
                     {error, Error}
             end;
-        false ->
+        true ->
             {error, syntax}
     end;
 
