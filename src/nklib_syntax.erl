@@ -61,6 +61,7 @@
 -type syntax_term() ::
     ignore |
     any |
+    {force, term()} |
     atom | {atom, [atom()]} | {atom_or_binary, [atom()]} |
     new_atom | raw_atom |
     boolean |
@@ -99,7 +100,7 @@
 
 
 % Opts '__key_..' accept any key and converts to this format
--type key() :: atom() | binary() | '__key_atom' | '__key_binary'.
+-type key() :: atom() | binary() | '__key_atom' | '__map_binary'.
 -type val() :: term().
 
 
@@ -294,9 +295,17 @@ do_parse_key(Key, Val, #parse{allow_unknown=AllowUnknown}=Parse) ->
 
 
 %% @private
+find_syntax(Key, #parse{syntax = #{'__map_binary':=Syntax2}}) ->
+    {ok, to_bin(Key), Syntax2};
+
+find_syntax(Key, #parse{syntax = #{'__map_atom':=Syntax2}}) ->
+    {ok, nklib_util:to_atom(Key), Syntax2};
+
+% To remove
 find_syntax(Key, #parse{syntax = #{'__key_binary':=Syntax2}}) ->
     {ok, to_bin(Key), Syntax2};
 
+% To remove
 find_syntax(Key, #parse{syntax = #{'__key_atom':=Syntax2}}) ->
     {ok, nklib_util:to_atom(Key), Syntax2};
 
@@ -520,6 +529,9 @@ spec(any, Val) ->
         _ ->
             {ok, Val}
     end;
+
+spec({force, Term}, _Val) ->
+    {ok, Term};
 
 spec(raw_atom, Val) when is_atom(Val) ->
     {ok, Val};
