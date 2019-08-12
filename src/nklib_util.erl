@@ -1328,6 +1328,7 @@ do_try(_Fun) ->
 
 
 %% @doc Implemented in parse transform
+%% It will fail if key is not defined
 -spec do_config_get(term()) ->
     term() | undefined.
 
