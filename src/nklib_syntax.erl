@@ -920,10 +920,13 @@ spec(is_normalized, Val) ->
     spec({is_normalized, #{}}, Val);
 
 spec({is_normalized, Opts}, Val) ->
-    Norm = nklib_parse:normalize(Val, Opts),
-    case to_bin(Val) of
-        Norm -> {ok, Norm};
-        _ -> error
+    Val2 = to_bin(Val),
+    case nklib_parse:normalize(Val2, Opts) of
+        Val2 ->
+            {ok, Val2};
+        O ->
+            lager:error("NKLOG V2 ~p", [{Val2, O}]),
+            error
     end;
 
 spec(log_level, Val) when Val >= 0, Val =< 8 ->
