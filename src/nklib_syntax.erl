@@ -25,6 +25,7 @@
 -export([parse/2, parse/3, parse_all/2, spec/2]).
 -export_type([syntax/0, post_check_fun/0]).
 
+-include("nklib.hrl").
 
 %% ===================================================================
 %% Types
@@ -879,11 +880,20 @@ spec(fullpath, Val) when is_list(Val); is_binary(Val) ->
 spec(fullpath, _) ->
     error;
 
+spec(uri, #uri{}=Val) ->
+    {ok, Val};
+
 spec(uri, Val) ->
     case nklib_parse:uris(Val) of
         [Uri] -> {ok, Uri};
         _ -> error
     end;
+
+spec(uris, []=Val) ->
+    {ok, Val};
+
+spec(uris, [#uri{}|_]=Val) ->
+    {ok, Val};
 
 spec(uris, Val) ->
     case nklib_parse:uris(Val) of
