@@ -21,7 +21,7 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--export([epoch/1, now/1, now_3339/1]).
+-export([epoch/1, now_hex/1, now_3339/1]).
 -export([to_3339/2, to_epoch/2, is_3339/1]).
 -export_type([epoch_unit/0, epoch/1]).
 
@@ -50,15 +50,20 @@ epoch(usecs) ->
     {N1, N2, N3} = os:timestamp(),
     (N1 * 1000000 + N2) * 1000000 + N3.
 
+%% @doc Get current epoch in binary for sorting, in hex format
+%% For secs: 8 bytes (10 bytes in about 100 years)
+%% For msecs: 12 bytes
+%% For usecs: 14 byes
+-spec now_hex(epoch_unit()) ->
+    binary().
 
-%% @doc Get current epoch in binary for sorting
-%% There is no possibility at any unit to wrap in thousands of years ;-)
--spec now(epoch_unit()) ->
-    binary.
-
-now(Unit) ->
-    integer_to_binary(epoch(Unit)).
-
+now_hex(Unit) ->
+    Base = case Unit of
+        secs -> 1550723145;
+        msecs -> 467989515763;
+        usecs -> 1286025660953095
+    end,
+    nklib_util:hex(binary:encode_unsigned(epoch(Unit)-Base)).
 
 
 %% @doc Get current epoch time, using the cached pattern
