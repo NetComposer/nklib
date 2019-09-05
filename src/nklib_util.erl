@@ -325,10 +325,6 @@ m_timestamp() ->
     l_timestamp() div 1000.
 
 
-
-
-
-
 %% @doc Converts a `timestamp()' to a local `datetime()'.
 -spec timestamp_to_local(timestamp()) ->
     calendar:datetime().

@@ -23,6 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([epoch/1, now_hex/1, now_3339/1]).
 -export([to_3339/2, to_epoch/2, is_3339/1]).
+-export([age/1]).
 -export_type([epoch_unit/0, epoch/1]).
 
 -type epoch_unit() :: secs | msecs | usecs.
@@ -234,6 +235,27 @@ norm_date(Val) ->
             <<Val/binary, "T00:00:00Z">>;
         _ ->
             Val
+    end.
+
+%% @doc
+age(Secs1) when is_integer(Secs1) ->
+    Secs2 = epoch(secs),
+    {{Y2, M2, D2}, _} = calendar:now_to_local_time({0, Secs2, 0}),
+    {{Y1, M1, D1}, _} = calendar:now_to_local_time({0, Secs1, 0}),
+    Years1 = Y2 - Y1,
+    if
+        M2 >= M1, D2 >= D1 ->
+            {ok, Years1+1};
+        true ->
+            {ok, Years1}
+    end;
+
+age(Date) ->
+    case to_epoch(Date, secs) of
+        {ok, Secs1} ->
+            age(Secs1);
+        {error, Error} ->
+            {error, Error}
     end.
 
 
