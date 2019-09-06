@@ -21,7 +21,7 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--export([epoch/1, now_hex/1, now_3339/1]).
+-export([epoch/1, now_hex/1, epoch_to_hex/2, now_3339/1]).
 -export([to_3339/2, to_epoch/2, is_3339/1]).
 -export([age/1]).
 -export_type([epoch_unit/0, epoch/1]).
@@ -51,20 +51,36 @@ epoch(usecs) ->
     {N1, N2, N3} = os:timestamp(),
     (N1 * 1000000 + N2) * 1000000 + N3.
 
+
 %% @doc Get current epoch in binary for sorting, in hex format
-%% For secs: 8 bytes (10 bytes in about 100 years)
-%% For msecs: 12 bytes
-%% For usecs: 14 byes
+%% See epoch_to_hex/2
 -spec now_hex(epoch_unit()) ->
     binary().
 
 now_hex(Unit) ->
-    Base = case Unit of
-        secs -> 1550723145;
-        msecs -> 467989515763;
-        usecs -> 1286025660953095
+    epoch_to_hex(epoch(Unit), Unit).
+
+
+%% @doc Get current epoch in binary for sorting, in hex format
+%% For secs:  10 bytes
+%% For msecs: 12 bytes
+%% For usecs: 14 byes
+%% It will never wrap, see epoch_to_hex_test/0
+
+epoch_to_hex(Epoch, Unit) ->
+    Hex = nklib_util:hex(binary:encode_unsigned(Epoch)),
+    Size = case Unit of
+        secs -> 10;
+        msecs -> 12;
+        usecs -> 14
     end,
-    nklib_util:hex(binary:encode_unsigned(epoch(Unit)-Base)).
+    case byte_size(Hex) of
+        Size ->
+            Hex;
+        HexSize ->
+            BinPad = binary:copy(<<"0">>, Size - HexSize),
+            <<BinPad/binary, Hex/binary>>
+    end.
 
 
 %% @doc Get current epoch time, using the cached pattern
@@ -264,6 +280,9 @@ to_bin(K) when is_binary(K) -> K;
 to_bin(K) -> nklib_util:to_binary(K).
 
 
+
+
+
 %% ===================================================================
 %% EUnit tests
 %% ===================================================================
@@ -337,10 +356,27 @@ dates_test() ->
     {ok,1435708750} = to_epoch("2015-06-30T23:59:10.01Z", secs),
     {ok,1435708750010} = to_epoch("2015-06-30T23:59:10.01Z", msecs),
     {ok,1435708750010000} = to_epoch("2015-06-30T23:59:10.01Z", usecs),
-
-
     ok.
 
+epoch_to_hex_test() ->
+    <<"0000000001">> = epoch_to_hex(1, secs),
+    <<"0012cea600">> = epoch_to_hex(element(2, to_epoch("1980-01-01T00:00:00Z", secs)), secs),
+    <<"005c2aad80">> = epoch_to_hex(element(2, to_epoch("2019-01-01T00:00:00Z", secs)), secs),
+    <<"01b09e1900">> = epoch_to_hex(element(2, to_epoch("2200-01-01T00:00:00Z", secs)), secs),
+    <<"0eea4f0300">> = epoch_to_hex(element(2, to_epoch("4000-01-01T00:00:00Z", secs)), secs),
+
+    <<"000000000001">> = epoch_to_hex(1, msecs),
+    <<"004977387000">> = epoch_to_hex(element(2, to_epoch("1980-01-01T00:00:00Z", msecs)), msecs),
+    <<"016806b5bc00">> = epoch_to_hex(element(2, to_epoch("2019-01-01T00:00:00Z", msecs)), msecs),
+    <<"0699e991a800">> = epoch_to_hex(element(2, to_epoch("2200-01-01T00:00:00Z", msecs)), msecs),
+    <<"3a4344a3b800">> = epoch_to_hex(element(2, to_epoch("4000-01-01T00:00:00Z", msecs)), msecs),
+
+    <<"00000000000001">> = epoch_to_hex(1, usecs),
+    <<"011ef9b4758000">> = epoch_to_hex(element(2, to_epoch("1980-01-01T00:00:00Z", usecs)), usecs),
+    <<"057e5a35e66000">> = epoch_to_hex(element(2, to_epoch("2019-01-01T00:00:00Z", usecs)), usecs),
+    <<"19c93860f84000">> = epoch_to_hex(element(2, to_epoch("2200-01-01T00:00:00Z", usecs)), usecs),
+    <<"e396c41f86c000">> = epoch_to_hex(element(2, to_epoch("4000-01-01T00:00:00Z", usecs)), usecs),
+    ok.
 
 -endif.
 
