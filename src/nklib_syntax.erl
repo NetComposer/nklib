@@ -101,7 +101,7 @@
 
 
 % Opts '__key_..' accept any key and converts to this format
--type key() :: atom() | binary() | '__key_atom' | '__map_binary'.
+-type key() :: atom() | binary() | '__map_atom' | '__map_binary'.
 -type val() :: term().
 
 
