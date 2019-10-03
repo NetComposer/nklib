@@ -24,12 +24,14 @@
 -export([epoch/1, now_hex/1, epoch_to_hex/2, now_3339/1]).
 -export([to_3339/2, to_epoch/2, is_3339/1]).
 -export([age/1]).
+-export([store_timezones/0, get_timezones/0, is_valid_timezone/1, syntax_timezone/1]).
 -export_type([epoch_unit/0, epoch/1]).
 
 -type epoch_unit() :: secs | msecs | usecs.
 -type epoch(_Unit) :: pos_integer().
 
 -include("nklib.hrl").
+-include_lib("qdate_localtime/include/tz_database.hrl").
 
 -compile(inline).
 
@@ -273,6 +275,36 @@ age(Date) ->
         {error, Error} ->
             {error, Error}
     end.
+
+
+%% @private
+store_timezones() ->
+    Zones = [list_to_binary(element(1,TZ)) || TZ <- ?tz_database],
+    nklib_util:do_config_put(nklib_timezones, lists:usort(Zones)).
+
+%% @doc
+get_timezones() ->
+    nklib_util:do_config_get(nklib_timezones).
+
+
+%% @doc
+is_valid_timezone(Zone) ->
+    lists:member(to_bin(Zone), get_timezones()).
+
+%% @doc
+syntax_timezone(Zone) ->
+    case to_bin(Zone) of
+        <<>> ->
+            {ok, <<"GMT">>};
+        Zone2 ->
+            case is_valid_timezone(Zone2) of
+                true ->
+                    {ok, Zone2};
+                false ->
+                    error
+            end
+    end.
+
 
 
 %% @private

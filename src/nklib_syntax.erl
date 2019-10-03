@@ -115,6 +115,8 @@
     ok |
     {ok, val()} |
     {ok, key(), val()} |
+    true |
+    false |
     error |
     {error, term()}.
 
@@ -452,6 +454,8 @@ parse_fun_res(Res, Key, Val, Parse) ->
             {ok, Key, Val2, Parse};
         {ok, Key2, Val2} when is_atom(Key2) ->
             {ok, Key2, Val2, Parse};
+        true ->
+            {ok, Key, Val, Parse};
         error ->
             {error, syntax};
         {error, Error} ->
@@ -459,7 +463,9 @@ parse_fun_res(Res, Key, Val, Parse) ->
         {'EXIT', Error} ->
             lager:warning("NkLIB Syntax: error calling syntax fun for "
                           "(~s, ~p) ~p", [Key, Val, Error]),
-            error(fun_call_error)
+            error(fun_call_error);
+        false ->
+            {error, syntax}
     end.
 
 

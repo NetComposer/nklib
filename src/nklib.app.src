@@ -4,6 +4,21 @@
     {modules, []},
     {registered, []},
     {mod, {nklib_app, []}},
-    {applications, [kernel, stdlib, lager, enotify, jsone, yamerl, eper, recon, mimerl, rfc3339, parsexml]},
+    {applications, [
+        kernel,
+        stdlib,
+        lager,
+        enotify,
+        jsone,
+        yamerl,
+        eper,
+        recon,
+        mimerl,
+        rfc3339,
+        parsexml,
+        qdate_localtime,
+        erlware_commons,
+        qdate
+    ]},
     {env, []}
 ]}.
