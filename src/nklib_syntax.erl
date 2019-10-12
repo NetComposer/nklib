@@ -76,6 +76,7 @@
     {record, atom()} |
     string |
     binary | {binary, [binary()]} | {binary, none|integer(), none|integer()} |
+    text | {text, [binary()]} |
     date_3339 |                      % From any format or epoch to rfc3339
     {epoch, secs|msecs|usecs} |
     base64 | base64url |
@@ -710,8 +711,10 @@ spec(binary, Val) ->
             {ok, <<>>};
         is_list(Val), is_integer(hd(Val)) ->
             case catch list_to_binary(Val) of
-                {'EXIT', _} -> error;
-                Bin -> {ok, Bin}
+                {'EXIT', _} ->
+                    error;
+                Bin ->
+                    {ok, Bin}
             end;
         is_list(Val) ->
             Val2 = [nklib_util:to_binary(Term) || Term <- Val],
@@ -744,22 +747,56 @@ spec({binary, Min, Max}, Val) ->
             error
     end;
 
-spec(binary_text, []) ->
-    {ok, <<>>};
-
-spec(binary_text, Val) when is_binary(Val); is_integer(Val); is_atom(Val) ->
-    spec(binary_text, nklib_util:to_list(Val));
-
-spec(binary_text, [Int|_]=List) when is_integer(Int) ->
-    case io_lib:printable_unicode_list(List) of
+spec(text, Val) ->
+    if
+        is_binary(Val) ->
+            {ok, Val};
+        Val == [] ->
+            {ok, <<>>};
+        is_list(Val), is_integer(hd(Val)) ->
+            case catch unicode:characters_to_binary(Val) of
+                {'EXIT', _} -> error;
+                Bin -> {ok, Bin}
+            end;
+        is_list(Val) ->
+            Val2 = [nklib_util:to_binary(Term) || Term <- Val],
+            case catch list_to_binary(Val2) of
+                {'EXIT', _} -> error;
+                Bin -> {ok, Bin}
+            end;
+        is_atom(Val); is_integer(Val) ->
+            {ok, nklib_util:to_binary(Val)};
         true ->
-            {ok, list_to_binary(List)};
-        false ->
             error
     end;
 
-spec(binary_text, _Val) ->
-    error;
+spec({text, List}, Val) ->
+    case spec(text, Val) of
+        {ok, Bin} ->
+            case lists:member(Bin, List) of
+                true -> {ok, Bin};
+                false -> error
+            end;
+        error ->
+            error
+    end;
+
+%%spec(binary_text, []) ->
+%%    {ok, <<>>};
+%%
+%%spec(binary_text, Val) when is_binary(Val); is_integer(Val); is_atom(Val) ->
+%%    spec(binary_text, nklib_util:to_list(Val));
+%%
+%%spec(binary_text, [Int|_]=List) when is_integer(Int) ->
+%%    case io_lib:printable_unicode_list(List) of
+%%        true ->
+%%            {ok, list_to_binary(List)};
+%%        false ->
+%%            error
+%%    end;
+%%
+%%spec(binary_text, _Val) ->
+%%    error;
 
 spec(urltoken, Val) ->
     to_urltoken(nklib_util:to_list(Val), []);

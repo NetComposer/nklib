@@ -551,8 +551,13 @@ to_binary(B) when is_binary(B) -> B;
 to_binary([]) -> <<>>;
 to_binary([Int|_]=L) when is_integer(Int) ->
     case catch list_to_binary(L) of
-        {'EXIT', _} -> msg("~p", [L]);
-        Bin -> Bin
+        {'EXIT', _} ->
+            case catch unicode:characters_to_binary(L) of
+                {'EXIT', _} -> msg("~s", [L]);
+                Bin -> Bin
+            end;
+        Bin ->
+            Bin
     end;
 to_binary(undefined) -> <<>>;
 to_binary(A) when is_atom(A) -> atom_to_binary(A, latin1);
