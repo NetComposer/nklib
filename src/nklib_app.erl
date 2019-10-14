@@ -50,6 +50,7 @@ start(_Type, _Args) ->
     HwAddr = nklib_util:get_hwaddr(),
     application:set_env(?APP, hw_addr, HwAddr),
     nklib_date:store_timezones(),
+    nklib_i18n:store_locales([en]),
     {ok, Pid} = nklib_sup:start_link(),
     JsonEncoder = case application:get_env(?APP, json_encoder) of
         {ok, jiffy} -> jiffy;
