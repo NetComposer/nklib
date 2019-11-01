@@ -420,6 +420,13 @@ parse_opt(Syntax, Key, Val, #parse{opts=Opts}=Parse) when is_map(Syntax) ->
                 {error, Error} ->
                     {error, Error}
             end;
+        is_list(Val) ->
+            case catch maps:from_list(Val) of
+                Val2 when is_map(Val2) ->
+                    parse_opt(Syntax, Key, Val2, Parse);
+                _ ->
+                    {error, syntax}
+            end;
         true ->
             {error, syntax}
     end;
