@@ -66,7 +66,7 @@ csv([$\n | Rest], Line, false, Letters, Words, Records, Fields) ->
     Words2 = lists:reverse([Word|Words]),
     case catch lists:zip(Fields, Words2) of
         {'EXIT', _} ->
-            %lager:error("NKLOG F1: ~p W: ~p", [Fields, Words2]),
+            lager:error("NKLOG F1: ~p W: ~p", [Fields, Words2]),
             {error, {csv_parser_error, {invalid_fields, Line}}};
         Zipped ->
             Record = maps:from_list(Zipped),
@@ -83,6 +83,7 @@ csv([], Line, false, Letters, Words, Records, Fields) ->
     %lager:error("NKLOG F2 ~p W2 ~p", [Letters, Words]),
     case catch lists:zip(Fields, Words2) of
         {'EXIT', _} ->
+            lager:error("NKLOG F2: ~p W: ~p", [Fields, Words2]),
             {error, {csv_parser_error, {invalid_fields, Line}}};
         Zipped ->
             Record = maps:from_list(Zipped),
