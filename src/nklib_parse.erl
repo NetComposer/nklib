@@ -29,6 +29,7 @@
 -export([uris/1, ruris/1, tokens/1, integers/1, dates/1, scheme/1, name/1]).
 -export([unquote/1, path/1, basepath/1, fullpath/1]).
 -export([normalize/1, normalize/2, normalize_words/1, normalize_words/2]).
+-export([check_mac/1]).
 
 -include("nklib.hrl").
 
@@ -575,6 +576,33 @@ norm_split([Char|Rest], Chars, true, [], Acc2) ->
             norm_split(Rest, Chars, false, [Char], Acc2)
     end.
 
+
+%% @doc
+check_mac(Mac) ->
+    Mac2 = nklib_util:to_upper(Mac),
+    case binary:split(Mac2, <<":">>, [global]) of
+        [H1, H2, H3, H4, H5, H6] ->
+            do_check_mac([H1, H2, H3, H4, H5, H6]);
+        _ ->
+            error
+    end.
+
+
+%% @private
+do_check_mac([]) ->
+    ok;
+do_check_mac([<<A, B>>|Rest]) ->
+    case
+        ((A >= $0 andalso A =< $9) orelse (A >= $A andalso A =< $F)) andalso
+        ((B >= $0 andalso B =< $9) orelse (B >= $A andalso B =< $F))
+    of
+        true ->
+            do_check_mac(Rest);
+        false ->
+            error
+    end;
+do_check_mac(_) ->
+    error.
 
 
 
