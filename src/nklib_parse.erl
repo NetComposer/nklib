@@ -215,6 +215,26 @@ fullpath([Segment|Tail], Acc) ->
     fullpath(Tail, [Segment|Acc]).
 
 
+%% @doc
+-spec check_mac(list()|binary()) -> ok | error.
+check_mac(Mac) ->
+    Mac2 = nklib_util:to_upper(Mac),
+    case binary:split(Mac2, <<":">>, [global]) of
+        [H1, H2, H3, H4, H5, H6] ->
+            case do_check_mac([H1, H2, H3, H4, H5, H6]) of
+                ok ->
+                    {ok,  Mac2};
+                error ->
+                    error
+            end;
+        _ ->
+            error
+    end.
+
+
+
+
+
 %% ===================================================================
 %% Internal
 %% ===================================================================
@@ -574,22 +594,6 @@ norm_split([Char|Rest], Chars, true, [], Acc2) ->
             norm_split(Rest, Chars, true, [], Acc2);
         false ->
             norm_split(Rest, Chars, false, [Char], Acc2)
-    end.
-
-
-%% @doc
-check_mac(Mac) ->
-    Mac2 = nklib_util:to_upper(Mac),
-    case binary:split(Mac2, <<":">>, [global]) of
-        [H1, H2, H3, H4, H5, H6] ->
-            case do_check_mac([H1, H2, H3, H4, H5, H6]) of
-                ok ->
-                    {ok,  Mac2};
-                error ->
-                    error
-            end;
-        _ ->
-            error
     end.
 
 
