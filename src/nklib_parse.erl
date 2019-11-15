@@ -582,7 +582,12 @@ check_mac(Mac) ->
     Mac2 = nklib_util:to_upper(Mac),
     case binary:split(Mac2, <<":">>, [global]) of
         [H1, H2, H3, H4, H5, H6] ->
-            do_check_mac([H1, H2, H3, H4, H5, H6]);
+            case do_check_mac([H1, H2, H3, H4, H5, H6]) of
+                ok ->
+                    {ok,  Mac2};
+                error ->
+                    error
+            end;
         _ ->
             error
     end.
