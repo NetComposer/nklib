@@ -73,6 +73,7 @@
     integer | pos_integer | nat_integer | {integer, none|integer(), none|integer()} |
     {integer, [integer()]} |
     float |
+    {float, none|float(), none|float()} |
     {record, atom()} |
     string |
     binary | {binary, [binary()]} | {binary, none|integer(), none|integer()} |
@@ -689,6 +690,18 @@ spec(float, Val) ->
             error;
         Float ->
             {ok, Float}
+    end;
+
+spec({float, Min, Max}, Val) ->
+    case nklib_util:to_float(Val) of
+        error ->
+            error;
+        Float when
+            (Min == none orelse Float >= Min) andalso
+                (Max == none orelse Float =< Max) ->
+            {ok, Float};
+        _ ->
+            error
     end;
 
 spec({record, Type}, Val) ->
