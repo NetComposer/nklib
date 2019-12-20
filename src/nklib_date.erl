@@ -21,7 +21,7 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--export([epoch/1, now_hex/1, epoch_to_hex/2, now_3339/1]).
+-export([epoch/1, now_hex/1, epoch_to_hex/2, now_bin/1, epoch_to_bin/2, bin_to_epoch/1, now_3339/1]).
 -export([to_3339/2, to_epoch/2, is_3339/1]).
 -export([age/1]).
 -export([store_timezones/0, get_timezones/0, is_valid_timezone/1, syntax_timezone/1]).
@@ -83,6 +83,34 @@ epoch_to_hex(Epoch, Unit) ->
             BinPad = binary:copy(<<"0">>, Size - HexSize),
             <<BinPad/binary, Hex/binary>>
     end.
+
+
+
+%% @doc Get current epoch in binary for sorting, in hex format
+%% See epoch_to_hex/2
+-spec now_bin(epoch_unit()) ->
+    binary().
+
+now_bin(Unit) ->
+    epoch_to_bin(epoch(Unit), Unit).
+
+
+%% @doc Get current epoch in binary for sorting.
+%% It will never wrap, see epoch_to_bin_test/0
+
+epoch_to_bin(Epoch, Unit) ->
+    Bin = erlang:integer_to_binary(Epoch, 36),
+    Size = case Unit of
+        secs -> 7;
+        msecs -> 9;
+        usecs -> 11
+    end,
+    nklib_util:lpad(Bin, Size, $0).
+
+
+bin_to_epoch(Bin) ->
+    erlang:binary_to_integer(Bin, 36).
+
 
 
 %% @doc Get current epoch time, using the cached pattern
@@ -409,6 +437,69 @@ epoch_to_hex_test() ->
     <<"19c93860f84000">> = epoch_to_hex(element(2, to_epoch("2200-01-01T00:00:00Z", usecs)), usecs),
     <<"e396c41f86c000">> = epoch_to_hex(element(2, to_epoch("4000-01-01T00:00:00Z", usecs)), usecs),
     ok.
+
+
+
+bin_to_hex_test() ->
+    Ts1 = 1,
+    {ok, Ts2} = nklib_date:to_epoch("1980-01-01T00:00:00Z", secs),
+    {ok, Ts3} = nklib_date:to_epoch("2019-01-01T00:00:00Z", secs),
+    {ok, Ts4} = nklib_date:to_epoch("2200-01-01T00:00:00Z", secs),
+    {ok, Ts5} = nklib_date:to_epoch("4000-01-01T00:00:00Z", secs),
+
+    Tm1 = 1,
+    {ok, Tm2} = nklib_date:to_epoch("1980-01-01T00:00:00Z", msecs),
+    {ok, Tm3} = nklib_date:to_epoch("2019-01-01T00:00:00Z", msecs),
+    {ok, Tm4} = nklib_date:to_epoch("2200-01-01T00:00:00Z", msecs),
+    {ok, Tm5} = nklib_date:to_epoch("4000-01-01T00:00:00Z", msecs),
+
+    Tu1 = 1,
+    {ok, Tu2} = nklib_date:to_epoch("1980-01-01T00:00:00Z", usecs),
+    {ok, Tu3} = nklib_date:to_epoch("2019-01-01T00:00:00Z", usecs),
+    {ok, Tu4} = nklib_date:to_epoch("2200-01-01T00:00:00Z", usecs),
+    {ok, Tu5} = nklib_date:to_epoch("4000-01-01T00:00:00Z", usecs),
+
+    <<"0000001">> = nklib_date:epoch_to_bin(Ts1, secs),
+    <<"057UYO0">> = nklib_date:epoch_to_bin(Ts2, secs),
+    <<"0PKMLC0">> = nklib_date:epoch_to_bin(Ts3, secs),
+    <<"3C1AO00">> = nklib_date:epoch_to_bin(Ts4, secs),
+    <<"TFG0QO0">> = nklib_date:epoch_to_bin(Ts5, secs),
+
+    <<"000000001">> = nklib_date:epoch_to_bin(Tm1, msecs),
+    <<"040YC2YO0">> = nklib_date:epoch_to_bin(Tm2, msecs),
+    <<"0JQCZKLC0">> = nklib_date:epoch_to_bin(Tm3, msecs),
+    <<"2KMC0AO00">> = nklib_date:epoch_to_bin(Tm4, msecs),
+    <<"MPH10KQO0">> = nklib_date:epoch_to_bin(Tm5, msecs),
+
+    <<"00000000001">> = nklib_date:epoch_to_bin(Tu1, usecs),
+    <<"033UHRMAYO0">> = nklib_date:epoch_to_bin(Tu2, usecs),
+    <<"0F848S40LC0">> = nklib_date:epoch_to_bin(Tu3, usecs),
+    <<"1ZGSDK8AO00">> = nklib_date:epoch_to_bin(Tu4, usecs),
+    <<"HIRL0804QO0">> = nklib_date:epoch_to_bin(Tu5, usecs),
+
+
+    Ts1 = nklib_date:bin_to_epoch(<<"0000001">>),
+    Ts2 = nklib_date:bin_to_epoch(<<"057UYO0">>),
+    Ts3 = nklib_date:bin_to_epoch(<<"0PKMLC0">>),
+    Ts4 = nklib_date:bin_to_epoch(<<"3C1AO00">>),
+    Ts5 = nklib_date:bin_to_epoch(<<"TFG0QO0">>),
+
+    Tm1 = nklib_date:bin_to_epoch(<<"000000001">>),
+    Tm2 = nklib_date:bin_to_epoch(<<"040YC2YO0">>),
+    Tm3 = nklib_date:bin_to_epoch(<<"0JQCZKLC0">>),
+    Tm4 = nklib_date:bin_to_epoch(<<"2KMC0AO00">>),
+    Tm5 = nklib_date:bin_to_epoch(<<"MPH10KQO0">>),
+
+    Tu1 = nklib_date:bin_to_epoch(<<"00000000001">>),
+    Tu2 = nklib_date:bin_to_epoch(<<"033UHRMAYO0">>),
+    Tu3 = nklib_date:bin_to_epoch(<<"0F848S40LC0">>),
+    Tu4 = nklib_date:bin_to_epoch(<<"1ZGSDK8AO00">>),
+    Tu5 = nklib_date:bin_to_epoch(<<"HIRL0804QO0">>),
+
+    ok.
+
+
+
 
 -endif.
 

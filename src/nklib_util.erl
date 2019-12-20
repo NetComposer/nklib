@@ -1306,9 +1306,13 @@ add_to_list(Term, MaxElements, List) when is_integer(MaxElements), is_list(List)
 
 lpad(Term, Size, Pad) ->
     Bin = to_binary(Term),
-    BinSize = byte_size(Bin),
-    true = Size >= BinSize,
-    <<(binary:copy(<<Pad>>, Size-BinSize))/binary, Bin/binary>>.
+    case byte_size(Bin) of
+        Size ->
+            Bin;
+        BinSize ->
+            true = Size >= BinSize,
+            <<(binary:copy(<<Pad>>, Size-BinSize))/binary, Bin/binary>>
+    end.
 
 
 %% @doc Goes to the previous integer (-1.1 -> -2)
