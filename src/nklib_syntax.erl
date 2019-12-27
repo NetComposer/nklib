@@ -1225,7 +1225,7 @@ to_bin(K) -> nklib_util:to_binary(K).
 %% EUnit tests
 %% ===================================================================
 
--define(TEST, 1).
+%-define(TEST, 1).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -1497,7 +1497,7 @@ parse_fun(field10, data, _Opts) ->
 
 
 
-    -endif.
+-endif.
 
 
 
