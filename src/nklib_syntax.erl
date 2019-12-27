@@ -403,7 +403,8 @@ parse_opt({ListType, SyntaxOp}, Key, Val, Parse)
             parse_opt({ListType, SyntaxOp}, Key, Val2, Parse);
         [{_, _} | _] ->
             parse_opt_list(ListType, SyntaxOp, Key, [Val], Parse, []);
-        [Head | _] when not is_integer(Head) ->
+        %[Head | _] when not is_integer(Head) ->
+        _ when is_list(Val) ->
             parse_opt_list(ListType, SyntaxOp, Key, Val, Parse, []);
         _ ->
             parse_opt_list(ListType, SyntaxOp, Key, [Val], Parse, [])
@@ -1224,7 +1225,7 @@ to_bin(K) -> nklib_util:to_binary(K).
 %% EUnit tests
 %% ===================================================================
 
-%-define(TEST, 1).
+-define(TEST, 1).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
