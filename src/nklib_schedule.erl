@@ -23,7 +23,7 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 
 -export([next_fire_time/3, next_fire_time2/3]).
--export([parse/1, get_dates/3]).
+-export([parse/1, syntax/0, get_dates/3]).
 -export([all_tests/0]).
 
 %% ===================================================================
@@ -75,7 +75,6 @@ next_fire_time(Now, Params, Status) ->
     end.
 
 
-
 -spec get_dates(integer()|binary(), pos_integer(), params()) ->
     [binary()].
 
@@ -85,26 +84,7 @@ get_dates(Start, Num, Params) ->
 
 %% @doc
 parse(Params) ->
-    Base = #{
-        repeat => {atom, [daily, weekly, monthly]},
-        hour => {integer, 0, 23},
-        minute => {integer, 0, 59},
-        second => {integer, 0, 59},
-        timezone => fun nklib_date:syntax_timezone/1,
-        daily_week_days => {list, {integer, 0, 6}},
-        daily_step_days => {integer, 1, 25},
-        weekly_day => {integer, 0, 6},
-        monthly_day => [{integer, 0, 28}, {atom, [last]}],
-        start_date => date_3339,
-        stop_date => date_3339,
-        '__mandatory' => [repeat],
-        '__defaults' => #{
-            hour => 12,
-            minute => 0,
-            timezone => <<"GMT">>
-        }
-    },
-    case nklib_syntax:parse(Params, Base) of
+    case nklib_syntax:parse(Params, syntax()) of
         {ok, #{repeat:=Repeat}=Parsed, _} ->
             case Repeat of
                 daily ->
@@ -139,6 +119,28 @@ parse(Params) ->
         {error, Error} ->
             {error, Error}
     end.
+
+
+syntax() ->
+    #{
+        repeat => {atom, [daily, weekly, monthly]},
+        hour => {integer, 0, 23},
+        minute => {integer, 0, 59},
+        second => {integer, 0, 59},
+        timezone => fun nklib_date:syntax_timezone/1,
+        daily_week_days => {list, {integer, 0, 6}},
+        daily_step_days => {integer, 1, 25},
+        weekly_day => {integer, 0, 6},
+        monthly_day => [{integer, 0, 28}, {atom, [last]}],
+        start_date => date_3339,
+        stop_date => date_3339,
+        '__mandatory' => [repeat],
+        '__defaults' => #{
+            hour => 12,
+            minute => 0,
+            timezone => <<"GMT">>
+        }
+    }.
 
 
 -spec next_fire_time2(integer(), params(), status()) ->
