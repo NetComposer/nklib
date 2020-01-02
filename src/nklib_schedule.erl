@@ -224,18 +224,18 @@ get_dates(_Start, _Num, _Params, _Status, Acc) ->
 
 %% @private
 get_times(NowDate, Params) ->
+    {ok, NowDate2} = nklib_date:to_3339(NowDate, secs),
     TZ = maps:get(timezone, Params, <<"GMT">>),
-    NowDate2 = case Params of
+    FireDate = case Params of
         #{start_date:=StartDate} ->
-            {ok, ND2} = nklib_date:to_3339(NowDate, secs),
-            case StartDate > ND2 of
+            case StartDate > NowDate2 of
                 true ->
-                    ND2;
+                    StartDate;
                 _ ->
-                    NowDate
+                    NowDate2
             end;
         _ ->
-            NowDate
+            NowDate2
     end,
     Sec = case Params of
         #{second:=S} ->
@@ -254,7 +254,7 @@ get_times(NowDate, Params) ->
         _ ->
             {H, M, Sec}
     end,
-    {qdate:to_date(TZ, NowDate2), FireTime}.
+    {qdate:to_date(TZ, FireDate), FireTime}.
 
 
 %% @private
@@ -506,7 +506,7 @@ daily2_test() ->
 
     P2 = P0#{
         daily_week_days => [1,2,3,4,5],
-        start_date => <<"2019-12-23T11:51:00Z">>,
+        start_date => <<"2019-12-23T00:00:00Z">>,
         stop_date => <<"2020-01-02T00:00:00Z">>
     },
     [
