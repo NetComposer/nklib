@@ -24,6 +24,7 @@
 
 -export([next_fire_time/3, next_fire_time2/3]).
 -export([parse/1, syntax/0, get_dates/3]).
+-export([get_next_local/2]).
 -export([all_tests/0]).
 
 %% ===================================================================
@@ -61,12 +62,12 @@
 -spec next_fire_time(integer()|binary(), params(), status()) ->
     binary().
 
-next_fire_time(Now, Params, Status) ->
+next_fire_time(Check, Params, Status) ->
     case parse(Params) of
         {ok, Params2} ->
-            case nklib_date:to_3339(Now, secs) of
-                {ok, Now2} ->
-                    next_fire_time2(Now2, Params2, Status);
+            case nklib_date:to_3339(Check, secs) of
+                {ok, CheckTime2} ->
+                    next_fire_time2(CheckTime2, Params2, Status);
                 {error, Error} ->
                     {error, Error}
             end;
@@ -96,7 +97,8 @@ parse(Params) ->
                         false ->
                             case maps:find(start_date, Params) of
                                 {ok, StartDate} ->
-                                    WD = get_date_day_of_week(StartDate),
+                                    {ok, {StartDate2, _}} = nklib_date:to_calendar(StartDate),
+                                    WD = get_weekly_day(StartDate2),
                                     {ok, Parsed#{weekly_day => WD}};
                                 error ->
                                     {error, {field_missing, weekly_day}}
@@ -109,8 +111,8 @@ parse(Params) ->
                         false ->
                             case maps:find(start_date, Params) of
                                 {ok, StartDate} ->
-                                    MD = get_date_day_of_month(StartDate),
-                                    {ok, Parsed#{monthly_day => MD}};
+                                    {ok, {{_, _, Day}, _}} = nklib_date:to_calendar(StartDate),
+                                    {ok, Parsed#{monthly_day => Day}};
                                 error ->
                                     {error, {field_missing, weekly_day}}
                             end
@@ -146,61 +148,39 @@ syntax() ->
 -spec next_fire_time2(integer(), params(), status()) ->
     binary().
 
-next_fire_time2(Now, #{repeat:=daily}=Params, Status) ->
-    {{ZoneNowDate, ZoneNowTime}, FireTime} = get_times(Now, Params),
-    case ZoneNowTime < FireTime of
-        true ->
-            % The hour is still valid for today
-            Fire = {ZoneNowDate, FireTime},
-            make_gmt(Fire, Params, Status);
-        false ->
-            % Already passed, set it for tomorrow
-            NowDate2 = add_days(ZoneNowDate, 1),
-            Date3 = date_to_3339(NowDate2),
-            next_fire_time2(Date3, Params, Status)
-    end;
+next_fire_time2(Check, #{repeat:=daily}=Params, Status) ->
+    Fire = get_next_local(Check, Params),
+    make_fire_gmt(Fire, Params, Status);
 
-next_fire_time2(Now, #{repeat:=weekly}=Params, Status) ->
-    {{ZoneNowDate, ZoneNowTime}, FireTime} = get_times(Now, Params),
+next_fire_time2(Check, #{repeat:=weekly}=Params, Status) ->
+    {FireDate, FireTime} = get_next_local(Check, Params),
     WeeklyDay = maps:get(weekly_day, Params),
     true = WeeklyDay >= 0 andalso WeeklyDay =< 6,
-    case get_weekly_day(ZoneNowDate) of
-        WeeklyDay when ZoneNowTime < FireTime ->
-            Fire = {ZoneNowDate, FireTime},
-            make_gmt(Fire, Params, Status);
+    case get_weekly_day(FireDate) of
         WeeklyDay ->
-            NowDate2 = add_days(ZoneNowDate, 1),
-            Date3 = date_to_3339(NowDate2),
-            next_fire_time2(Date3, Params, Status);
+            make_fire_gmt({FireDate, FireTime}, Params, Status);
         _ ->
             % Let's jump to the correct week day
-            NowDate3 = next_weekly_date(WeeklyDay, ZoneNowDate),
-            Date4 = date_to_3339(NowDate3),
-            next_fire_time2(Date4, Params, Status)
+            FireDate2 = next_weekly_date(WeeklyDay, FireDate),
+            make_fire_gmt({FireDate2, FireTime}, Params, Status)
     end;
 
-next_fire_time2(Now, #{repeat:=monthly}=Params, Status) ->
-    {{ZoneNowDate, ZoneNowTime}, FireTime} = get_times(Now, Params),
-    {NowY, NowM, NowD} = ZoneNowDate,
+next_fire_time2(Check, #{repeat:=monthly}=Params, Status) ->
+    {FireDate, FireTime} = get_next_local(Check, Params),
+    {Y, M, D} = FireDate,
     MonthlyDay1 = maps:get(monthly_day, Params),
     MonthlyDay2 = case MonthlyDay1 of
         last ->
-            calendar:last_day_of_the_month(NowY, NowM);
+            calendar:last_day_of_the_month(Y, M);
         MD when is_integer(MD) andalso MD >= 1 andalso MD =< 28 ->
             MD
     end,
-    case NowD of
-        MonthlyDay2 when ZoneNowTime < FireTime ->
-            Fire = {ZoneNowDate, FireTime},
-            make_gmt(Fire, Params, Status);
+    case D of
         MonthlyDay2 ->
-            NowDate2 = add_days(ZoneNowDate, 1),
-            Date3 = date_to_3339(NowDate2),
-            next_fire_time2(Date3, Params, Status);
+            make_fire_gmt({FireDate, FireTime}, Params, Status);
         _ ->
-            NowDate3 = next_monthly_date(MonthlyDay1, ZoneNowDate),
-            Date4 = date_to_3339(NowDate3),
-            next_fire_time2(Date4, Params, Status)
+            FireDate2 = next_monthly_date(MonthlyDay1, FireDate),
+            make_fire_gmt({FireDate2, FireTime}, Params, Status)
     end.
 
 
@@ -223,19 +203,25 @@ get_dates(_Start, _Num, _Params, _Status, Acc) ->
 
 
 %% @private
-get_times(NowDate, Params) ->
-    {ok, NowDate2} = nklib_date:to_3339(NowDate, secs),
+get_next_local(Check, Params) ->
+    % Convert check and start to local
+    % and calculate everything in local
+    qdate_srv:set_timezone(<<"GMT">>),
+    {ok, Check2} = nklib_date:to_epoch(Check, secs),
     TZ = maps:get(timezone, Params, <<"GMT">>),
-    FireDate = case Params of
-        #{start_date:=StartDate} ->
-            case StartDate > NowDate2 of
+    CheckLocal = qdate:to_date(TZ, Check2),
+    {FireDate, _} = case Params of
+        #{start_date:=Start} ->
+            {ok, Start2} = nklib_date:to_epoch(Start, secs),
+            StartLocal = qdate:to_date(TZ, Start2),
+            case StartLocal > CheckLocal of
                 true ->
-                    StartDate;
+                    StartLocal;
                 _ ->
-                    NowDate2
+                    CheckLocal
             end;
         _ ->
-            NowDate2
+            CheckLocal
     end,
     Sec = case Params of
         #{second:=S} ->
@@ -243,34 +229,41 @@ get_times(NowDate, Params) ->
         _ ->
             erlang:phash2(nklib_date:epoch(usecs)) rem 60
     end,
-    qdate_srv:set_timezone("GMT"),
-    % From GMT to Zone
     #{hour:=H, minute:=M} = Params,
     % Do not allow FireTime to be {0,0,0} so that recurring times set as {0, 0, 0}
     % are always lower than any possible configured fire time
-    FireTime = case {H, M, Sec} of
+    FireTimeLocal = case {H, M, Sec} of
         {0, 0, 0} ->
             {0, 0, 1};
         _ ->
             {H, M, Sec}
     end,
-    {qdate:to_date(TZ, FireDate), FireTime}.
+    FireLocal = {FireDate, FireTimeLocal},
+    case CheckLocal < FireLocal of
+        true ->
+            FireLocal;
+        false ->
+            FireDate2 = add_days(FireDate, 1),
+            {FireDate2, FireTimeLocal}
+    end.
+
 
 
 %% @private
-make_gmt(Fire, Params, Status) ->
+make_fire_gmt(Fire, Params, Status) ->
+    Fire2 = check_step_days(Fire, Params, Status),
+    Fire3 = check_week_days(Fire2, Params),
     TZ = maps:get(timezone, Params, <<"GMT">>),
     qdate_srv:set_timezone(TZ),
-    FireGmt1 = qdate:to_date("GMT", Fire),
-    FireGmt2 = check_step_days(FireGmt1, Params, Status),
-    FireGmt3 = check_week_days(FireGmt2, Params),
-    FireGmt4 =  nklib_util:gmt_to_timestamp(FireGmt3),
-    {ok, FireGmt5} = nklib_date:to_3339(FireGmt4*1000000+1, usecs),
+    Fire4 = qdate:to_date(<<"GMT">>, Fire3),
+    Fire5 = nklib_date:to_epoch(Fire4, secs),
+    Fire6 = Fire5*1000000+1,
+    {ok, Fire7} = nklib_date:to_3339(Fire6, usecs),
     case Params of
-        #{stop_date:=StopDate} when FireGmt5 > StopDate ->
+        #{stop_date:=StopDate} when Fire7 > StopDate ->
             <<>>;
         _ ->
-            FireGmt5
+            Fire7
     end.
 
 
@@ -279,11 +272,10 @@ check_step_days({Date, Time}, #{repeat:=daily, daily_step_days:=Days}, Status)
     when Days > 1 ->
     case Status of
         #{last_fire_time:=Fire1} ->
-            {ok, Fire2} = nklib_date:to_epoch(Fire1, secs),
-            {Fire3, _} = calendar:now_to_universal_time({0, Fire2, 0}),
+            {ok, {Fire2, _}} = nklib_date:to_calendar(Fire1),
             Diff =
                 calendar:date_to_gregorian_days(Date) -
-                    calendar:date_to_gregorian_days(Fire3),
+                    calendar:date_to_gregorian_days(Fire2),
             Add = Days - Diff,
             case Add > 0 of
                 true ->
@@ -325,6 +317,7 @@ check_week_days(_Date, Days, _Rem) ->
 %% @private
 add_days(Date, Days) ->
     calendar:gregorian_days_to_date(calendar:date_to_gregorian_days(Date)+Days).
+
 
 %% @private
 next_weekly_date(WD, Date) ->
@@ -375,6 +368,8 @@ add_month({Y, M, D}) ->
     end,
     fix_month({Y2, M2, D}).
 
+
+%% @private
 fix_month({Y, M, D}) ->
     Last = calendar:last_day_of_the_month(Y, M),
     D2 = case D > Last of
@@ -382,28 +377,6 @@ fix_month({Y, M, D}) ->
         false -> D
     end,
     {Y, M, D2}.
-
-
-%% @private
-date_to_3339(Date) ->
-    Date2 = nklib_util:gmt_to_timestamp({Date, {0, 0, 0}}),
-    {ok, Date3} = nklib_date:to_3339(Date2, secs),
-    Date3.
-
-
-%% @private
-get_date_day_of_week(Date) ->
-    {ok, Date2} = nklib_date:to_epoch(Date, secs),
-    {Date3, _} = calendar:now_to_universal_time({0, Date2, 0}),
-    get_weekly_day(Date3).
-
-
-%% @private
-get_date_day_of_month(Date) ->
-    {ok, Date2} = nklib_date:to_epoch(Date, secs),
-    {{_, _, Day}, _} = calendar:now_to_universal_time({0, Date2, 0}),
-    Day.
-
 
 
 %% ===================================================================
@@ -422,7 +395,7 @@ all_tests() ->
 
 daily1_test() ->
     %% 11:50 GMT in Madrid is 12:50
-    {ok, Now1} = nklib_date:to_epoch("2019-12-23T11:50:09Z", secs),
+    Now1  = "2019-12-23T11:50:09Z",
     P1 = #{
         repeat => daily,
         timezone => "Europe/Madrid",
@@ -434,7 +407,7 @@ daily1_test() ->
     <<"2019-12-23T11:50:10.000001Z">> = next_fire_time(Now1, P1, #{}),
 
     % Two seconds later, is already for tomorrow
-    {ok, Now2} = nklib_date:to_epoch("2019-12-23T11:50:11Z", secs),
+    Now2 = "2019-12-23T11:50:11Z",
     <<"2019-12-24T11:50:10.000001Z">> = next_fire_time(Now2, P1, #{}),
 
     % Lets set for sundays, mondays and saturdays

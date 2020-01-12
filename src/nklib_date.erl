@@ -22,13 +22,18 @@
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([epoch/1, now_hex/1, epoch_to_hex/2, now_bin/1, epoch_to_bin/2, bin_to_epoch/1, now_3339/1]).
--export([to_3339/2, to_epoch/2, is_3339/1]).
--export([age/1]).
+-export([to_3339/2, to_epoch/2, to_calendar/1, is_3339/1]).
+-export([age/1, calendar_to_secs/1, secs_to_calendar/1]).
 -export([store_timezones/0, get_timezones/0, is_valid_timezone/1, syntax_timezone/1]).
--export_type([epoch_unit/0, epoch/1]).
+-export_type([epoch_unit/0, epoch/1, epoch/0, rfc3339/0, epoch_hex/0, epoch_bin36/0]).
 
+-type epoch() :: pos_integer().
 -type epoch_unit() :: secs | msecs | usecs.
 -type epoch(_Unit) :: pos_integer().
+-type rfc3339() :: binary().
+-type epoch_hex() :: binary().
+-type epoch_bin36() :: binary().
+-type datetime() :: calendar:datetime().
 
 -include("nklib.hrl").
 -include_lib("qdate_localtime/include/tz_database.hrl").
@@ -41,7 +46,7 @@
 
 %% @doc Get current epoch time
 -spec epoch(epoch_unit()) ->
-    integer().
+    epoch().
 
 epoch(secs) ->
     epoch(usecs) div 1000000;
@@ -57,7 +62,7 @@ epoch(usecs) ->
 %% @doc Get current epoch in binary for sorting, in hex format
 %% See epoch_to_hex/2
 -spec now_hex(epoch_unit()) ->
-    binary().
+    epoch_hex().
 
 now_hex(Unit) ->
     epoch_to_hex(epoch(Unit), Unit).
@@ -68,6 +73,8 @@ now_hex(Unit) ->
 %% For msecs: 12 bytes
 %% For usecs: 14 byes
 %% It will never wrap, see epoch_to_hex_test/0
+-spec epoch_to_hex(epoch(), epoch_unit()) ->
+    epoch_hex().
 
 epoch_to_hex(Epoch, Unit) ->
     Hex = nklib_util:hex(binary:encode_unsigned(Epoch)),
@@ -85,11 +92,10 @@ epoch_to_hex(Epoch, Unit) ->
     end.
 
 
-
-%% @doc Get current epoch in binary for sorting, in hex format
+%% @doc Get current epoch in binary for sorting, in bin36 format
 %% See epoch_to_hex/2
 -spec now_bin(epoch_unit()) ->
-    binary().
+    epoch_bin36().
 
 now_bin(Unit) ->
     epoch_to_bin(epoch(Unit), Unit).
@@ -98,6 +104,9 @@ now_bin(Unit) ->
 %% @doc Get current epoch in binary for sorting.
 %% It will never wrap, see epoch_to_bin_test/0
 
+
+-spec epoch_to_bin(epoch(), epoch_unit()) -> 
+    epoch_bin36().
 epoch_to_bin(Epoch, Unit) ->
     Bin = erlang:integer_to_binary(Epoch, 36),
     Size = case Unit of
@@ -108,16 +117,17 @@ epoch_to_bin(Epoch, Unit) ->
     nklib_util:lpad(Bin, Size, $0).
 
 
+-spec bin_to_epoch(epoch_bin36()) ->
+    epoch().
 bin_to_epoch(Bin) ->
     erlang:binary_to_integer(Bin, 36).
-
 
 
 %% @doc Get current epoch time, using the cached pattern
 %% The normal approach get_date + convert_to_3339 takes about 100K-140K/s (usecs-secs)
 %% This approach taking a second-resolution cache takes about 1M-2M/s (usecs-secs)
 -spec now_3339(epoch_unit()) ->
-    binary().
+    rfc3339().
 
 now_3339(secs) ->
     Secs = epoch(secs),
@@ -162,10 +172,9 @@ now_3339(usecs) ->
     end.
 
 
-
 %% @doc Converts an incoming epoch or rfc3339 to normalized rfc3339
--spec to_3339(integer()|binary()|string(), epoch_unit()) ->
-    {ok, binary()} | {error, term()}.
+-spec to_3339(integer()|binary()|string()|datetime(), epoch_unit()) ->
+    {ok, rfc3339()} | {error, term()}.
 
 to_3339(Epoch, Unit) when is_integer(Epoch) ->
     rfc3339:format(Epoch, to_erlang_unit(Unit));
@@ -177,11 +186,16 @@ to_3339(Date, Unit) when is_binary(Date); is_list(Date) ->
             to_3339(Time, Unit);
         {error, Error} ->
             {error, Error}
-    end.
+    end;
+
+to_3339(Date, secs) when is_tuple(Date) ->
+    Epoch = calendar_to_secs(Date),
+    true = is_integer(Epoch),
+    to_3339(Epoch, secs).
 
 
 %% @doc Converts an incoming epoch or rfc3339 to normalized epoch
--spec to_epoch(integer()|binary()|list(), epoch_unit()) ->
+-spec to_epoch(integer()|binary()|list()|datetime(), epoch_unit()) ->
     {ok, integer()} | {error, term()}.
 
 to_epoch(Epoch, Unit) when is_integer(Epoch) ->
@@ -203,7 +217,34 @@ to_epoch(Epoch, Unit) when is_integer(Epoch) ->
     end;
 
 to_epoch(Date, Unit) when is_binary(Date); is_list(Date) ->
-    rfc3339:to_time(to_bin(Date), to_erlang_unit(Unit)).
+    rfc3339:to_time(to_bin(Date), to_erlang_unit(Unit));
+
+to_epoch(Date, secs) when is_tuple(Date) ->
+    calendar_to_secs(Date).
+
+
+%% @doc Converts an incoming epoch or rfc3339 to normalized epoch
+-spec to_calendar(integer()|binary()|list()|datetime()) ->
+    {ok, integer()} | {error, term()}.
+
+to_calendar(Epoch) when is_integer(Epoch) ->
+    Secs = case epoch_unit(Epoch) of
+        secs -> Epoch;
+        msecs -> Epoch div 1000;
+        usecs -> Epoch div 1000000
+    end,
+    {ok, secs_to_calendar(Secs)};
+
+to_calendar(Date) when is_binary(Date); is_list(Date) ->
+    case to_epoch(Date, secs) of
+        {ok, Epoch} ->
+            to_calendar(Epoch);
+        {error, Error} ->
+            {error, Error}
+    end;
+
+to_calendar(Date) when is_tuple(Date) ->
+    Date.
 
 
 %% @doc Quick 3339 parser (only for Z timezone)
@@ -247,6 +288,22 @@ is_3339(Val) ->
         _ ->
             false
     end.
+
+
+
+%% @doc Converts a `timestamp()' to a gmt `datetime()'.
+-spec secs_to_calendar(epoch()) ->
+    datetime().
+
+secs_to_calendar(Secs) ->
+    calendar:now_to_universal_time({0, Secs, 0}).
+
+
+-spec calendar_to_secs(datetime()) ->
+    epoch().
+
+calendar_to_secs(DateTime) ->
+    calendar:datetime_to_gregorian_seconds(DateTime) - 62167219200.
 
 
 %% @private
@@ -353,10 +410,10 @@ to_bin(K) -> nklib_util:to_binary(K).
 
 
 dates_test() ->
-    G1971 = nklib_util:gmt_to_timestamp({{1971, 1, 1}, {0,0,0}}),
-    G1980 = nklib_util:gmt_to_timestamp({{1980, 1, 1}, {0,0,0}}),
-    G2018 = nklib_util:gmt_to_timestamp({{2018, 1, 1}, {0,0,0}}),
-    G2100 = nklib_util:gmt_to_timestamp({{2100, 1, 1}, {0,0,0}}),
+    G1971 = calendar_to_secs({{1971, 1, 1}, {0,0,0}}),
+    G1980 = calendar_to_secs({{1980, 1, 1}, {0,0,0}}),
+    G2018 = calendar_to_secs({{2018, 1, 1}, {0,0,0}}),
+    G2100 = calendar_to_secs({{2100, 1, 1}, {0,0,0}}),
 
     {ok, <<"1971-01-01T00:00:00Z">>} = to_3339(G1971, secs),
     {ok, <<"1971-01-01T00:00:00Z">>} = to_3339(G1971*1000, msecs),
@@ -391,7 +448,7 @@ dates_test() ->
     {true,{{{2015,6,30},{23,59,10}},0.001,msecs}} = is_3339("2015-06-30T23:59:10.001Z"),
     {true,{{{2015,6,30},{23,59,10}},0.0001,usecs}} = is_3339("2015-06-30T23:59:10.0001Z"),
 
-    1435708750 = nklib_util:gmt_to_timestamp({{2015,6,30},{23,59,10}}),
+    1435708750 = calendar_to_secs({{2015,6,30},{23,59,10}}),
 
     {ok,1435708750} = to_epoch(1435708750, secs),
     {ok,1435708750000} = to_epoch(1435708750, msecs),
