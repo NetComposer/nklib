@@ -23,8 +23,11 @@
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([epoch/1, now_hex/1, epoch_to_hex/2, now_bin/1, epoch_to_bin/2, bin_to_epoch/1, now_3339/1]).
 -export([to_3339/2, to_epoch/2, to_calendar/1, is_3339/1]).
+-export([gmt_to_local_epoch/2, gmt_to_local_3339/2, gmt_to_local_calendar/2]).
+-export([local_to_gmt_epoch/2, local_to_gmt_3339/2, local_to_gmt_calendar/2]).
 -export([age/1, calendar_to_secs/1, secs_to_calendar/1]).
 -export([store_timezones/0, get_timezones/0, is_valid_timezone/1, syntax_timezone/1]).
+-export([all_tests/0]).
 -export_type([epoch_unit/0, epoch/1, epoch/0, rfc3339/0, epoch_hex/0, epoch_bin36/0]).
 
 -type epoch() :: pos_integer().
@@ -220,7 +223,7 @@ to_epoch(Date, Unit) when is_binary(Date); is_list(Date) ->
     rfc3339:to_time(to_bin(Date), to_erlang_unit(Unit));
 
 to_epoch(Date, secs) when is_tuple(Date) ->
-    calendar_to_secs(Date).
+    {ok, calendar_to_secs(Date)}.
 
 
 %% @doc Converts an incoming epoch or rfc3339 to normalized epoch
@@ -244,7 +247,7 @@ to_calendar(Date) when is_binary(Date); is_list(Date) ->
     end;
 
 to_calendar(Date) when is_tuple(Date) ->
-    Date.
+    {ok, Date}.
 
 
 %% @doc Quick 3339 parser (only for Z timezone)
@@ -362,6 +365,65 @@ age(Date) ->
     end.
 
 
+gmt_to_local_calendar(DateGmt, TZ) ->
+    case to_epoch(DateGmt, secs) of
+        {ok, Epoch} ->
+            qdate_srv:set_timezone(<<"GMT">>),
+            {ok, qdate:to_date(TZ, Epoch)};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+gmt_to_local_epoch(DateGmt, TZ) ->
+    case gmt_to_local_calendar(DateGmt, TZ) of
+        {ok, Cal} ->
+            {ok, calendar_to_secs(Cal)};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+gmt_to_local_3339(DateGmt, TZ) ->
+    case gmt_to_local_epoch(DateGmt, TZ) of
+        {ok, Epoch} ->
+            to_3339(Epoch, secs);
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+
+local_to_gmt_calendar(DateLocal, TZ) ->
+    %lager:error("NKLOG DL ~p", [DateLocal]),
+    case to_calendar(DateLocal) of
+        {ok, Cal} ->
+            qdate_srv:set_timezone(TZ),
+            {ok, qdate:to_date(<<"GMT">>, Cal)};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+local_to_gmt_epoch(DateLocal, TZ) ->
+    case local_to_gmt_calendar(DateLocal, TZ) of
+        {ok, Cal} ->
+            {ok, calendar_to_secs(Cal)};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+local_to_gmt_3339(DateLocal, TZ) ->
+    case local_to_gmt_calendar(DateLocal, TZ) of
+        {ok, Cal} ->
+            to_3339(Cal, secs);
+        {error, Error} ->
+            {error, Error}
+    end.
+
+
+
 %% @private
 store_timezones() ->
     Zones = [list_to_binary(element(1,TZ)) || TZ <- ?tz_database],
@@ -397,17 +459,16 @@ to_bin(K) when is_binary(K) -> K;
 to_bin(K) -> nklib_util:to_binary(K).
 
 
-
+all_tests() ->
+    dates_test(),
+    epoch_to_hex_test(),
+    bin_to_hex_test(),
+    timezones_test().
 
 
 %% ===================================================================
 %% EUnit tests
 %% ===================================================================
-
-%-define(TEST, 1).
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
-
 
 dates_test() ->
     G1971 = calendar_to_secs({{1971, 1, 1}, {0,0,0}}),
@@ -496,7 +557,6 @@ epoch_to_hex_test() ->
     ok.
 
 
-
 bin_to_hex_test() ->
     Ts1 = 1,
     {ok, Ts2} = nklib_date:to_epoch("1980-01-01T00:00:00Z", secs),
@@ -552,11 +612,87 @@ bin_to_hex_test() ->
     Tu3 = nklib_date:bin_to_epoch(<<"0F848S40LC0">>),
     Tu4 = nklib_date:bin_to_epoch(<<"1ZGSDK8AO00">>),
     Tu5 = nklib_date:bin_to_epoch(<<"HIRL0804QO0">>),
+    ok.
 
+
+timezones_test() ->
+    TZ = "Europe/Madrid",
+
+    Gmt1a = <<"2020-01-11T10:12:00Z">>,
+    Gmt1b = {{2020,1,11},{10,12,0}},
+    Gmt1c = 1578737520,
+
+    Local1a = <<"2020-01-11T11:12:00Z">>,
+    Local1b = {{2020,1,11},{11,12,0}},
+    Local1c = 1578741120,
+
+    {ok, Local1a} = nklib_date:gmt_to_local_3339(Gmt1a, TZ),
+    {ok, Local1a} = nklib_date:gmt_to_local_3339(Gmt1b, TZ),
+    {ok, Local1a} = nklib_date:gmt_to_local_3339(Gmt1c, TZ),
+
+    {ok, Local1b} = nklib_date:gmt_to_local_calendar(Gmt1a, TZ),
+    {ok, Local1b} = nklib_date:gmt_to_local_calendar(Gmt1b, TZ),
+    {ok, Local1b} = nklib_date:gmt_to_local_calendar(Gmt1c, TZ),
+
+    {ok, Local1c} = nklib_date:gmt_to_local_epoch(Gmt1a, TZ),
+    {ok, Local1c} = nklib_date:gmt_to_local_epoch(Gmt1b, TZ),
+    {ok, Local1c} = nklib_date:gmt_to_local_epoch(Gmt1c, TZ),
+
+    {ok, Gmt1a} = nklib_date:local_to_gmt_3339(Local1a, TZ),
+    {ok, Gmt1a} = nklib_date:local_to_gmt_3339(Local1b, TZ),
+    {ok, Gmt1a} = nklib_date:local_to_gmt_3339(Local1c, TZ),
+
+    {ok, Gmt1b} = nklib_date:local_to_gmt_calendar(Local1a, TZ),
+    {ok, Gmt1b} = nklib_date:local_to_gmt_calendar(Local1b, TZ),
+    {ok, Gmt1b} = nklib_date:local_to_gmt_calendar(Local1c, TZ),
+
+    {ok, Gmt1c} = nklib_date:local_to_gmt_epoch(Local1a, TZ),
+    {ok, Gmt1c} = nklib_date:local_to_gmt_epoch(Local1b, TZ),
+    {ok, Gmt1c} = nklib_date:local_to_gmt_epoch(Local1c, TZ),
+
+    TZ2 = "US/Eastern",
+
+    Gmt2a = <<"2020-01-12T02:12:00Z">>,
+    Gmt2b = {{2020,1,12},{02,12,0}},
+    Gmt2c = 1578795120,
+
+    Local2a = <<"2020-01-11T21:12:00Z">>,
+    Local2b = {{2020,1,11},{21,12,0}},
+    Local2c = 1578777120,
+
+    {ok, Local2a} = nklib_date:gmt_to_local_3339(Gmt2a, TZ2),
+    {ok, Local2a} = nklib_date:gmt_to_local_3339(Gmt2b, TZ2),
+    {ok, Local2a} = nklib_date:gmt_to_local_3339(Gmt2c, TZ2),
+
+    {ok, Local2b} = nklib_date:gmt_to_local_calendar(Gmt2a, TZ2),
+    {ok, Local2b} = nklib_date:gmt_to_local_calendar(Gmt2b, TZ2),
+    {ok, Local2b} = nklib_date:gmt_to_local_calendar(Gmt2c, TZ2),
+
+    {ok, Local2c} = nklib_date:gmt_to_local_epoch(Gmt2a, TZ2),
+    {ok, Local2c} = nklib_date:gmt_to_local_epoch(Gmt2b, TZ2),
+    {ok, Local2c} = nklib_date:gmt_to_local_epoch(Gmt2c, TZ2),
+
+    {ok, Gmt2a} = nklib_date:local_to_gmt_3339(Local2a, TZ2),
+    {ok, Gmt2a} = nklib_date:local_to_gmt_3339(Local2b, TZ2),
+    {ok, Gmt2a} = nklib_date:local_to_gmt_3339(Local2c, TZ2),
+
+    {ok, Gmt2b} = nklib_date:local_to_gmt_calendar(Local2a, TZ2),
+    {ok, Gmt2b} = nklib_date:local_to_gmt_calendar(Local2b, TZ2),
+    {ok, Gmt2b} = nklib_date:local_to_gmt_calendar(Local2c, TZ2),
+
+    {ok, Gmt2c} = nklib_date:local_to_gmt_epoch(Local2a, TZ2),
+    {ok, Gmt2c} = nklib_date:local_to_gmt_epoch(Local2b, TZ2),
+    {ok, Gmt2c} = nklib_date:local_to_gmt_epoch(Local2c, TZ2),
     ok.
 
 
 
+%-define(TEST, 1).
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+all_test() ->
+    all_tests().
 
 -endif.
 
