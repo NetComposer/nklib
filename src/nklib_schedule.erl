@@ -224,7 +224,8 @@ get_next_local(Check, Params) ->
         #{second:=S} ->
             S;
         _ ->
-            erlang:phash2(nklib_date:epoch(usecs)) rem 60
+            30
+            %erlang:phash2(nklib_date:epoch(usecs)) rem 60
     end,
     #{hour:=H, minute:=M} = Params,
     % Do not allow FireTime to be {0,0,0} so that recurring times set as {0, 0, 0}
