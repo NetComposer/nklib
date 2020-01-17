@@ -998,8 +998,7 @@ spec({is_normalized, Opts}, Val) ->
     case nklib_parse:normalize(Val2, Opts) of
         Val2 ->
             {ok, Val2};
-        O ->
-            lager:error("NKLOG V2 ~p", [{Val2, O}]),
+        _O ->
             error
     end;
 
