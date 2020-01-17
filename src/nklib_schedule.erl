@@ -220,14 +220,8 @@ get_next_local(Check, Params) ->
         _ ->
             CheckLocal
     end,
-    Sec = case Params of
-        #{second:=S} ->
-            S;
-        _ ->
-            30
-            %erlang:phash2(nklib_date:epoch(usecs)) rem 60
-    end,
     #{hour:=H, minute:=M} = Params,
+    Sec = maps:get(second, Params, 0),
     % Do not allow FireTime to be {0,0,0} so that recurring times set as {0, 0, 0}
     % are always lower than any possible configured fire time
     FireTimeLocal = case {H, M, Sec} of
