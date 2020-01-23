@@ -42,7 +42,7 @@
         daily_week_days => [0..6],
         daily_step_days => 1..25,
         weekly_day => 0..6,
-        monthly_day => 0..28 | last,
+        monthly_day => 1..28 | last,
         start_date => binary,
         stop_date => binary
     }.
@@ -133,7 +133,7 @@ syntax() ->
         daily_week_days => {list, {integer, 0, 6}},
         daily_step_days => {integer, 1, 25},
         weekly_day => {integer, 0, 6},
-        monthly_day => [{integer, 0, 28}, {atom, [last]}],
+        monthly_day => [{integer, 1, 28}, {atom, [last]}],
         start_date => date_3339,
         stop_date => date_3339,
         '__mandatory' => [repeat],
