@@ -34,7 +34,7 @@
 -export([to_binary/1, to_list/1, to_map/1, to_integer/1, to_boolean/1, to_float/1]).
 -export([to_atom/1, to_existing_atom/1, make_atom/2, to_ip/1, to_host/1, to_host/2]).
 -export([to_lower/1, to_upper/1, to_capital/1, to_binlist/1, strip/1, unquote/1, is_string/1]).
--export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1]).
+-export([bjoin/1, bjoin/2, words/1, capitalize/1, append_max/3, randomize/1, get_randomized/1]).
 -export([hex/1, extract/2, delete/2, defaults/2, bin_last/2, find_duplicated/1]).
 -export([cancel_timer/1, reply/2, demonitor/1, msg/2]).
 -export([add_id/2, add_id/3]).
@@ -1051,6 +1051,18 @@ randomize(List) when is_list(List) ->
     Size = length(List),
     List1 = [{rand:uniform(Size), Term} || Term <- List],
     [Term || {_, Term} <- lists:sort(List1)].
+
+
+%% @doc
+-spec get_randomized(list()) -> term() | undefined.
+
+get_randomized([]) ->
+    undefined;
+get_randomized([A]) ->
+    A;
+get_randomized(List) ->
+    Pos = nklib_date:epoch(usecs) rem length(List),
+    lists:nth(Pos+1, List).
 
 
 %% @private
