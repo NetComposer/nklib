@@ -344,10 +344,12 @@ norm_date(Val) ->
     end.
 
 %% @doc
-age(Secs1) when is_integer(Secs1) ->
+age(AgeSecs1) when is_integer(AgeSecs1) ->
+    BaseDate = 62167219200, % calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}),
+    AgeSecs2 = BaseDate + AgeSecs1,
+    {{Y1, M1, D1}, _Time} = calendar:gregorian_seconds_to_datetime(AgeSecs2),
     Secs2 = epoch(secs),
     {{Y2, M2, D2}, _} = calendar:now_to_local_time({0, Secs2, 0}),
-    {{Y1, M1, D1}, _} = calendar:now_to_local_time({0, Secs1, 0}),
     Years1 = Y2 - Y1,
     if
         M2 >= M1, D2 >= D1 ->
