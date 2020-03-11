@@ -194,7 +194,10 @@ to_3339(Date, Unit) when is_binary(Date); is_list(Date) ->
 to_3339(Date, secs) when is_tuple(Date) ->
     Epoch = calendar_to_secs(Date),
     true = is_integer(Epoch),
-    to_3339(Epoch, secs).
+    to_3339(Epoch, secs);
+
+to_3339(_, _) ->
+    {error, date_invalid}.
 
 
 %% @doc Converts an incoming epoch or rfc3339 to normalized epoch
@@ -223,7 +226,10 @@ to_epoch(Date, Unit) when is_binary(Date); is_list(Date) ->
     rfc3339:to_time(to_bin(Date), to_erlang_unit(Unit));
 
 to_epoch(Date, secs) when is_tuple(Date) ->
-    {ok, calendar_to_secs(Date)}.
+    {ok, calendar_to_secs(Date)};
+
+to_epoch(_, _) ->
+    {error, date_invalid}.
 
 
 %% @doc Converts an incoming epoch or rfc3339 to normalized epoch
@@ -247,7 +253,10 @@ to_calendar(Date) when is_binary(Date); is_list(Date) ->
     end;
 
 to_calendar(Date) when is_tuple(Date) ->
-    {ok, Date}.
+    {ok, Date};
+
+to_calendar(_) ->
+    {error, date_invalid}.
 
 
 %% @doc Quick 3339 parser (only for Z timezone)
