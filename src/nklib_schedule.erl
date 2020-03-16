@@ -261,15 +261,19 @@ check_step_days({Date, Time}, #{repeat:=daily, daily_step_days:=Days}, Status)
     when Days > 1 ->
     case Status of
         #{last_fire_time:=Fire1} ->
-            {ok, {Fire2, _}} = nklib_date:to_calendar(Fire1),
-            Diff =
-                calendar:date_to_gregorian_days(Date) -
-                    calendar:date_to_gregorian_days(Fire2),
-            Add = Days - Diff,
-            case Add > 0 of
-                true ->
-                    {add_days(Date, Add), Time};
-                false ->
+            case nklib_date:to_calendar(Fire1) of
+                {ok, {Fire2, _}} ->
+                    Diff =
+                        calendar:date_to_gregorian_days(Date) -
+                            calendar:date_to_gregorian_days(Fire2),
+                    Add = Days - Diff,
+                    case Add > 0 of
+                        true ->
+                            {add_days(Date, Add), Time};
+                        false ->
+                            {Date, Time}
+                    end;
+                _ ->
                     {Date, Time}
             end;
         _ ->
