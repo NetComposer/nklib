@@ -718,7 +718,7 @@ spec(string, Val) ->
                 {'EXIT', _} -> error;
                 Bin -> {ok, erlang:binary_to_list(Bin)}
             end;
-        is_binary(Val); is_atom(Val); is_integer(Val) ->
+        is_binary(Val); is_atom(Val); is_integer(Val); is_float(Val) ->
             {ok, nklib_util:to_list(Val)};
         true ->
             error
@@ -743,7 +743,7 @@ spec(binary, Val) ->
                 {'EXIT', _} -> error;
                 Bin -> {ok, Bin}
             end;
-        is_atom(Val); is_integer(Val) ->
+        is_atom(Val); is_integer(Val); is_float(Val) ->
             {ok, nklib_util:to_binary(Val)};
         true ->
             error
