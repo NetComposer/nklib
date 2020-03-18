@@ -191,10 +191,18 @@ to_3339(Date, Unit) when is_binary(Date); is_list(Date) ->
             {error, Error}
     end;
 
-to_3339(Date, secs) when is_tuple(Date) ->
-    Epoch = calendar_to_secs(Date),
-    true = is_integer(Epoch),
-    to_3339(Epoch, secs);
+to_3339(Date, Unit) when is_tuple(Date) ->
+    Epoch1 = calendar_to_secs(Date),
+    Epoch2 = case Unit of
+        secs ->
+            Epoch1;
+        msecs ->
+            1000*Epoch1+1;
+        usecs ->
+            1000*1000*Epoch1+1
+    end,
+    true = is_integer(Epoch2),
+    to_3339(Epoch2, Unit);
 
 to_3339(_, _) ->
     {error, date_invalid}.
