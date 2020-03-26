@@ -25,7 +25,7 @@
 -export([to_3339/2, to_epoch/2, to_calendar/1, is_3339/1]).
 -export([gmt_to_local_epoch/2, gmt_to_local_3339/2, gmt_to_local_calendar/2]).
 -export([local_to_gmt_epoch/2, local_to_gmt_3339/2, local_to_gmt_calendar/2]).
--export([age/1, calendar_to_secs/1, secs_to_calendar/1]).
+-export([age/1, calendar_to_secs/1, secs_to_calendar/1, add_days/2, add_month/1]).
 -export([store_timezones/0, get_timezones/0, is_valid_timezone/1, syntax_timezone/1]).
 -export([all_tests/0]).
 -export_type([epoch_unit/0, epoch/1, epoch/0, rfc3339/0, epoch_hex/0, epoch_bin36/0]).
@@ -470,6 +470,32 @@ syntax_timezone(Zone) ->
                     error
             end
     end.
+
+
+%% @private
+add_days(Date, Days) ->
+    calendar:gregorian_days_to_date(calendar:date_to_gregorian_days(Date)+Days).
+
+
+%% @private
+add_month({Y, M, D}) ->
+    {Y2, M2} = case M+1 of
+        13 ->
+            {Y+1, 1};
+        _ ->
+            {Y, M+1}
+    end,
+    add_month_fix({Y2, M2, D}).
+
+
+%% @private
+add_month_fix({Y, M, D}) ->
+    Last = calendar:last_day_of_the_month(Y, M),
+    D2 = case D > Last of
+        true -> Last;
+        false -> D
+    end,
+    {Y, M, D2}.
 
 
 

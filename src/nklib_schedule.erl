@@ -235,7 +235,7 @@ get_next_local(Check, Params) ->
         true ->
             FireLocal;
         false ->
-            FireDate2 = add_days(FireDate, 1),
+            FireDate2 = nklib_date:add_days(FireDate, 1),
             {FireDate2, FireTimeLocal}
     end.
 
@@ -269,7 +269,7 @@ check_step_days({Date, Time}, #{repeat:=daily, daily_step_days:=Days}, Status)
                     Add = Days - Diff,
                     case Add > 0 of
                         true ->
-                            {add_days(Date, Add), Time};
+                            {nklib_date:add_days(Date, Add), Time};
                         false ->
                             {Date, Time}
                     end;
@@ -299,17 +299,13 @@ check_week_days({Date, Time}, Days, Rem) when Rem > 0 ->
         true ->
             {Date, Time};
         false ->
-            Date2 = add_days(Date, 1),
+            Date2 = nklib_date:add_days(Date, 1),
             check_week_days({Date2, Time}, Days, Rem-1)
     end;
 
 check_week_days(_Date, Days, _Rem) ->
     error({days_week_days_invalid, Days}).
 
-
-%% @private
-add_days(Date, Days) ->
-    calendar:gregorian_days_to_date(calendar:date_to_gregorian_days(Date)+Days).
 
 
 %% @private
@@ -319,7 +315,7 @@ next_weekly_date(WD, Date) ->
         Days when Days >= 0 -> Days;
         NegDays -> 7 + NegDays
     end,
-    Date2 = add_days(Date, AddDays),
+    Date2 = nklib_date:add_days(Date, AddDays),
     WD = get_weekly_day(Date2),    % Check
     Date2.
 
@@ -344,32 +340,12 @@ next_monthly_date(MD, {DateY, DateM, DateD}=Date) ->
         0 ->
             Date;
         Days when Days > 0 ->
-            add_days(Date, Days);
+            nklib_date:add_days(Date, Days);
         _ ->
-            Date2 = add_month({DateY, DateM, 1}),
+            Date2 = nklib_date:add_month({DateY, DateM, 1}),
             next_monthly_date(MD, Date2)
     end.
 
-
-%% @private
-add_month({Y, M, D}) ->
-    {Y2, M2} = case M+1 of
-        13 ->
-            {Y+1, 1};
-        _ ->
-            {Y, M+1}
-    end,
-    fix_month({Y2, M2, D}).
-
-
-%% @private
-fix_month({Y, M, D}) ->
-    Last = calendar:last_day_of_the_month(Y, M),
-    D2 = case D > Last of
-        true -> Last;
-        false -> D
-    end,
-    {Y, M, D2}.
 
 
 %% ===================================================================
