@@ -79,6 +79,7 @@
     binary | {binary, [binary()]} | {binary, none|integer(), none|integer()} |
     text | {text, [binary()]} |
     date_3339 |                      % From any format or epoch to rfc3339
+    time_secs |
     {epoch, secs|msecs|usecs} |
     base64 | base64url |
     lower |
@@ -872,6 +873,16 @@ spec({epoch, Unit}, Val) ->
             {ok, Val2};
         {error, _Error} ->
             error
+    end;
+
+spec(time_secs, Val) ->
+    Val2 = to_bin(Val),
+    case nklib_date:to_time_secs(Val2) of
+        {ok, _} ->
+            {ok, Val2};
+        _ ->
+            error
+
     end;
 
 spec(ip, Val) ->

@@ -22,7 +22,7 @@
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([epoch/1, now_hex/1, epoch_to_hex/2, now_bin/1, epoch_to_bin/2, bin_to_epoch/1, now_3339/1]).
--export([to_3339/2, to_epoch/2, to_calendar/1, is_3339/1]).
+-export([to_3339/2, to_epoch/2, to_calendar/1, is_3339/1, to_time_secs/1]).
 -export([gmt_to_local_epoch/2, gmt_to_local_3339/2, gmt_to_local_calendar/2]).
 -export([local_to_gmt_epoch/2, local_to_gmt_3339/2, local_to_gmt_calendar/2]).
 -export([age/1, calendar_to_secs/1, secs_to_calendar/1, add_days/2, add_month/1]).
@@ -308,6 +308,52 @@ is_3339(Val) ->
         _ ->
             false
     end.
+
+
+to_time_secs(Val) ->
+    Val2 = to_bin(Val),
+    case binary:split(Val2, <<":">>, [global]) of
+        [Hour] ->
+            case catch binary_to_integer(Hour) of
+                Hour2 when Hour >= 0, Hour2 =< 23 ->
+                    {ok, {Hour2, 0, 0}};
+                _ ->
+                    error
+            end;
+        [Hour, Minute] ->
+            case catch binary_to_integer(Hour) of
+                Hour2 when Hour >= 0, Hour2 =< 23 ->
+                    case catch binary_to_integer(Minute) of
+                        Minute2 when Minute >= 0, Minute2 =< 59 ->
+                            {ok, {Hour2, Minute2, 0}};
+                        _ ->
+                            error
+                    end;
+                _ ->
+                    error
+            end;
+        [Hour, Minute, Second] ->
+            case catch binary_to_integer(Hour) of
+                Hour2 when Hour >= 0, Hour2 =< 23 ->
+                    case catch binary_to_integer(Minute) of
+                        Minute2 when Minute >= 0, Minute2 =< 59 ->
+                            case catch binary_to_integer(Second) of
+                                Second2 when Second2 >= 0, Second2 =< 59 ->
+                                    {ok, {Hour2, Minute2, Second2}};
+                                _ ->
+                                    error
+                            end;
+                        _ ->
+                            error
+                    end;
+                _ ->
+                    error
+            end;
+        _ ->
+            error
+    end.
+
+
 
 
 
