@@ -38,6 +38,7 @@
         '__mandatory' => [key()],                   % Mandatory fields for this level
         '__unique_keys' => [key()],                 % Checks that keys are unique in a list
         '__allow_unknown' => boolean(),             % Allow unknown fields
+        '__skip_invalid' => boolean(),
         '__post_check' => post_check_fun()
     }.
 
@@ -165,6 +166,7 @@
     syntax :: map(),
     path :: binary(),
     allow_unknown :: boolean(),
+    skip_invalid :: boolean(),
     opts :: parse_opts()
 }).
 
@@ -198,11 +200,18 @@ parse(Terms, Syntax, Opts) when is_list(Terms) ->
         _ ->
             maps:get(allow_unknown, Opts, false)
     end,
+    SkipInvalid = case Syntax of
+        #{'__skip_invalid':=Skip} ->
+            Skip;
+        _ ->
+            maps:get(skip_invalid, Opts, false)
+    end,
     Parse = #parse{
         syntax = Syntax,
         opts = Opts,
         path = maps:get(path, Opts, <<>>),
-        allow_unknown = AllowUnknown
+        allow_unknown = AllowUnknown,
+        skip_invalid = SkipInvalid
     },
     case do_parse(Terms, Parse) of
         {ok, #parse{ok=Ok, no_ok=NoOk}} ->
@@ -265,7 +274,8 @@ do_parse([Key | Rest], Parse) ->
 
 
 %% @private
-do_parse_key(Key, Val, #parse{allow_unknown=AllowUnknown}=Parse) ->
+do_parse_key(Key, Val, Parse) ->
+    #parse{allow_unknown=AllowUnknown, skip_invalid=SkipInvalid} = Parse,
      case find_syntax(Key, Parse) of
          {ok, _Key2, ignore} ->
              {ok, Parse};
@@ -281,6 +291,8 @@ do_parse_key(Key, Val, #parse{allow_unknown=AllowUnknown}=Parse) ->
                      {ok, Parse4};
                  {error, unknown} ->
                      error({invalid_syntax, SyntaxOp});
+                 {error, syntax} when SkipInvalid ->
+                     {ok, Parse};
                  {error, syntax} ->
                      {error, syntax_error(Key2, Parse)};
                  {error, Error} ->
