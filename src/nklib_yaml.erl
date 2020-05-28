@@ -43,8 +43,13 @@
 
 decode(Term) ->
     Fun = fun() ->
-        Objs = yamerl_constr:string(Term),
-        parse_decoded_list(Objs, [])
+        case yamerl:decode(Term, [{map_node_format, map}, str_node_as_binary]) of
+            [[_|_]=Res|[]] ->
+                % If the response is a list of a single list, then return the inner list
+                Res;
+            Res ->
+                Res
+        end
     end,
     case nklib_util:do_try(Fun) of
         {exception, {error, {Error, Trace}}} ->
@@ -63,57 +68,6 @@ decode(Term) ->
     end.
 
 
-%% @private
-parse_decoded_list([], Acc) ->
-    case Acc of
-        [List] when is_list(List) ->
-            List;
-        [Tuple] ->
-            [Tuple];
-        _ ->
-            lists:reverse(Acc)
-    end;
-
-parse_decoded_list([Obj|Rest], Acc) ->
-    case Obj of
-        [Tuple|_] when is_tuple(Tuple) ->
-            Obj2 = parse_decoded_obj(Obj, []),
-            parse_decoded_list(Rest, [Obj2|Acc]);
-        [List|_] when is_list(List) ->
-            Obj2 = parse_decoded_list(Obj, []),
-            parse_decoded_list(Rest, [Obj2|Acc]);
-        _ when is_list(Obj) ->
-            parse_decoded_list(Rest, [to_bin(Obj)|Acc]);
-        _ when is_integer(Obj); is_float(Obj); is_atom(Obj) ->
-            parse_decoded_list(Rest, [Obj|Acc])
-    end.
-
-
-
-%% @private
-parse_decoded_obj([], Acc) ->
-    maps:from_list(Acc);
-
-parse_decoded_obj([{Key, Val}|Rest], Acc) ->
-    Val2 = case Val of
-        [Tuple|_] when is_tuple(Tuple) ->
-            parse_decoded_obj(Val, []);
-        [List|_] when is_list(List) ->
-            parse_decoded_list(Val, []);
-        String when is_list(String) ->
-            to_bin(String);
-        _ ->
-            Val
-    end,
-    parse_decoded_obj(Rest, [{to_bin(Key), Val2}|Acc]).
-
-
-%% @private
-to_bin(List) ->
-    unicode:characters_to_binary(List).
-
-
-
 %% ===================================================================
 %% Tests
 %% ===================================================================
@@ -124,6 +78,7 @@ test() ->
     test_2(),
     test_3(),
     test_4(),
+    test_5(),
     ok.
 
 
@@ -237,3 +192,11 @@ test_4() ->
     Res1 = decode(Body2),
     ok.
 
+
+test_5() ->
+    Body = <<"
+    a: []
+    b: \"\"
+    ">>,
+    [#{<<"a">> := [], <<"b">> := <<>>}] = decode(Body),
+    ok.
