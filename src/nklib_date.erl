@@ -21,7 +21,7 @@
 %% @doc NetComposer Standard Library
 -module(nklib_date).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
--export([epoch/1, now_hex/1, epoch_to_hex/2, now_bin/1, epoch_to_bin/2, bin_to_epoch/1, now_3339/1]).
+-export([epoch/1, now_hex/1, epoch_to_hex/2, now_bin/1, epoch_to_bin/2, bin_to_epoch/1, now_3339/1, now_3339/2]).
 -export([to_3339/2, to_epoch/2, to_calendar/1, is_3339/1, to_time_secs/1]).
 -export([gmt_to_local_epoch/2, gmt_to_local_3339/2, gmt_to_local_calendar/2]).
 -export([local_to_gmt_epoch/2, local_to_gmt_3339/2, local_to_gmt_calendar/2]).
