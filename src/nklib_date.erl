@@ -132,7 +132,7 @@ bin_to_epoch(Bin) ->
 -spec now_3339(epoch_unit()) ->
     rfc3339().
 
-now_3339(time) -> now_3339(time, 0).
+now_3339(Time) -> now_3339(Time, 0).
 
 now_3339(secs, diff) ->
     Secs = epoch(secs) + diff,
