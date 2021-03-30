@@ -134,8 +134,8 @@ bin_to_epoch(Bin) ->
 
 now_3339(Time) -> now_3339(Time, 0).
 
-now_3339(secs, diff) ->
-    Secs = epoch(secs) + diff,
+now_3339(secs, Diff) ->
+    Secs = epoch(secs) + Diff,
     case ets:lookup(nklib_date, date) of
         [{date, Secs, Secs3339}] ->
             <<Secs3339/binary, $Z>>;
@@ -146,8 +146,8 @@ now_3339(secs, diff) ->
             Date
     end;
 
-now_3339(msecs, diff) ->
-    Now = epoch(msecs) + diff,
+now_3339(msecs, Diff) ->
+    Now = epoch(msecs) + Diff,
     Secs = Now div 1000,
     case ets:lookup(nklib_date, date) of
         [{date, Secs, Secs3339}] ->
@@ -161,8 +161,8 @@ now_3339(msecs, diff) ->
             Date
     end;
 
-now_3339(usecs, diff) ->
-    Now = epoch(usecs) + diff,
+now_3339(usecs, Diff) ->
+    Now = epoch(usecs) + Diff,
     Secs = Now div 1000000,
     case ets:lookup(nklib_date, date) of
         [{date, Secs, Secs3339}] ->
