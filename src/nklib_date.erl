@@ -132,8 +132,10 @@ bin_to_epoch(Bin) ->
 -spec now_3339(epoch_unit()) ->
     rfc3339().
 
-now_3339(secs) ->
-    Secs = epoch(secs),
+now_3339(time) -> now_3339(time, 0)
+
+now_3339(secs, diff) ->
+    Secs = epoch(secs) + diff,
     case ets:lookup(nklib_date, date) of
         [{date, Secs, Secs3339}] ->
             <<Secs3339/binary, $Z>>;
@@ -144,8 +146,8 @@ now_3339(secs) ->
             Date
     end;
 
-now_3339(msecs) ->
-    Now = epoch(msecs),
+now_3339(msecs, diff) ->
+    Now = epoch(msecs) + diff,
     Secs = Now div 1000,
     case ets:lookup(nklib_date, date) of
         [{date, Secs, Secs3339}] ->
@@ -159,8 +161,8 @@ now_3339(msecs) ->
             Date
     end;
 
-now_3339(usecs) ->
-    Now = epoch(usecs),
+now_3339(usecs, diff) ->
+    Now = epoch(usecs) + diff,
     Secs = Now div 1000000,
     case ets:lookup(nklib_date, date) of
         [{date, Secs, Secs3339}] ->
