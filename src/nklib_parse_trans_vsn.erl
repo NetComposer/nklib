@@ -83,7 +83,7 @@ make_get_fun1() ->
 
 %% @private
 make_get_fun2() ->
-    Exp = case is_21_2() of
+    Exp = case is_21_3() of
         true ->
             "
                 do_config_get(Key, Default) ->
@@ -143,6 +143,15 @@ is_21_2() ->
     % Erlang 21.1: 10.1.8
     % Erlang 21.2: 10.2.1
     is_21() andalso erlang:system_info(version) >= "10.2.1".
+
+
+%% @private
+is_21_3() ->
+    % Erlang 21.0: 10.0.8
+    % Erlang 21.1: 10.1.8
+    % Erlang 21.2: 10.2.1
+    % Erlang 21.3: 10.3
+    is_21() andalso erlang:system_info(version) >= "10.3".
 
 
 %% @private
